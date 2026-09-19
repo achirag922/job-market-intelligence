@@ -9,18 +9,29 @@ experience requirements and salary, plus job search and filtering.
 Job dataset / API  ->  Java ETL  ->  PostgreSQL  ->  Spring Boot REST API  ->  React frontend
 ```
 
-The ETL runs inside this application under a dedicated Spring profile and shares the
-entities and Flyway-managed schema with the API.
+The ETL and the API are separate applications with separate lifecycles. They share only
+the database schema, through the `database` module, so that running an ingestion batch can
+never affect API availability.
+
+## Modules
+
+| Module     | What it is                                                              |
+|------------|-------------------------------------------------------------------------|
+| `database` | Flyway migrations, packaged as a jar so both applications resolve the same schema |
+| `backend`  | Spring Boot REST API                                                     |
+| `etl`      | Spring Batch ingestion pipeline, plus the raw input data under `etl/data` |
+| `frontend` | React dashboard (added in a later phase)                                 |
 
 ## Tech stack
 
-| Layer    | Technology                                      |
-|----------|-------------------------------------------------|
-| Backend  | Java 17, Spring Boot 3.5, Spring Data JPA        |
-| Database | PostgreSQL 18, Flyway migrations                 |
-| Build    | Maven                                            |
-| Tests    | JUnit 5, Testcontainers (real PostgreSQL)        |
-| Frontend | React + TypeScript (added in a later phase)      |
+| Layer    | Technology                                                   |
+|----------|--------------------------------------------------------------|
+| Backend  | Java 17, Spring Boot 3.5, Spring Data JPA                    |
+| ETL      | Java 17, Spring Batch 5.2, Spring JDBC, Jackson, Commons CSV |
+| Database | PostgreSQL 18, Flyway migrations                             |
+| Build    | Maven (multi-module)                                         |
+| Tests    | JUnit 5, AssertJ, Testcontainers (real PostgreSQL)           |
+| Frontend | React + TypeScript (added in a later phase)                  |
 
 ## Prerequisites
 
@@ -50,13 +61,35 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_DB_PASSWORD` | `postgres`  |
 | `JMIP_SERVER_PORT` | `8080`      |
 
-## Running
+## Building
 
 ```
-mvn spring-boot:run
+mvn clean install
+```
+
+Whichever application starts first applies the Flyway migrations; both resolve them from
+the `database` module, so the schema is identical either way.
+
+## Running the API
+
+```
+mvn -pl backend spring-boot:run
 ```
 
 Health check: `http://localhost:8080/actuator/health`
+
+## Running the ETL
+
+The input file is a job parameter, so switching datasets needs no code change:
+
+```
+java -jar etl/target/etl-0.0.1-SNAPSHOT.jar inputFile=etl/data/raw/synthetic-job-postings-v1.json
+```
+
+A `.csv` file is read with Apache Commons CSV instead, chosen by extension. CSV files
+without a source column take one from an optional `defaultSource=<name>` parameter.
+
+Re-running the same file is safe: duplicate detection means nothing is loaded twice.
 
 ## Testing
 
@@ -64,16 +97,24 @@ Health check: `http://localhost:8080/actuator/health`
 mvn test
 ```
 
+Unit tests are plain JUnit. The integration tests start a throwaway PostgreSQL through
+Testcontainers, so Docker must be running.
+
 ## Project layout
 
 ```
-src/main/java/com/jmip
-  common/exception   Global exception handling and the shared ApiError response
-src/main/resources
-  db/migration       Flyway migrations (schema is owned by Flyway, never by Hibernate)
+database/src/main/resources/db/migration   Flyway migrations, the single source of schema truth
+backend/src/main/java/com/jmip
+  common/exception                         Global exception handling and the shared ApiError
+etl/src/main/java/com/jmip/etl
+  raw/                                     Input readers (JSON, CSV) and the RawJobRecord contract
+  transform/                               Cleaning, parsing, skill extraction, fingerprinting
+  validation/                              Validation rules and rejected-record storage
+  load/                                    Chunk writer, reference-data cache, metrics
+  batch/                                   Spring Batch job, step and listeners
 etl/data
-  README.md          Dataset sources, licensing, column dictionary and input format
-  raw/               Raw job-posting input read by the ETL
+  README.md                                Dataset sources, licensing, column dictionary
+  raw/                                     Raw job-posting input read by the ETL
 ```
 
 ## Build phases
@@ -81,7 +122,7 @@ etl/data
 - [x] Phase 1 — project skeleton, database and Flyway wiring, error handling, health endpoint
 - [x] Phase 2 — database schema: companies, locations, skills, jobs, job_skills
 - [x] Phase 3 — initial job data: synthetic development dataset and input format
-- [ ] Phase 4 — ETL ingestion
+- [x] Phase 4 — Spring Batch ETL: extract, transform, skill extraction, validation, dedupe, load
 - [ ] Phase 5 — job search and filtering API
 - [ ] Phase 6 — skill, location and company analytics APIs
 - [ ] Phase 7 — React dashboard

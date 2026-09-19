@@ -1,0 +1,110 @@
+spring:
+  application:
+    name: jmip-etl
+
+  datasource:
+    url: jdbc:postgresql://${JMIP_DB_HOST:localhost}:${JMIP_DB_PORT:5433}/${JMIP_DB_NAME:jmip}
+    username: ${JMIP_DB_USERNAME:postgres}
+    password: ${JMIP_DB_PASSWORD:postgres}
+    hikari:
+      # The batch writer uses one connection; a couple spare covers the REQUIRES_NEW
+      # transaction that records rejections.
+      maximum-pool-size: 5
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  batch:
+    jdbc:
+      # Flyway owns every table, including Spring Batch's own metadata (see V2).
+      initialize-schema: never
+
+jmip:
+  etl:
+    # Large enough that per-chunk overhead is amortised, small enough that a failure
+    # costs little and the transaction stays short.
+    chunk-size: 100
+    # A run where this many records are rejected is almost certainly the wrong file or
+    # the wrong column mapping, and should stop rather than grind through.
+    skip-limit: 500
+
+    skill-dictionary:
+      skills:
+        - name: Java
+          category: LANGUAGE
+          aliases: [ "core java", "java se", "java ee", "j2ee" ]
+        - name: Python
+          category: LANGUAGE
+          aliases: [ "python3" ]
+        - name: SQL
+          category: LANGUAGE
+          aliases: [ "ansi sql" ]
+        - name: Spring
+          category: FRAMEWORK
+          aliases: [ "spring framework" ]
+          # A posting that only says "Spring Boot" should not also count towards Spring.
+          superseded-by: [ "Spring Boot" ]
+        - name: Spring Boot
+          category: FRAMEWORK
+          aliases: [ "springboot" ]
+        - name: Microservices
+          category: ARCHITECTURE
+          aliases: [ "microservice", "micro services" ]
+        - name: AWS
+          category: CLOUD
+          aliases: [ "amazon web services" ]
+        - name: Azure
+          category: CLOUD
+          aliases: [ "microsoft azure" ]
+        - name: GCP
+          category: CLOUD
+          aliases: [ "google cloud platform", "google cloud" ]
+        - name: Docker
+          category: PLATFORM
+          aliases: [ "containerisation", "containerization" ]
+        - name: Kubernetes
+          category: PLATFORM
+          aliases: [ "k8s" ]
+        - name: Kafka
+          category: DATA
+          aliases: [ "apache kafka" ]
+        - name: Spark
+          category: DATA
+          aliases: [ "apache spark", "pyspark" ]
+        - name: Databricks
+          category: DATA
+        - name: Snowflake
+          category: DATA
+        - name: Airflow
+          category: DATA
+          aliases: [ "apache airflow" ]
+        - name: React
+          category: FRONTEND
+          aliases: [ "react.js", "reactjs" ]
+        - name: Angular
+          category: FRONTEND
+          aliases: [ "angularjs" ]
+        - name: Node.js
+          category: FRONTEND
+          aliases: [ "nodejs", "node js" ]
+        - name: Terraform
+          category: PLATFORM
+        - name: Git
+          category: TOOL
+          aliases: [ "version control" ]
+        - name: Jenkins
+          category: TOOL
+        - name: JUnit
+          category: TESTING
+          aliases: [ "junit5", "junit 5" ]
+        - name: Selenium
+          category: TESTING
+          aliases: [ "selenium webdriver" ]
+
+logging:
+  level:
+    com.jmip.etl: INFO
+    org.springframework.batch: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"

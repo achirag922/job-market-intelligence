@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.jmip</groupId>
+        <artifactId>job-market-intelligence</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>database</artifactId>
+    <name>JMIP Database</name>
+    <description>
+        Flyway migrations shared by every application that talks to the JMIP database.
+        Carries no code: the jar exists so that both backend and etl resolve exactly the
+        same schema from the classpath, leaving one source of truth for the migrations.
+    </description>
+</project>
