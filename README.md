@@ -71,13 +71,17 @@ src/main/java/com/jmip
   common/exception   Global exception handling and the shared ApiError response
 src/main/resources
   db/migration       Flyway migrations (schema is owned by Flyway, never by Hibernate)
+etl/data
+  README.md          Dataset sources, licensing, column dictionary and input format
+  raw/               Raw job-posting input read by the ETL
 ```
 
 ## Build phases
 
 - [x] Phase 1 — project skeleton, database and Flyway wiring, error handling, health endpoint
-- [ ] Phase 2 — domain model and schema (job, company, location, skill)
-- [ ] Phase 3 — ETL ingestion
-- [ ] Phase 4 — job search and filtering API
-- [ ] Phase 5 — skill, location and company analytics APIs
-- [ ] Phase 6 — React dashboard
+- [x] Phase 2 — database schema: companies, locations, skills, jobs, job_skills
+- [x] Phase 3 — initial job data: synthetic development dataset and input format
+- [ ] Phase 4 — ETL ingestion
+- [ ] Phase 5 — job search and filtering API
+- [ ] Phase 6 — skill, location and company analytics APIs
+- [ ] Phase 7 — React dashboard
