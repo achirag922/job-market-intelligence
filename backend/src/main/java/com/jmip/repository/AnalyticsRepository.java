@@ -5,6 +5,7 @@ import com.jmip.repository.projection.CategoryCountRow;
 import com.jmip.repository.projection.CompanyDemandRow;
 import com.jmip.repository.projection.ExperienceCountRow;
 import com.jmip.repository.projection.LocationDemandRow;
+import com.jmip.repository.projection.SalaryRangeRow;
 import com.jmip.repository.projection.SkillDemandRow;
 import com.jmip.repository.projection.TitleCountRow;
 import com.jmip.repository.projection.TitleSkillCountRow;
@@ -190,4 +191,64 @@ public interface AnalyticsRepository extends Repository<Job, Long> {
 
     @Query("select count(j.id) from Job j where j.location.id = :locationId")
     long countJobsForLocation(@Param("locationId") Long locationId);
+
+    // ------------------------------------------------------------- V5: assistant queries
+
+    /**
+     * Where postings asking for one skill are concentrated.
+     *
+     * <p>The per-category equivalents above answer "which cities want Data Engineers";
+     * this answers "which cities want Java". Same shape, different filter — a skill is not
+     * a category, and neither can stand in for the other.
+     */
+    @Query("""
+            select new com.jmip.repository.projection.LocationDemandRow(
+                l.id, l.city, l.state, l.country, count(j.id))
+            from Job j join j.location l join j.skills s
+            where lower(s.name) = lower(:skill)
+            group by l.id, l.city, l.state, l.country
+            order by count(j.id) desc, l.country asc
+            """)
+    List<LocationDemandRow> findLocationsForSkill(@Param("skill") String skill, Pageable limit);
+
+    /** Which companies ask for one skill. */
+    @Query("""
+            select new com.jmip.repository.projection.CompanyDemandRow(
+                c.id, c.name, c.industry, c.website, count(j.id))
+            from Job j join j.company c join j.skills s
+            where lower(s.name) = lower(:skill)
+            group by c.id, c.name, c.industry, c.website
+            order by count(j.id) desc, c.name asc
+            """)
+    List<CompanyDemandRow> findCompaniesForSkill(@Param("skill") String skill, Pageable limit);
+
+    /** How many postings ask for one skill, for comparing two of them. */
+    @Query("""
+            select count(distinct j.id) from Job j join j.skills s
+            where lower(s.name) = lower(:skill)
+            """)
+    long countJobsWithSkill(@Param("skill") String skill);
+
+    /**
+     * Stated salaries, grouped by currency, optionally within one category.
+     *
+     * <p>Grouped and never pooled. The dataset carries eight currencies and no exchange
+     * rates, so a single "average salary" across them would be arithmetic on
+     * incomparable units. Postings that state no minimum are excluded rather than counted
+     * as zero, and the count comes back with the figures so a caller can see how thin the
+     * sample is.
+     *
+     * @param category exact job category, or null for every posting
+     */
+    @Query("""
+            select new com.jmip.repository.projection.SalaryRangeRow(
+                trim(j.currency), count(j.id), min(j.salaryMin), max(j.salaryMax),
+                avg(j.salaryMin), avg(j.salaryMax))
+            from Job j
+            where j.salaryMin is not null and j.currency is not null
+              and (:category is null or j.jobCategory = :category)
+            group by trim(j.currency)
+            order by count(j.id) desc, trim(j.currency) asc
+            """)
+    List<SalaryRangeRow> findSalaryRanges(@Param("category") String category);
 }

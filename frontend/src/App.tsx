@@ -1,4 +1,5 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { AiAssistant } from './pages/AiAssistant';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
@@ -18,6 +19,7 @@ const NAV_ITEMS = [
   { to: '/analytics/companies', label: 'Companies', end: false },
   { to: '/analytics/locations', label: 'Locations', end: false },
   { to: '/resume', label: 'Resume', end: false },
+  { to: '/assistant', label: 'Ask the Data', end: false },
 ];
 
 export default function App() {
@@ -50,6 +52,7 @@ export default function App() {
           <Route path="/analytics/companies" element={<CompanyAnalytics />} />
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
           <Route path="/resume" element={<ResumeIntelligence />} />
+          <Route path="/assistant" element={<AiAssistant />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

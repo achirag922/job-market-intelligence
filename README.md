@@ -63,6 +63,20 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_RESUME_DIR`  | `./data/resumes` |
 | `JMIP_RESUME_MAX_FILE_SIZE` | `5MB` |
 | `JMIP_ETL_JOB`     | `ingestJobPostings` |
+| `AI_PROVIDER`      | `anthropic` (or `stub`) |
+| `AI_API_KEY`       | *(unset)*   |
+| `AI_MODEL`         | `claude-opus-5` |
+| `AI_TEMPERATURE`   | *(unset — see below)* |
+| `AI_MAX_TOKENS`    | `8192`      |
+| `AI_TIMEOUT`       | `30s`       |
+| `JMIP_ASSISTANT_MAX_LIMIT` | `25` |
+| `JMIP_ASSISTANT_MAX_JOB_RESULTS` | `20` |
+| `JMIP_ASSISTANT_MIN_SALARY_SAMPLE` | `5` |
+
+`AI_API_KEY` has no default and appears in no file in this repository. With it unset the
+application starts normally and the assistant reports itself unavailable; nothing else is
+affected. `AI_TEMPERATURE` is left unset because the current Claude models removed sampling
+controls and reject it with a 400 — set it only for a model that accepts one.
 
 Classification rules — the categories, their keywords and the signal weights — live in
 `etl/src/main/resources/application.yml` under `jmip.etl.classification`. They are
@@ -113,8 +127,8 @@ Opens on `http://localhost:5173` and talks to the API at `VITE_API_BASE_URL`
 (see `frontend/.env.example`). The backend must be running, and its `jmip.cors.allowed-origins`
 must include the frontend's origin — `http://localhost:5173` is allowed by default.
 
-Pages: Dashboard, Job Explorer, Job Details, Skill Analytics, Skill Trends,
-Company Analytics, Location Analytics, Resume Intelligence.
+Pages: Dashboard, Job Explorer, Job Details, Job Intelligence, Skill Analytics, Skill Trends,
+Company Analytics, Location Analytics, Resume Intelligence, Ask the Data.
 
 ## Testing
 
@@ -125,12 +139,27 @@ mvn test
 Unit tests are plain JUnit. The integration tests start a throwaway PostgreSQL through
 Testcontainers, so Docker must be running.
 
+Frontend tests run separately:
+
+```
+cd frontend
+npm test
+```
+
+**No test calls a model provider.** The assistant's tests substitute a scripted `AiClient`,
+so the suite is deterministic, needs no API key, costs nothing to run, and can exercise the
+cases a real provider cannot be asked for — malformed JSON, an intent outside the enum, a
+timeout on demand.
+
 ## Project layout
 
 ```
 database/src/main/resources/db/migration   Flyway migrations, the single source of schema truth
 backend/src/main/java/com/jmip
   common/exception                         Global exception handling and the shared ApiError
+  ai/                                      The only code that talks to a model provider
+  service/assistant/                       V5: intent validation, routing, grounded answers
+  resources/prompts/                       Versioned assistant prompts
 etl/src/main/java/com/jmip/etl
   raw/                                     Input readers (JSON, CSV) and the RawJobRecord contract
   transform/                               Cleaning, parsing, skill extraction, fingerprinting
@@ -155,6 +184,7 @@ etl/data
 - [x] V2 — skill trends: monthly demand snapshots, backfilled from posted dates, and rising/falling detection
 - [x] V3 — resume intelligence: PDF upload, text and skill extraction, resume-to-job match and skill gap
 - [x] V4 — NLP and job intelligence: description text processing, skill extraction from prose, rule-based job classification with confidence and evidence, and per-category analytics
+- [x] V5 — AI job market assistant: natural-language questions answered from the database, with validated intents, reused analytics services, grounded answers and chart metadata
 
 ## API
 
@@ -184,6 +214,8 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 | `GET /api/analytics/companies` | Companies ranked by posting count |
 | `GET /api/analytics/companies/{id}/skills` | Top skills at one company, as a share of that company |
 | `GET /api/analytics/titles` | Most common job titles after grouping, with the skills each role asks for |
+| `POST /api/assistant/query` | Ask a natural-language question. Body: `question`, optional `resumeId`, `jobId`, `context`. See [AI assistant](#ai-assistant-v5) |
+| `GET /api/assistant/intents` | The questions the assistant can answer |
 
 ### Resume intelligence (V3)
 
@@ -307,6 +339,105 @@ accumulating. Descriptions themselves are never touched.
 "QA / Automation Engineer" — and an encoded slash inside a path segment is rejected by the
 servlet container with a 400 before any handler sees it. The alternative, relaxing that
 check application-wide, trades a security control for a URL shape.
+
+### AI assistant (V5)
+
+Ask the dataset a question in ordinary words. The answer is written by a language model,
+but every figure in it is read from PostgreSQL first — the model never sees the database,
+never writes a query, and never chooses what to run.
+
+```
+POST /api/assistant/query
+{ "question": "What are the top skills for Backend Developer jobs?" }
+```
+
+```
+{
+  "question": "...",
+  "answer":   "Among Backend Developer postings, Java and Spring Boot appear most often...",
+  "intent":   "SKILL_DEMAND",
+  "grounded": true,
+  "data":     [ { "skill": "Java", "jobCount": 19, "percentageOfJobs": 100.0, "rank": 1 } ],
+  "visualization": {
+    "type": "BAR", "title": "Top skills in Backend Developer",
+    "xAxis": "Skill", "yAxis": "Job count",
+    "points": [ { "label": "Java", "value": 19 } ]
+  },
+  "context": { "previousIntent": "SKILL_DEMAND", "previousEntities": { "jobCategory": "..." } }
+}
+```
+
+`grounded` is the field to read first. It is true when `data` came from a database query
+and false when the reply is the assistant talking about itself — an unsupported question, a
+skill that does not exist, a missing resume, an unconfigured provider. An ungrounded answer
+makes no claim about the job market, and the UI says so rather than showing an empty table.
+
+`GET /api/assistant/intents` lists the supported intents.
+
+**The pipeline.**
+
+```
+question → model proposes an intent → validation → an existing analytics service
+         → PostgreSQL → rows → model describes those rows → answer + chart metadata
+```
+
+The model appears twice and controls neither step in between. It proposes a name from a
+closed enum and some entity names; everything after that is ordinary Java.
+
+**Supported intents.** `SKILL_DEMAND`, `SKILL_TREND`, `JOB_CATEGORY_DEMAND`,
+`COMPANY_DEMAND`, `LOCATION_DEMAND`, `JOB_SEARCH`, `SALARY_ANALYSIS`, `SKILL_GAP`,
+`RESUME_MATCH`, `SKILL_COMPARISON`, `CATEGORY_COMPARISON`, `GENERAL_JOB_MARKET`. Anything
+else is `UNSUPPORTED`, which asks the user to rephrase rather than guessing.
+
+**Validation.** Nothing the model returns is trusted:
+
+| Check | Effect |
+|---|---|
+| Intent must be a member of the enum | Anything else, including SQL, is `UNSUPPORTED` |
+| Skill, category, company, location must resolve to a stored row | Otherwise refused, naming what was not found |
+| Limits | Clamped to `max-limit` (25), or `max-job-results` (20) for postings |
+| Periods | Clamped to the 2–36 month window the trend service accepts |
+| Required entities | A trend with no skill asks which skill, rather than trending everything |
+
+Resolution also canonicalises: a question saying "kubernetes" queries for the stored
+`Kubernetes`, and the answer echoes the dataset's own spelling.
+
+**Why there is no AI-generated SQL.** The model returns a name from an enum. That name
+selects one of twelve branches, each of which calls a service that existed before the
+assistant did — the same services behind `/api/analytics/*`, `/api/jobs` and `/api/resumes`.
+There is no query builder, no table name in the model's output path, and no branch it can
+add. Entity values are bound parameters of named JPQL queries, and they have already been
+matched against stored rows, so injection has nothing to inject into.
+
+**Visualization** metadata is chosen by the backend from the shape of the data — ranked
+rows are `BAR`, a series over time is `LINE`, a distribution that genuinely sums to a whole
+is `PIE`, postings are `TABLE`, a one-line fact is `NONE`. The frontend maps each name to a
+component it already has; the model never sends markup, code, or a chart type.
+
+**Conversation.** One previous turn is carried, and it travels in the response and back in
+the next request — there is no server-side session and no Redis. An entity the new question
+does not mention is filled in from the previous one, which is what makes "what about
+Bengaluru?" mean "the same thing, in Bengaluru". A question meant to widen the scope will
+keep the previous filter; starting a new conversation clears it.
+
+**Salary questions** are answered per currency or not at all. This dataset states salaries
+in eight currencies with no exchange rates, so a single average would be arithmetic on
+incomparable units. Currencies with fewer than `min-salary-sample` postings are dropped, and
+a scope with nothing left is told it has insufficient data rather than given an estimate.
+
+**Resume questions** (`SKILL_GAP`, `RESUME_MATCH`) need a resume id from the V3 upload
+endpoint, supplied by the caller. Without one the assistant asks for a resume rather than
+answering. The matching itself is V3's, unchanged.
+
+**Provider.** One interface, `AiClient`, with two implementations: `anthropic` (the official
+SDK) and `stub` (keyword matching, no key, no network — for tests and local development).
+Swapping provider is one class and one property. The key is read from configuration, never
+logged, and never sent to the browser; every model call is made by the server.
+
+**Failure handling.** A provider timeout, rate limit, outage, malformed reply or absent key
+all produce a short sentence and `grounded: false`, never a stack trace and never provider
+detail. If the provider fails *after* the rows are retrieved, the rows and the chart are
+returned anyway with a plain description — the numbers are the valuable part.
 
 ### Reading the numbers
 

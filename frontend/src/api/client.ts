@@ -1,4 +1,6 @@
 import type {
+  AssistantRequest,
+  AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
   CompanyDetail,
@@ -108,6 +110,43 @@ async function uploadResume(file: File): Promise<Resume> {
   return (await response.json()) as Resume;
 }
 
+/**
+ * Ask the assistant a question.
+ *
+ * POST with a JSON body rather than a query parameter: questions are long, they are not a
+ * resource to cache, and they have no business in a URL or a browser history.
+ *
+ * A question the assistant cannot answer comes back 200 with an explanation — that is a
+ * successful response, not an error — so only transport and genuine 4xx/5xx land here.
+ */
+async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/api/assistant/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+  }
+
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      if (error.message) {
+        message = error.message;
+      }
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return (await response.json()) as AssistantResponse;
+}
+
 export const api = {
   jobs: (filters: JobFilters, page: number, size: number, sort?: string) =>
     request<PagedResponse<JobSummary>>('/api/jobs', { ...filters, page, size, sort }),
@@ -164,6 +203,8 @@ export const api = {
 
   companyDemand: (page: number, size: number) =>
     request<PagedResponse<CompanyDemand>>('/api/analytics/companies', { page, size }),
+
+  askAssistant,
 };
 
 export { BASE_URL };

@@ -1,10 +1,16 @@
 package com.jmip.service.analytics;
 
 import com.jmip.dto.PagedResponse;
+import com.jmip.dto.CompanyResponse;
+import com.jmip.dto.LocationResponse;
+import com.jmip.dto.analytics.CompanyDemandResponse;
 import com.jmip.dto.analytics.EntitySkillResponse;
+import com.jmip.dto.analytics.LocationDemandResponse;
 import com.jmip.dto.analytics.SkillAnalyticsResponse;
 import com.jmip.dto.analytics.SkillDemandResponse;
 import com.jmip.repository.AnalyticsRepository;
+import com.jmip.repository.projection.CompanyDemandRow;
+import com.jmip.repository.projection.LocationDemandRow;
 import com.jmip.repository.projection.SkillDemandRow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,6 +90,62 @@ public class SkillAnalyticsService {
         long locationJobs = analyticsRepository.countJobsForLocation(locationId);
         return toEntitySkills(analyticsRepository.findSkillsForLocation(locationId, PageRequest.of(0, limit)),
                 locationJobs);
+    }
+
+    // ----------------------------------------------------------- V5: skill scope
+
+    /**
+     * Where postings asking for one skill are.
+     *
+     * <p>The mirror of {@code CategoryAnalyticsService.locationsForCategory}, scoped to a
+     * skill instead of a category, and with percentages taken against that skill's own
+     * postings — a city holding half the Java jobs is 50% of Java, not 50% of everything.
+     *
+     * @param skill canonical skill name, already resolved by the caller
+     */
+    public List<LocationDemandResponse> locationsForSkill(String skill, int limit) {
+        long skillJobs = analyticsRepository.countJobsWithSkill(skill);
+        List<LocationDemandRow> rows =
+                analyticsRepository.findLocationsForSkill(skill, PageRequest.of(0, limit));
+
+        List<LocationDemandResponse> result = new ArrayList<>(rows.size());
+        for (int index = 0; index < rows.size(); index++) {
+            LocationDemandRow row = rows.get(index);
+            result.add(new LocationDemandResponse(
+                    toLocation(row), row.jobCount(),
+                    Metrics.percentageOf(row.jobCount(), skillJobs), index + 1));
+        }
+        return result;
+    }
+
+    /** Which companies ask for one skill, as a share of that skill's own postings. */
+    public List<CompanyDemandResponse> companiesForSkill(String skill, int limit) {
+        long skillJobs = analyticsRepository.countJobsWithSkill(skill);
+        List<CompanyDemandRow> rows =
+                analyticsRepository.findCompaniesForSkill(skill, PageRequest.of(0, limit));
+
+        List<CompanyDemandResponse> result = new ArrayList<>(rows.size());
+        for (int index = 0; index < rows.size(); index++) {
+            CompanyDemandRow row = rows.get(index);
+            result.add(new CompanyDemandResponse(
+                    new CompanyResponse(row.companyId(), row.name(), row.industry(), row.website()),
+                    row.jobCount(),
+                    Metrics.percentageOf(row.jobCount(), skillJobs), index + 1));
+        }
+        return result;
+    }
+
+    /** How many postings ask for one skill, for side-by-side comparisons. */
+    public long jobCountForSkill(String skill) {
+        return analyticsRepository.countJobsWithSkill(skill);
+    }
+
+    private static LocationResponse toLocation(LocationDemandRow row) {
+        String displayName = java.util.stream.Stream.of(row.city(), row.state(), row.country())
+                .filter(part -> part != null && !part.isBlank())
+                .reduce((a, b) -> a + ", " + b)
+                .orElse(row.country());
+        return new LocationResponse(row.locationId(), row.city(), row.state(), row.country(), displayName);
     }
 
     private List<EntitySkillResponse> toEntitySkills(List<SkillDemandRow> rows, long total) {

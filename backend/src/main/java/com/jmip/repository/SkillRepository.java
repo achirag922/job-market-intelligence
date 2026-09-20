@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface SkillRepository extends JpaRepository<Skill, Long> {
 
@@ -32,4 +33,13 @@ public interface SkillRepository extends JpaRepository<Skill, Long> {
             order by count(j.id) desc, s.name asc
             """)
     List<SkillDemandRow> findTopSkills(Pageable limit);
+
+    /**
+     * Exact match on name, ignoring case.
+     *
+     * <p>Used by the V5 assistant to turn a skill named in a question into the skill row
+     * that actually exists. Exact rather than fuzzy on purpose: "Java" must not quietly
+     * resolve to "JavaScript", and a near miss should ask the user rather than guess.
+     */
+    Optional<Skill> findFirstByNameIgnoreCase(String name);
 }

@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
+
 public interface CompanyRepository extends JpaRepository<Company, Long> {
 
     Page<Company> findByNameContainingIgnoreCase(String name, Pageable pageable);
@@ -28,4 +30,7 @@ public interface CompanyRepository extends JpaRepository<Company, Long> {
             """,
             countQuery = "select count(distinct c.id) from Job j join j.company c")
     Page<CompanyDemandRow> findCompanyDemand(Pageable pageable);
+
+    /** Exact match on name, ignoring case, for the V5 assistant's entity resolver. */
+    Optional<Company> findFirstByNameIgnoreCase(String name);
 }

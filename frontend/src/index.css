@@ -296,3 +296,29 @@ footer {
 .trend-stable {
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------------- V5 assistant */
+
+.assistant-question {
+  color: #4a5568;
+  border-left: 3px solid #cbd5e0;
+  padding-left: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.assistant-chart {
+  margin: 1rem 0 0;
+}
+
+.assistant-chart figcaption {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+/* The example questions are buttons, but they should read as the tags they sit among. */
+button.skill-tag {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}

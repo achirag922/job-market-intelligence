@@ -271,3 +271,76 @@ export interface EntitySkill {
   percentageOfJobs: number;
   rank: number;
 }
+
+// ------------------------------------------------------------------ V5 assistant
+
+/** The chart shapes the backend may ask for. Anything else is not rendered. */
+export type VisualizationType = 'BAR' | 'LINE' | 'PIE' | 'TABLE' | 'NONE';
+
+export interface ChartPoint {
+  label: string;
+  value: number;
+}
+
+/**
+ * How to draw an answer.
+ *
+ * Metadata only — a known type, labels and numbers. The backend never sends markup or
+ * code, and the frontend maps `type` to a component it already has rather than
+ * interpreting anything.
+ */
+export interface Visualization {
+  type: VisualizationType;
+  title?: string;
+  xAxis?: string;
+  yAxis?: string;
+  points: ChartPoint[];
+}
+
+/** The entities a question was about, carried between turns. */
+export interface AssistantEntities {
+  skill?: string;
+  secondSkill?: string;
+  jobCategory?: string;
+  secondJobCategory?: string;
+  company?: string;
+  location?: string;
+  title?: string;
+}
+
+/**
+ * The previous turn, echoed back with the next question.
+ *
+ * The server keeps no session state; this is what makes "what about Bengaluru?" resolve
+ * against the question before it.
+ */
+export interface ConversationContext {
+  previousQuestion?: string;
+  previousIntent?: string;
+  previousEntities?: AssistantEntities;
+}
+
+export interface AssistantRequest {
+  question: string;
+  resumeId?: string;
+  jobId?: number;
+  context?: ConversationContext;
+}
+
+/**
+ * An assistant reply.
+ *
+ * `grounded` says whether `data` came from a database query. When it is false the answer
+ * is the assistant talking about itself — an unsupported question, a missing resume, an
+ * unavailable provider — and carries no claim about the job market.
+ */
+export interface AssistantResponse {
+  question: string;
+  answer: string;
+  intent: string;
+  grounded: boolean;
+  data: unknown[];
+  visualization: Visualization;
+  context?: ConversationContext;
+  note?: string;
+}

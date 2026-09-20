@@ -56,6 +56,16 @@
             <version>${pdfbox.version}</version>
         </dependency>
 
+        <!--
+            V5 assistant. The official SDK rather than hand-rolled HTTP: it owns retries,
+            timeouts and typed errors, and it is the only part of the application that
+            talks to a model provider.
+        -->
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>

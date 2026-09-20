@@ -81,6 +81,30 @@ jmip:
     # JMIP_CORS_ALLOWED_ORIGINS when deploying somewhere else.
     allowed-origins: ${JMIP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
+  # V5 assistant. The API key has no default and no value in this file: it comes from the
+  # environment, it is never logged, and it never reaches the browser — every model call is
+  # made by the server. With no key set the application starts normally and the assistant
+  # reports itself unavailable; nothing else is affected.
+  ai:
+    provider: ${AI_PROVIDER:anthropic}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:claude-opus-5}
+    # Deliberately unset. The current Claude models removed sampling controls and reject
+    # temperature with a 400, so it is sent only where it is configured and supported.
+    temperature: ${AI_TEMPERATURE:}
+    max-tokens: ${AI_MAX_TOKENS:8192}
+    timeout: ${AI_TIMEOUT:30s}
+
+  assistant:
+    # The model proposes how many rows a question wants; these are the ceilings the
+    # backend applies regardless of what it proposed.
+    default-limit: ${JMIP_ASSISTANT_DEFAULT_LIMIT:10}
+    max-limit: ${JMIP_ASSISTANT_MAX_LIMIT:25}
+    max-job-results: ${JMIP_ASSISTANT_MAX_JOB_RESULTS:20}
+    # Fewest postings in one currency before a salary range is worth reporting.
+    min-salary-sample: ${JMIP_ASSISTANT_MIN_SALARY_SAMPLE:5}
+    max-question-length: ${JMIP_ASSISTANT_MAX_QUESTION_LENGTH:500}
+
 logging:
   level:
     com.jmip: INFO
