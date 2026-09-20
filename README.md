@@ -123,6 +123,28 @@ etl/data
 - [x] Phase 2 — database schema: companies, locations, skills, jobs, job_skills
 - [x] Phase 3 — initial job data: synthetic development dataset and input format
 - [x] Phase 4 — Spring Batch ETL: extract, transform, skill extraction, validation, dedupe, load
-- [ ] Phase 5 — job search and filtering API
-- [ ] Phase 6 — skill, location and company analytics APIs
-- [ ] Phase 7 — React dashboard
+- [x] Phase 5 — REST API: job search, skills, companies, locations and analytics
+- [ ] Phase 6 — React dashboard
+
+## API
+
+All list endpoints take `page` and `size` (max 100) and return the same envelope:
+`content`, `page`, `size`, `totalElements`, `totalPages`, `first`, `last`.
+
+| Endpoint | Notes |
+|---|---|
+| `GET /api/jobs` | Filters: `title`, `location`, `company`, `skill`, `employmentType`, combined with AND. Sort: `postedDate`, `title`, `salaryMin`, `salaryMax`, `createdAt`. Default is newest first with undated postings last |
+| `GET /api/jobs/{id}` | Full posting including description and source |
+| `GET /api/skills` | Filter: `name` |
+| `GET /api/skills/top` | Most in-demand skills, `limit` 1–100, default 10 |
+| `GET /api/companies` | Filter: `name` |
+| `GET /api/companies/{id}` | Company plus its posting count |
+| `GET /api/locations` | Filter: `country` |
+| `GET /api/analytics/overview` | Total jobs, companies, skills and locations |
+| `GET /api/analytics/skills` | Skills ranked by demand, with each one's share of postings |
+| `GET /api/analytics/locations` | Locations ranked by posting count; remote postings have none and are excluded |
+| `GET /api/analytics/companies` | Companies ranked by posting count |
+
+Errors return a consistent body — `timestamp`, `status`, `error`, `message`, `path`, and
+`fieldErrors` when validation failed. Unknown id gives 404; a bad filter, an unsortable
+field or an out-of-range page size gives 400.

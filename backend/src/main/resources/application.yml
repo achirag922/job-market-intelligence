@@ -21,6 +21,19 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        # Caps what a client can ask for, so one request cannot pull the whole table.
+        max-page-size: 100
+        one-indexed-parameters: false
+
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
 server:
   port: ${JMIP_SERVER_PORT:8080}
   error:
