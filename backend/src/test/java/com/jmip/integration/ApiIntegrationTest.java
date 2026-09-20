@@ -66,6 +66,30 @@ class ApiIntegrationTest {
     }
 
     @Test
+    @DisplayName("the browser frontend origin is allowed through CORS")
+    void allowsConfiguredOrigin() throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .options("/api/analytics/overview")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    @DisplayName("an origin that is not configured is refused")
+    void refusesUnknownOrigin() throws Exception {
+        // Exact-origin matching, not a wildcard: any other site must not be able to read
+        // this API through a visitor's browser.
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .options("/api/analytics/overview")
+                        .header("Origin", "http://evil.example.invalid")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("an unmapped path is 404, not 500")
     void unmappedPathIsNotFound() throws Exception {
         // The catch-all handler must not swallow Spring's own routing failures.

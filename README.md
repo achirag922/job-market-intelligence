@@ -20,7 +20,7 @@ never affect API availability.
 | `database` | Flyway migrations, packaged as a jar so both applications resolve the same schema |
 | `backend`  | Spring Boot REST API                                                     |
 | `etl`      | Spring Batch ingestion pipeline, plus the raw input data under `etl/data` |
-| `frontend` | React dashboard (added in a later phase)                                 |
+| `frontend` | React + TypeScript dashboard, built with Vite (not a Maven module)        |
 
 ## Tech stack
 
@@ -91,6 +91,21 @@ without a source column take one from an optional `defaultSource=<name>` paramet
 
 Re-running the same file is safe: duplicate detection means nothing is loaded twice.
 
+## Running the frontend
+
+```
+cd frontend
+npm install
+npm run dev
+```
+
+Opens on `http://localhost:5173` and talks to the API at `VITE_API_BASE_URL`
+(see `frontend/.env.example`). The backend must be running, and its `jmip.cors.allowed-origins`
+must include the frontend's origin — `http://localhost:5173` is allowed by default.
+
+Pages: Dashboard, Job Explorer, Job Details, Skill Analytics, Company Analytics,
+Location Analytics.
+
 ## Testing
 
 ```
@@ -124,7 +139,7 @@ etl/data
 - [x] Phase 3 — initial job data: synthetic development dataset and input format
 - [x] Phase 4 — Spring Batch ETL: extract, transform, skill extraction, validation, dedupe, load
 - [x] Phase 5 — REST API: job search, skills, companies, locations and analytics
-- [ ] Phase 6 — React dashboard
+- [x] Phase 6 — React frontend: dashboard, job explorer, job details and analytics pages
 
 ## API
 
