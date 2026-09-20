@@ -103,8 +103,8 @@ Opens on `http://localhost:5173` and talks to the API at `VITE_API_BASE_URL`
 (see `frontend/.env.example`). The backend must be running, and its `jmip.cors.allowed-origins`
 must include the frontend's origin — `http://localhost:5173` is allowed by default.
 
-Pages: Dashboard, Job Explorer, Job Details, Skill Analytics, Company Analytics,
-Location Analytics.
+Pages: Dashboard, Job Explorer, Job Details, Skill Analytics, Skill Trends,
+Company Analytics, Location Analytics.
 
 ## Testing
 
@@ -141,6 +141,7 @@ etl/data
 - [x] Phase 5 — REST API: job search, skills, companies, locations and analytics
 - [x] Phase 6 — React frontend: dashboard, job explorer, job details and analytics pages
 - [x] Phase 7 — deeper analytics: skill filters and ranking, experience bands, per-company and per-location breakdowns, grouped job titles
+- [x] V2 — skill trends: monthly demand snapshots, backfilled from posted dates, and rising/falling detection
 
 ## API
 
@@ -158,6 +159,7 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 | `GET /api/locations` | Filter: `country` |
 | `GET /api/analytics/overview` | Total jobs, companies, skills and locations |
 | `GET /api/analytics/skills` | Skills ranked by demand. Filters: `location`, `fromDate`, `toDate`, `title`. Returns `scope.totalJobsInScope`, the denominator behind every percentage |
+| `GET /api/analytics/skills/trends` | Skills gaining or losing demand. `months`, `minJobs`, `direction` (RISING/FALLING/STABLE), `limit`. Measured from the snapshot history |
 | `GET /api/analytics/experience` | Distribution across 0–2, 2–5, 5–8, 8+ years, plus "not specified" |
 | `GET /api/analytics/locations` | Locations ranked by posting count; remote postings have none and are excluded |
 | `GET /api/analytics/locations/{id}/skills` | Top skills in one location, as a share of that location |
@@ -184,6 +186,27 @@ it is a share of that company's or location's own postings.
 Experience bands are half open: `[0,2)`, `[2,5)`, `[5,8)`, `[8,∞)`. A posting asking for
 exactly 2 years falls in the 2–5 band. Postings that state no requirement form their own
 band rather than being dropped, so the bands always sum to the total.
+
+### Skill trends
+
+Trends read from `skill_demand_snapshot`, one row per skill per month holding that month's
+job count and the month's total as its own denominator. The history is **derived** — every
+row can be recomputed from `jobs.posted_date` — so it is rebuilt wholesale at startup and
+again on a daily schedule. Both are configurable under `jmip.analytics.snapshots`.
+
+Three decisions make the numbers mean something:
+
+- **Per period, not cumulative.** A running total only grows, so every skill would look
+  like it was rising.
+- **Share, not raw count.** If postings double, every count rises with them. Share only
+  moves when the mix genuinely shifts.
+- **Pooled halves, not endpoints.** The window is split in two and each half pooled, so a
+  single quiet month cannot invent a trend.
+
+Change is reported in **percentage points**, not percent: 10% to 15% is +5 points, which
+is also a 50% relative rise, and conflating the two is the usual way these charts mislead.
+Changes within ±1 point are reported as `STABLE`, and skills below `minJobs` postings in
+the window are left out, because one posting becoming two is noise.
 
 Job titles are grouped by stripping seniority prefixes, parenthetical qualifiers and
 trailing level markers. Text after a dash is kept, because "Engineer - Payments" and

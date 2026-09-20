@@ -7,10 +7,13 @@ import com.jmip.dto.analytics.ExperienceDistributionResponse;
 import com.jmip.dto.analytics.LocationDemandResponse;
 import com.jmip.dto.analytics.OverviewResponse;
 import com.jmip.dto.analytics.SkillAnalyticsResponse;
+import com.jmip.dto.analytics.SkillTrendResponse;
 import com.jmip.dto.analytics.TitleCountResponse;
 import com.jmip.dto.analytics.TitleDemandResponse;
+import com.jmip.dto.analytics.TrendDirection;
 import com.jmip.service.AnalyticsService;
 import com.jmip.service.analytics.SkillAnalyticsService;
+import com.jmip.service.analytics.SkillTrendService;
 import com.jmip.service.analytics.TitleAnalyticsService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -47,13 +50,16 @@ public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
     private final SkillAnalyticsService skillAnalyticsService;
+    private final SkillTrendService skillTrendService;
     private final TitleAnalyticsService titleAnalyticsService;
 
     public AnalyticsController(AnalyticsService analyticsService,
                                SkillAnalyticsService skillAnalyticsService,
+                               SkillTrendService skillTrendService,
                                TitleAnalyticsService titleAnalyticsService) {
         this.analyticsService = analyticsService;
         this.skillAnalyticsService = skillAnalyticsService;
+        this.skillTrendService = skillTrendService;
         this.titleAnalyticsService = titleAnalyticsService;
     }
 
@@ -86,6 +92,32 @@ public class AnalyticsController {
                 location, fromDate, toDate, title, page);
         return ResponseEntity.ok(
                 skillAnalyticsService.skillDemand(location, fromDate, toDate, title, page, size));
+    }
+
+    /**
+     * Which skills are gaining or losing demand.
+     *
+     * <p>Demand is a skill's share of postings, not its raw count: if the number of
+     * postings grows, every count grows with it, and a count-based trend would report the
+     * whole market as rising. The window is split in half and the halves compared, so one
+     * quiet month does not invent a trend.
+     *
+     * @param months    how many recent monthly periods to compare, capped to the history
+     *                  that exists
+     * @param minJobs   skills below this many postings in the window are left out, because
+     *                  one posting becoming two is noise rather than a trend
+     * @param direction {@code RISING} or {@code FALLING} to see one side only; omit for
+     *                  the biggest movers in either direction
+     */
+    @GetMapping("/skills/trends")
+    public ResponseEntity<SkillTrendResponse> skillTrends(
+            @RequestParam(defaultValue = "6") @Min(2) @Max(36) int months,
+            @RequestParam(defaultValue = "3") @Min(1) int minJobs,
+            @RequestParam(required = false) TrendDirection direction,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int limit) {
+        log.info("GET /api/analytics/skills/trends months={} minJobs={} direction={} limit={}",
+                months, minJobs, direction, limit);
+        return ResponseEntity.ok(skillTrendService.trends(months, minJobs, direction, limit));
     }
 
     /** How required experience is distributed across every posting. */

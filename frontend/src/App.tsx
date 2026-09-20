@@ -5,11 +5,13 @@ import { JobDetails } from './pages/JobDetails';
 import { JobExplorer } from './pages/JobExplorer';
 import { LocationAnalytics } from './pages/LocationAnalytics';
 import { SkillAnalytics } from './pages/SkillAnalytics';
+import { SkillTrends } from './pages/SkillTrends';
 
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', end: true },
   { to: '/jobs', label: 'Job Explorer', end: false },
   { to: '/analytics/skills', label: 'Skills', end: false },
+  { to: '/analytics/trends', label: 'Trends', end: false },
   { to: '/analytics/companies', label: 'Companies', end: false },
   { to: '/analytics/locations', label: 'Locations', end: false },
 ];
@@ -39,6 +41,7 @@ export default function App() {
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/skills" element={<SkillAnalytics />} />
+          <Route path="/analytics/trends" element={<SkillTrends />} />
           <Route path="/analytics/companies" element={<CompanyAnalytics />} />
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
           <Route path="*" element={<Navigate to="/" replace />} />

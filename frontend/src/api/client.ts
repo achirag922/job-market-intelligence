@@ -14,6 +14,8 @@ import type {
   SkillAnalytics,
   SkillAnalyticsFilters,
   SkillDemand,
+  SkillTrends,
+  TrendDirection,
 } from './types';
 
 /**
@@ -96,6 +98,9 @@ export const api = {
     request<SkillAnalytics>('/api/analytics/skills', { ...filters, page, size }),
 
   experienceDistribution: () => request<ExperienceDistribution>('/api/analytics/experience'),
+
+  skillTrends: (months: number, direction?: TrendDirection, limit = 20) =>
+    request<SkillTrends>('/api/analytics/skills/trends', { months, direction, limit }),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),

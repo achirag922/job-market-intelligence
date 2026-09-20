@@ -51,6 +51,14 @@ management:
       show-details: always
 
 jmip:
+  analytics:
+    snapshots:
+      # The skill demand history is derived from jobs.posted_date, so rebuilding is always
+      # safe. Rebuilding at startup means a fresh ETL load shows up without waiting for the
+      # scheduled run — the API has no other way of knowing the ETL finished.
+      refresh-on-startup: ${JMIP_SNAPSHOT_REFRESH_ON_STARTUP:true}
+      cron: ${JMIP_SNAPSHOT_CRON:0 0 2 * * *}
+
   cors:
     # Origins the browser frontend is served from. Comma separated via
     # JMIP_CORS_ALLOWED_ORIGINS when deploying somewhere else.

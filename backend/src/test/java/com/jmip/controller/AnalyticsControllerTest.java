@@ -7,6 +7,7 @@ import com.jmip.dto.analytics.SkillAnalyticsResponse;
 import com.jmip.dto.analytics.SkillDemandResponse;
 import com.jmip.service.AnalyticsService;
 import com.jmip.service.analytics.SkillAnalyticsService;
+import com.jmip.service.analytics.SkillTrendService;
 import com.jmip.service.analytics.TitleAnalyticsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class AnalyticsControllerTest {
 
     @MockitoBean
     private SkillAnalyticsService skillAnalyticsService;
+
+    @MockitoBean
+    private SkillTrendService skillTrendService;
 
     @MockitoBean
     private TitleAnalyticsService titleAnalyticsService;

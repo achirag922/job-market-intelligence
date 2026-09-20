@@ -157,3 +157,40 @@ export interface ExperienceDistribution {
   totalJobs: number;
   buckets: ExperienceBucket[];
 }
+
+export type TrendDirection = 'RISING' | 'FALLING' | 'STABLE';
+
+export interface TrendPoint {
+  period: string;
+  jobCount: number;
+  totalJobs: number;
+  sharePercentage: number;
+}
+
+export interface SkillTrend {
+  skillId: number;
+  skill: string;
+  category?: string;
+  jobCountInWindow: number;
+  earlierSharePercentage: number;
+  recentSharePercentage: number;
+  /** DERIVED: percentage points, not percent. 10% to 15% is +5 points. */
+  changeInPercentagePoints: number;
+  direction: TrendDirection;
+  series: TrendPoint[];
+}
+
+export interface SkillTrendWindow {
+  fromPeriod?: string;
+  toPeriod?: string;
+  periods: number;
+  earlierPeriods: string[];
+  recentPeriods: string[];
+  totalJobsInWindow: number;
+  minJobsThreshold: number;
+}
+
+export interface SkillTrends {
+  window: SkillTrendWindow;
+  trends: SkillTrend[];
+}

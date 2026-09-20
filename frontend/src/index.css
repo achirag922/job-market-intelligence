@@ -279,3 +279,20 @@ footer {
   color: var(--muted);
   font-size: 13px;
 }
+
+.trend {
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.trend-rising {
+  color: #2e7d32;
+}
+
+.trend-falling {
+  color: var(--error);
+}
+
+.trend-stable {
+  color: var(--muted);
+}
