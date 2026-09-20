@@ -312,13 +312,16 @@ class ApiIntegrationTest {
     @Test
     @DisplayName("GET /api/analytics/skills ranks skills with their share of postings")
     void returnsSkillAnalytics() throws Exception {
+        // The rows are nested under "skills" alongside the scope they were measured over.
         mockMvc.perform(get("/api/analytics/skills"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].skill").value("Java"))
-                .andExpect(jsonPath("$.content[0].jobCount").value(2))
-                .andExpect(jsonPath("$.content[0].percentageOfJobs").value(50.0))
-                .andExpect(jsonPath("$.content[1].skill").value("SQL"));
+                .andExpect(jsonPath("$.scope.totalJobsInScope").value(4))
+                .andExpect(jsonPath("$.skills.totalElements").value(3))
+                .andExpect(jsonPath("$.skills.content[0].skill").value("Java"))
+                .andExpect(jsonPath("$.skills.content[0].jobCount").value(2))
+                .andExpect(jsonPath("$.skills.content[0].percentageOfJobs").value(50.0))
+                .andExpect(jsonPath("$.skills.content[0].rank").value(1))
+                .andExpect(jsonPath("$.skills.content[1].skill").value("SQL"));
     }
 
     @Test

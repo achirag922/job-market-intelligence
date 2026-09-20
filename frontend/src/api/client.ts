@@ -2,6 +2,7 @@ import type {
   ApiErrorBody,
   CompanyDemand,
   CompanyDetail,
+  ExperienceDistribution,
   JobDetail,
   JobFilters,
   JobSummary,
@@ -10,6 +11,8 @@ import type {
   Overview,
   PagedResponse,
   Skill,
+  SkillAnalytics,
+  SkillAnalyticsFilters,
   SkillDemand,
 } from './types';
 
@@ -88,8 +91,11 @@ export const api = {
 
   overview: () => request<Overview>('/api/analytics/overview'),
 
-  skillDemand: (page: number, size: number) =>
-    request<PagedResponse<SkillDemand>>('/api/analytics/skills', { page, size }),
+  /** Returns the rows and the scope they were measured over; see SkillAnalytics. */
+  skillDemand: (filters: SkillAnalyticsFilters, page: number, size: number) =>
+    request<SkillAnalytics>('/api/analytics/skills', { ...filters, page, size }),
+
+  experienceDistribution: () => request<ExperienceDistribution>('/api/analytics/experience'),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),

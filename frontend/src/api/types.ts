@@ -79,6 +79,8 @@ export interface Overview {
 }
 
 export interface SkillDemand {
+  /** DERIVED: position in the ranking, 1 being most in demand. */
+  rank: number;
   skillId: number;
   skill: string;
   category?: string;
@@ -89,11 +91,15 @@ export interface SkillDemand {
 export interface LocationDemand {
   location: Location;
   jobCount: number;
+  percentageOfJobs: number;
+  rank: number;
 }
 
 export interface CompanyDemand {
   company: Company;
   jobCount: number;
+  percentageOfJobs: number;
+  rank: number;
 }
 
 /** The error body every failing endpoint returns. */
@@ -112,4 +118,42 @@ export interface JobFilters {
   company?: string;
   skill?: string;
   employmentType?: string;
+}
+
+/**
+ * Skill demand rows plus the scope they were measured over. The scope matters once
+ * filters are applied: a percentage is meaningless without knowing its denominator.
+ */
+export interface SkillAnalyticsScope {
+  totalJobsInScope: number;
+  location?: string;
+  fromDate?: string;
+  toDate?: string;
+  title?: string;
+}
+
+export interface SkillAnalytics {
+  scope: SkillAnalyticsScope;
+  skills: PagedResponse<SkillDemand>;
+}
+
+export interface SkillAnalyticsFilters {
+  location?: string;
+  fromDate?: string;
+  toDate?: string;
+  title?: string;
+}
+
+export interface ExperienceBucket {
+  bucket: string;
+  label: string;
+  minYears?: number;
+  maxYearsExclusive?: number;
+  jobCount: number;
+  percentageOfJobs: number;
+}
+
+export interface ExperienceDistribution {
+  totalJobs: number;
+  buckets: ExperienceBucket[];
 }

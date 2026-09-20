@@ -140,6 +140,7 @@ etl/data
 - [x] Phase 4 — Spring Batch ETL: extract, transform, skill extraction, validation, dedupe, load
 - [x] Phase 5 — REST API: job search, skills, companies, locations and analytics
 - [x] Phase 6 — React frontend: dashboard, job explorer, job details and analytics pages
+- [x] Phase 7 — deeper analytics: skill filters and ranking, experience bands, per-company and per-location breakdowns, grouped job titles
 
 ## API
 
@@ -156,9 +157,38 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 | `GET /api/companies/{id}` | Company plus its posting count |
 | `GET /api/locations` | Filter: `country` |
 | `GET /api/analytics/overview` | Total jobs, companies, skills and locations |
-| `GET /api/analytics/skills` | Skills ranked by demand, with each one's share of postings |
+| `GET /api/analytics/skills` | Skills ranked by demand. Filters: `location`, `fromDate`, `toDate`, `title`. Returns `scope.totalJobsInScope`, the denominator behind every percentage |
+| `GET /api/analytics/experience` | Distribution across 0–2, 2–5, 5–8, 8+ years, plus "not specified" |
 | `GET /api/analytics/locations` | Locations ranked by posting count; remote postings have none and are excluded |
+| `GET /api/analytics/locations/{id}/skills` | Top skills in one location, as a share of that location |
+| `GET /api/analytics/locations/{id}/titles` | Most common job titles in one location |
 | `GET /api/analytics/companies` | Companies ranked by posting count |
+| `GET /api/analytics/companies/{id}/skills` | Top skills at one company, as a share of that company |
+| `GET /api/analytics/titles` | Most common job titles after grouping, with the skills each role asks for |
+
+### Reading the numbers
+
+Analytics responses separate three kinds of figure, and name them consistently:
+
+| Kind | Fields | Meaning |
+|---|---|---|
+| Raw count | `jobCount`, `total*` | Counted directly from stored rows |
+| Percentage | `percentageOf*` | A raw count over a stated total, to one decimal place |
+| Derived | `rank`, `title` on title analytics | Computed, not stored. `rank` comes from the ordering; a normalised title is one no posting necessarily carries verbatim |
+
+Two denominators are easy to confuse, so they are named apart. `percentageOfJobs` on
+`/analytics/skills` is a share of `scope.totalJobsInScope` — the postings the filters
+matched, not the whole database. On `/companies/{id}/skills` and `/locations/{id}/skills`
+it is a share of that company's or location's own postings.
+
+Experience bands are half open: `[0,2)`, `[2,5)`, `[5,8)`, `[8,∞)`. A posting asking for
+exactly 2 years falls in the 2–5 band. Postings that state no requirement form their own
+band rather than being dropped, so the bands always sum to the total.
+
+Job titles are grouped by stripping seniority prefixes, parenthetical qualifiers and
+trailing level markers. Text after a dash is kept, because "Engineer - Payments" and
+"Engineer - Search" are different roles. Every group lists the stored titles it folded in,
+so the grouping can be checked rather than trusted.
 
 Errors return a consistent body — `timestamp`, `status`, `error`, `message`, `path`, and
 `fieldErrors` when validation failed. Unknown id gives 404; a bad filter, an unsortable

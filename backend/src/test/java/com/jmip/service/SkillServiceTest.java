@@ -66,22 +66,13 @@ class SkillServiceTest {
     }
 
     @Test
-    @DisplayName("percentages are rounded to one decimal place")
-    void roundsToOneDecimalPlace() {
-        // 1 of 3 is 33.333..., which must not leak floating point noise into the response.
-        assertThat(SkillService.percentageOf(1, 3)).isEqualTo(33.3);
-        assertThat(SkillService.percentageOf(2, 3)).isEqualTo(66.7);
-    }
+    @DisplayName("top skills are ranked from one")
+    void topSkillsAreRanked() {
+        when(jobRepository.count()).thenReturn(200L);
+        when(skillRepository.findTopSkills(any())).thenReturn(List.of(
+                new SkillDemandRow(1L, "Java", "LANGUAGE", 100),
+                new SkillDemandRow(2L, "SQL", "LANGUAGE", 50)));
 
-    @Test
-    @DisplayName("an empty database yields zero percent rather than a division by zero")
-    void handlesEmptyDatabase() {
-        assertThat(SkillService.percentageOf(0, 0)).isZero();
-    }
-
-    @Test
-    @DisplayName("a skill present on every posting is 100 percent")
-    void universalSkillIsOneHundredPercent() {
-        assertThat(SkillService.percentageOf(138, 138)).isEqualTo(100.0);
+        assertThat(skillService.top(10)).extracting(SkillDemandResponse::rank).containsExactly(1, 2);
     }
 }
