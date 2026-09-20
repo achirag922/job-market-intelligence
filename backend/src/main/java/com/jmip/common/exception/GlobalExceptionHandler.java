@@ -5,6 +5,7 @@ import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.jmip.service.resume.ResumeNotReadyException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
@@ -83,6 +86,42 @@ public class GlobalExceptionHandler {
         String message = "Parameter '%s' has an invalid value: %s".formatted(exception.getName(), exception.getValue());
         log.debug("Type mismatch for {}: {}", request.getRequestURI(), message);
         return build(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    /**
+     * The resource exists but is not in a usable state — a resume still processing, or
+     * one whose text could not be read. A conflict with the current state of the
+     * resource, which is neither "not found" nor a malformed request.
+     */
+    @ExceptionHandler(ResumeNotReadyException.class)
+    public ResponseEntity<ApiError> handleResumeNotReady(ResumeNotReadyException exception,
+                                                         HttpServletRequest request) {
+        log.debug("Resume not ready for {}: {}", request.getRequestURI(), exception.getMessage());
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    /**
+     * The servlet container rejected the upload before it reached any controller, so the
+     * size limit has to be reported here rather than by the upload validation.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> handleUploadTooLarge(MaxUploadSizeExceededException exception,
+                                                          HttpServletRequest request) {
+        log.debug("Upload to {} exceeded the configured size limit", request.getRequestURI());
+        return build(HttpStatus.PAYLOAD_TOO_LARGE,
+                "The uploaded file is larger than the configured limit", request);
+    }
+
+    /**
+     * A multipart endpoint called without its file part. Without this it surfaces as a
+     * 500, when it is plainly a malformed request.
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiError> handleMissingPart(MissingServletRequestPartException exception,
+                                                       HttpServletRequest request) {
+        log.debug("Missing request part '{}' for {}", exception.getRequestPartName(), request.getRequestURI());
+        return build(HttpStatus.BAD_REQUEST,
+                "Request part '" + exception.getRequestPartName() + "' is required", request);
     }
 
     /**

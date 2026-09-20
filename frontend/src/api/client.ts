@@ -10,6 +10,8 @@ import type {
   LocationDemand,
   Overview,
   PagedResponse,
+  Resume,
+  ResumeMatch,
   Skill,
   SkillAnalytics,
   SkillAnalyticsFilters,
@@ -72,6 +74,38 @@ async function request<T>(path: string, params?: Record<string, string | number 
   return (await response.json()) as T;
 }
 
+/**
+ * Uploads a resume. Multipart, so the body is FormData and the browser sets its own
+ * Content-Type with the boundary — setting it by hand produces a request the server
+ * cannot parse.
+ */
+async function uploadResume(file: File): Promise<Resume> {
+  const body = new FormData();
+  body.append('file', file);
+
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}/api/resumes`, { method: 'POST', body });
+  } catch {
+    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+  }
+
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      if (error.message) {
+        message = error.message;
+      }
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return (await response.json()) as Resume;
+}
+
 export const api = {
   jobs: (filters: JobFilters, page: number, size: number, sort?: string) =>
     request<PagedResponse<JobSummary>>('/api/jobs', { ...filters, page, size, sort }),
@@ -101,6 +135,13 @@ export const api = {
 
   skillTrends: (months: number, direction?: TrendDirection, limit = 20) =>
     request<SkillTrends>('/api/analytics/skills/trends', { months, direction, limit }),
+
+  uploadResume,
+
+  resume: (id: string) => request<Resume>(`/api/resumes/${id}`),
+
+  resumeMatch: (resumeId: string, jobId: number) =>
+    request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),

@@ -194,3 +194,35 @@ export interface SkillTrends {
   window: SkillTrendWindow;
   trends: SkillTrend[];
 }
+
+export type ResumeStatus = 'UPLOADED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export interface Resume {
+  id: string;
+  fileName: string;
+  fileSizeBytes: number;
+  status: ResumeStatus;
+  skills: Skill[];
+  /** Present only when the status is FAILED. */
+  errorMessage?: string;
+  uploadedAt: string;
+  processedAt?: string;
+}
+
+export interface ResumeMatch {
+  resumeId: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  /** Absent when the job lists no skills; matchNote then says why. */
+  matchPercentage?: number;
+  matchNote?: string;
+  totalJobSkills: number;
+  totalResumeSkills: number;
+  matchedSkillCount: number;
+  missingSkillCount: number;
+  matchedSkills: Skill[];
+  /** The skill gap: what this job wants that the resume does not show. */
+  missingSkills: Skill[];
+  resumeOnlySkills: Skill[];
+}

@@ -78,6 +78,20 @@ class ApiIntegrationTest {
     }
 
     @Test
+    @DisplayName("resume upload is allowed through CORS, since it is a POST")
+    void allowsPostForUpload() throws Exception {
+        // The browser preflights the upload. Allowing only GET, as the read-only API
+        // originally did, blocks it before the request is ever sent.
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .options("/api/resumes")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
+                        .header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
     @DisplayName("an origin that is not configured is refused")
     void refusesUnknownOrigin() throws Exception {
         // Exact-origin matching, not a wildcard: any other site must not be able to read

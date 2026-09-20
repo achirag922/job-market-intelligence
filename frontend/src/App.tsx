@@ -5,6 +5,7 @@ import { JobDetails } from './pages/JobDetails';
 import { JobExplorer } from './pages/JobExplorer';
 import { LocationAnalytics } from './pages/LocationAnalytics';
 import { SkillAnalytics } from './pages/SkillAnalytics';
+import { ResumeIntelligence } from './pages/ResumeIntelligence';
 import { SkillTrends } from './pages/SkillTrends';
 
 const NAV_ITEMS = [
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/analytics/trends', label: 'Trends', end: false },
   { to: '/analytics/companies', label: 'Companies', end: false },
   { to: '/analytics/locations', label: 'Locations', end: false },
+  { to: '/resume', label: 'Resume', end: false },
 ];
 
 export default function App() {
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/analytics/trends" element={<SkillTrends />} />
           <Route path="/analytics/companies" element={<CompanyAnalytics />} />
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
+          <Route path="/resume" element={<ResumeIntelligence />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

@@ -38,7 +38,9 @@ public class WebCorsConfig implements WebMvcConfigurer {
         log.info("CORS enabled for origins {}", corsProperties.allowedOrigins());
         registry.addMapping("/api/**")
                 .allowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new))
-                .allowedMethods("GET", "OPTIONS")
+                // POST is needed for resume upload, which is the only endpoint that
+                // writes. Everything else remains read-only.
+                .allowedMethods("GET", "POST", "OPTIONS")
                 .allowedHeaders("*")
                 .maxAge(3600);
     }

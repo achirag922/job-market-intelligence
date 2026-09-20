@@ -60,6 +60,8 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_DB_USERNAME` | `postgres`  |
 | `JMIP_DB_PASSWORD` | `postgres`  |
 | `JMIP_SERVER_PORT` | `8080`      |
+| `JMIP_RESUME_DIR`  | `./data/resumes` |
+| `JMIP_RESUME_MAX_FILE_SIZE` | `5MB` |
 
 ## Building
 
@@ -104,7 +106,7 @@ Opens on `http://localhost:5173` and talks to the API at `VITE_API_BASE_URL`
 must include the frontend's origin — `http://localhost:5173` is allowed by default.
 
 Pages: Dashboard, Job Explorer, Job Details, Skill Analytics, Skill Trends,
-Company Analytics, Location Analytics.
+Company Analytics, Location Analytics, Resume Intelligence.
 
 ## Testing
 
@@ -142,6 +144,7 @@ etl/data
 - [x] Phase 6 — React frontend: dashboard, job explorer, job details and analytics pages
 - [x] Phase 7 — deeper analytics: skill filters and ranking, experience bands, per-company and per-location breakdowns, grouped job titles
 - [x] V2 — skill trends: monthly demand snapshots, backfilled from posted dates, and rising/falling detection
+- [x] V3 — resume intelligence: PDF upload, text and skill extraction, resume-to-job match and skill gap
 
 ## API
 
@@ -167,6 +170,61 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 | `GET /api/analytics/companies` | Companies ranked by posting count |
 | `GET /api/analytics/companies/{id}/skills` | Top skills at one company, as a share of that company |
 | `GET /api/analytics/titles` | Most common job titles after grouping, with the skills each role asks for |
+
+### Resume intelligence (V3)
+
+Upload a PDF resume, have its skills extracted, and compare them against a job posting.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/resumes` | Upload a PDF (`multipart/form-data`, part name `file`). Stores it, extracts the text and matches skills, then returns the resume with its status |
+| `GET /api/resumes/{id}` | Metadata, processing status and extracted skills |
+| `GET /api/resumes/{id}/skills` | The extracted skills alone |
+| `GET /api/resumes/{resumeId}/match/{jobId}` | Matched skills, the skill gap, and resume-only skills |
+
+**Flow.** `PDF → text extraction (PDFBox) → normalisation → skill matching → stored against
+the resume`. Extraction runs inside the upload request, so one call returns a final status;
+the `processing_status` column still models the whole lifecycle for when it moves to a queue.
+A document that cannot be read is recorded as `FAILED` with a reason rather than lost.
+
+**Skill extraction** uses the existing `skills` table as its vocabulary — no second
+dictionary. Text is split into words, and every run of up to N consecutive words is
+normalised (lower-cased, punctuation and spacing removed) and compared against skills
+normalised the same way. So "Spring Boot", "spring boot" and "springboot" are one skill,
+while word boundaries stop `Java` matching inside `JavaScript`, `SQL` inside `PostgreSQL`
+and `Git` inside `GitHub`. A trailing "js" is also resolved, so "React.js" finds "React".
+
+**Match score** is deliberately simple and deterministic:
+
+```
+match percentage = matched job skills / total job skills * 100
+```
+
+A job that lists no skills has no denominator and gets no score — `matchPercentage` is
+absent and `matchNote` says why, rather than reporting a misleading zero. The score
+compares skills only. It is **not** a probability of being hired, and accounts for nothing
+about experience, seniority or anything else.
+
+**Skill gap** is the job's skills minus the resume's: `missingSkills`, with
+`resumeOnlySkills` as the reverse. Both sides are rows from the same `skills` table, so the
+comparison is by id rather than by string.
+
+**Configuration.** Files are written to `jmip.resume.storage.directory`
+(`JMIP_RESUME_DIR`, default `./data/resumes` — relative, so nothing assumes a machine's
+layout). The size cap is `JMIP_RESUME_MAX_FILE_SIZE` (default 5MB), which also sets the
+servlet multipart limit so both reject at the same size. The uploaded filename is never
+used to build a path: files are named by the resume's UUID.
+
+**Example flow.**
+
+```
+curl -F "file=@resume.pdf;type=application/pdf" http://localhost:8080/api/resumes
+# -> {"id":"56aedd0e-...","status":"COMPLETED","skills":[{"name":"Java"},...]}
+
+curl http://localhost:8080/api/resumes/56aedd0e-.../match/133
+# -> {"matchPercentage":25.0,"totalJobSkills":4,"matchedSkillCount":1,
+#     "missingSkills":[{"name":"Airflow"},{"name":"Snowflake"},{"name":"Spark"}]}
+```
 
 ### Reading the numbers
 
