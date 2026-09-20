@@ -6,6 +6,7 @@ import com.jmip.dto.analytics.OverviewResponse;
 import com.jmip.dto.analytics.SkillAnalyticsResponse;
 import com.jmip.dto.analytics.SkillDemandResponse;
 import com.jmip.service.AnalyticsService;
+import com.jmip.service.analytics.CategoryAnalyticsService;
 import com.jmip.service.analytics.SkillAnalyticsService;
 import com.jmip.service.analytics.SkillTrendService;
 import com.jmip.service.analytics.TitleAnalyticsService;
@@ -43,6 +44,9 @@ class AnalyticsControllerTest {
 
     @MockitoBean
     private SkillTrendService skillTrendService;
+
+    @MockitoBean
+    private CategoryAnalyticsService categoryAnalyticsService;
 
     @MockitoBean
     private TitleAnalyticsService titleAnalyticsService;

@@ -202,6 +202,7 @@ export function ResumeIntelligence() {
             <h2>4. Match against {match.jobTitle}</h2>
             <p className="subtitle">
               {match.companyName} · {match.totalJobSkills} required skills
+              {match.jobCategory && <> · Category: <strong>{match.jobCategory}</strong></>}
             </p>
 
             {match.matchPercentage === undefined ? (

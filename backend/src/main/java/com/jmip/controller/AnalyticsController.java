@@ -1,6 +1,7 @@
 package com.jmip.controller;
 
 import com.jmip.dto.PagedResponse;
+import com.jmip.dto.analytics.CategoryDemandResponse;
 import com.jmip.dto.analytics.CompanyDemandResponse;
 import com.jmip.dto.analytics.EntitySkillResponse;
 import com.jmip.dto.analytics.ExperienceDistributionResponse;
@@ -12,6 +13,7 @@ import com.jmip.dto.analytics.TitleCountResponse;
 import com.jmip.dto.analytics.TitleDemandResponse;
 import com.jmip.dto.analytics.TrendDirection;
 import com.jmip.service.AnalyticsService;
+import com.jmip.service.analytics.CategoryAnalyticsService;
 import com.jmip.service.analytics.SkillAnalyticsService;
 import com.jmip.service.analytics.SkillTrendService;
 import com.jmip.service.analytics.TitleAnalyticsService;
@@ -51,15 +53,18 @@ public class AnalyticsController {
     private final AnalyticsService analyticsService;
     private final SkillAnalyticsService skillAnalyticsService;
     private final SkillTrendService skillTrendService;
+    private final CategoryAnalyticsService categoryAnalyticsService;
     private final TitleAnalyticsService titleAnalyticsService;
 
     public AnalyticsController(AnalyticsService analyticsService,
                                SkillAnalyticsService skillAnalyticsService,
                                SkillTrendService skillTrendService,
+                               CategoryAnalyticsService categoryAnalyticsService,
                                TitleAnalyticsService titleAnalyticsService) {
         this.analyticsService = analyticsService;
         this.skillAnalyticsService = skillAnalyticsService;
         this.skillTrendService = skillTrendService;
+        this.categoryAnalyticsService = categoryAnalyticsService;
         this.titleAnalyticsService = titleAnalyticsService;
     }
 
@@ -118,6 +123,55 @@ public class AnalyticsController {
         log.info("GET /api/analytics/skills/trends months={} minJobs={} direction={} limit={}",
                 months, minJobs, direction, limit);
         return ResponseEntity.ok(skillTrendService.trends(months, minJobs, direction, limit));
+    }
+
+    // ---------------------------------------------------------------- V4: job categories
+
+    /**
+     * How postings are distributed across the rule-based job categories.
+     *
+     * <p>Percentages are of the classified postings, not of every posting: a corpus that
+     * is only half classified would otherwise report shares that quietly sum to 50.
+     */
+    @GetMapping("/job-categories")
+    public ResponseEntity<List<CategoryDemandResponse>> jobCategories() {
+        log.info("GET /api/analytics/job-categories");
+        return ResponseEntity.ok(categoryAnalyticsService.categoryDistribution());
+    }
+
+    /**
+     * The skills most asked for within one category, as a share of that category.
+     *
+     * <p>The category is a query parameter rather than a path segment because category
+     * names are data, and some of them contain a slash — "QA / Automation Engineer". An
+     * encoded slash inside a path segment is rejected by Tomcat with a 400 before the
+     * request reaches Spring, and the alternative, relaxing that check for the whole
+     * application, trades a security control for a URL shape.
+     */
+    @GetMapping("/category/skills")
+    public ResponseEntity<List<EntitySkillResponse>> categorySkills(
+            @RequestParam @Size(max = 50) String category,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit) {
+        log.info("GET /api/analytics/category/skills category={} limit={}", category, limit);
+        return ResponseEntity.ok(categoryAnalyticsService.skillsForCategory(category, limit));
+    }
+
+    /** Where postings in one category are concentrated. Remote postings have no location. */
+    @GetMapping("/category/locations")
+    public ResponseEntity<List<LocationDemandResponse>> categoryLocations(
+            @RequestParam @Size(max = 50) String category,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit) {
+        log.info("GET /api/analytics/category/locations category={} limit={}", category, limit);
+        return ResponseEntity.ok(categoryAnalyticsService.locationsForCategory(category, limit));
+    }
+
+    /** Which companies are hiring for one category. */
+    @GetMapping("/category/companies")
+    public ResponseEntity<List<CompanyDemandResponse>> categoryCompanies(
+            @RequestParam @Size(max = 50) String category,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(50) int limit) {
+        log.info("GET /api/analytics/category/companies category={} limit={}", category, limit);
+        return ResponseEntity.ok(categoryAnalyticsService.companiesForCategory(category, limit));
     }
 
     /** How required experience is distributed across every posting. */

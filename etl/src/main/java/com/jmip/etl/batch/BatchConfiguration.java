@@ -2,6 +2,10 @@ package com.jmip.etl.batch;
 
 import com.jmip.etl.config.EtlProperties;
 import com.jmip.etl.load.JobItemWriter;
+import com.jmip.etl.reprocess.JobReprocessingProcessor;
+import com.jmip.etl.reprocess.JobReprocessingWriter;
+import com.jmip.etl.reprocess.ReprocessedJob;
+import com.jmip.etl.reprocess.StoredJob;
 import com.jmip.etl.load.ReferenceDataCache;
 import com.jmip.etl.model.TransformedJob;
 import com.jmip.etl.raw.RawJobRecord;
@@ -19,12 +23,18 @@ import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.item.ItemStreamReader;
+import org.springframework.batch.item.database.JdbcPagingItemReader;
+import org.springframework.batch.item.database.Order;
+import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.batch.item.database.support.PostgresPagingQueryProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import javax.sql.DataSource;
 import java.nio.file.Path;
+import java.util.Map;
 import java.time.Clock;
 
 /**
@@ -44,6 +54,8 @@ public class BatchConfiguration {
 
     public static final String JOB_NAME = "ingestJobPostings";
     public static final String STEP_NAME = "ingestJobPostingsStep";
+    public static final String REPROCESS_JOB_NAME = "reprocessJobPostings";
+    public static final String REPROCESS_STEP_NAME = "reprocessJobPostingsStep";
 
     /** Injected rather than called statically, so validation can be tested against a fixed date. */
     @Bean
@@ -92,6 +104,67 @@ public class BatchConfiguration {
                 .listener((SkipListener<RawJobRecord, TransformedJob>) rejectedRecordListener)
                 .listener((StepExecutionListener) rejectedRecordListener)
                 .listener(referenceDataPrimer(referenceDataCache))
+                .build();
+    }
+
+    /**
+     * Reads existing postings for reprocessing, a page at a time.
+     *
+     * <p>Paged rather than cursor based, and ordered by id, because this step updates the
+     * very rows it is reading. Only three columns are selected: descriptions are the
+     * largest column in the table and the whole corpus must never be held in memory.
+     */
+    @Bean
+    public JdbcPagingItemReader<StoredJob> storedJobReader(DataSource dataSource, EtlProperties properties) {
+        PostgresPagingQueryProvider queryProvider = new PostgresPagingQueryProvider();
+        queryProvider.setSelectClause("SELECT id, title, description");
+        queryProvider.setFromClause("FROM jobs");
+        queryProvider.setSortKeys(Map.of("id", Order.ASCENDING));
+
+        return new JdbcPagingItemReaderBuilder<StoredJob>()
+                .name("storedJobReader")
+                .dataSource(dataSource)
+                .queryProvider(queryProvider)
+                .pageSize(properties.chunkSize())
+                .rowMapper((rs, rowNum) -> new StoredJob(
+                        rs.getLong("id"), rs.getString("title"), rs.getString("description")))
+                .build();
+    }
+
+    @Bean
+    public Step reprocessJobPostingsStep(JobRepository jobRepository,
+                                         PlatformTransactionManager transactionManager,
+                                         JdbcPagingItemReader<StoredJob> storedJobReader,
+                                         JobReprocessingProcessor jobReprocessingProcessor,
+                                         JobReprocessingWriter jobReprocessingWriter,
+                                         ReferenceDataCache referenceDataCache,
+                                         EtlProperties properties) {
+        return new StepBuilder(REPROCESS_STEP_NAME, jobRepository)
+                .<StoredJob, ReprocessedJob>chunk(properties.chunkSize(), transactionManager)
+                .reader(storedJobReader)
+                .processor(jobReprocessingProcessor)
+                .writer(jobReprocessingWriter)
+                .listener(referenceDataPrimer(referenceDataCache))
+                .build();
+    }
+
+    /**
+     * Re-runs V4 extraction and classification over postings already in the database.
+     *
+     * <p>Separate from ingestion because it answers a different question: ingestion adds
+     * postings, this one brings existing postings up to date with the current dictionary
+     * and rules. Launch it with
+     * {@code --spring.batch.job.name=reprocessJobPostings}; without that the ingestion
+     * job runs as before, so nothing about the existing command changes.
+     */
+    @Bean
+    public Job reprocessJobPostingsJob(JobRepository jobRepository,
+                                       Step reprocessJobPostingsStep,
+                                       EtlJobListener etlJobListener) {
+        return new JobBuilder(REPROCESS_JOB_NAME, jobRepository)
+                .incrementer(new RunIdIncrementer())
+                .listener(etlJobListener)
+                .start(reprocessJobPostingsStep)
                 .build();
     }
 

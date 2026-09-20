@@ -78,6 +78,12 @@ public final class JobSpecifications {
                 root.get("employmentType"), employmentType.trim().toUpperCase(Locale.ROOT));
     }
 
+    /** Exact match on the V4 job category, which is a controlled vocabulary. */
+    public static Specification<Job> categoryIs(String category) {
+        return (root, query, builder) -> builder.equal(
+                builder.lower(root.get("jobCategory")), category.trim().toLowerCase(Locale.ROOT));
+    }
+
     /** Matches everything, so callers can fold filters onto a neutral starting point. */
     public static Specification<Job> all() {
         return (root, query, builder) -> builder.conjunction();

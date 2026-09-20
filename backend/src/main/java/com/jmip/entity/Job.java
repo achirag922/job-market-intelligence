@@ -93,6 +93,16 @@ public class Job {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private OffsetDateTime updatedAt;
 
+    /** V4: the rule-based category, null until the posting has been classified. */
+    @Column(name = "job_category")
+    private String jobCategory;
+
+    @Column(name = "classification_confidence")
+    private BigDecimal classificationConfidence;
+
+    @Column(name = "classified_at")
+    private OffsetDateTime classifiedAt;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "job_skills",

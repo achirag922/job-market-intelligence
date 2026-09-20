@@ -9,6 +9,8 @@ import type {
   Location,
   LocationDemand,
   Overview,
+  CategoryDemand,
+  EntitySkill,
   PagedResponse,
   Resume,
   ResumeMatch,
@@ -132,6 +134,20 @@ export const api = {
     request<SkillAnalytics>('/api/analytics/skills', { ...filters, page, size }),
 
   experienceDistribution: () => request<ExperienceDistribution>('/api/analytics/experience'),
+
+  jobCategories: () => request<CategoryDemand[]>('/api/analytics/job-categories'),
+
+  // The category travels as a query parameter, not a path segment: names such as
+  // "QA / Automation Engineer" contain a slash, and an encoded slash inside a path
+  // segment is rejected by the server with a 400 before it reaches any handler.
+  categorySkills: (category: string, limit = 10) =>
+    request<EntitySkill[]>('/api/analytics/category/skills', { category, limit }),
+
+  categoryLocations: (category: string, limit = 10) =>
+    request<LocationDemand[]>('/api/analytics/category/locations', { category, limit }),
+
+  categoryCompanies: (category: string, limit = 10) =>
+    request<CompanyDemand[]>('/api/analytics/category/companies', { category, limit }),
 
   skillTrends: (months: number, direction?: TrendDirection, limit = 20) =>
     request<SkillTrends>('/api/analytics/skills/trends', { months, direction, limit }),

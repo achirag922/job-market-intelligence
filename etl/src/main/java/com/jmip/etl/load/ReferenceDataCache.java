@@ -165,12 +165,28 @@ public class ReferenceDataCache {
     }
 
     private void ensureSkills(Collection<TransformedJob> jobs) {
-        Set<String> missing = new LinkedHashSet<>();
+        Set<String> names = new LinkedHashSet<>();
         for (TransformedJob job : jobs) {
-            for (String skill : job.skills()) {
-                if (!skillIds.containsKey(key(skill))) {
-                    missing.add(skill);
-                }
+            names.addAll(job.skills());
+        }
+        ensureSkillsByName(names);
+    }
+
+    /**
+     * Creates any of these skills that does not exist yet.
+     *
+     * <p>Exposed by name as well as by job so that reprocessing, which works from stored
+     * rows rather than from raw records, resolves skills through this same cache instead
+     * of growing a second copy of the logic.
+     */
+    public void ensureSkillsByName(Collection<String> skillNames) {
+        if (!primed) {
+            prime();
+        }
+        Set<String> missing = new LinkedHashSet<>();
+        for (String skill : skillNames) {
+            if (skill != null && !skillIds.containsKey(key(skill))) {
+                missing.add(skill);
             }
         }
         if (missing.isEmpty()) {

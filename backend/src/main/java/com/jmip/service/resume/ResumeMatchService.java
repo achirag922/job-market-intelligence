@@ -82,6 +82,7 @@ public class ResumeMatchService {
                 job.getId(),
                 job.getTitle(),
                 job.getCompany().getName(),
+                job.getJobCategory(),
                 matchPercentage,
                 matchNote,
                 totalJobSkills,

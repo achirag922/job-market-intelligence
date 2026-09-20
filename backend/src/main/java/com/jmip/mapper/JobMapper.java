@@ -7,8 +7,10 @@ import com.jmip.dto.JobSummaryResponse;
 import com.jmip.dto.LocationResponse;
 import com.jmip.dto.SalaryResponse;
 import com.jmip.dto.SkillResponse;
+import com.jmip.dto.analytics.JobClassificationResponse;
 import com.jmip.entity.Company;
 import com.jmip.entity.Job;
+import com.jmip.entity.JobClassificationSignal;
 import com.jmip.entity.Location;
 import com.jmip.entity.Skill;
 import org.springframework.stereotype.Component;
@@ -37,10 +39,19 @@ public class JobMapper {
                 ExperienceResponse.of(job.getExperienceMin(), job.getExperienceMax()),
                 SalaryResponse.of(job.getSalaryMin(), job.getSalaryMax(), job.getCurrency()),
                 job.getPostedDate(),
+                job.getJobCategory(),
                 skills == null ? List.of() : skills);
     }
 
     public JobDetailResponse toDetail(Job job) {
+        return toDetail(job, null);
+    }
+
+    /**
+     * @param signals the classification evidence, loaded separately so the job query
+     *                stays a single row read
+     */
+    public JobDetailResponse toDetail(Job job, List<JobClassificationSignal> signals) {
         return new JobDetailResponse(
                 job.getId(),
                 job.getTitle(),
@@ -54,8 +65,31 @@ public class JobMapper {
                 job.getSource(),
                 job.getSourceUrl(),
                 toSkills(job.getSkills()),
+                toClassification(job, signals),
                 job.getCreatedAt(),
                 job.getUpdatedAt());
+    }
+
+    /**
+     * @return null when the posting has not been classified, so the field is simply
+     *         absent rather than present and empty
+     */
+    private JobClassificationResponse toClassification(Job job, List<JobClassificationSignal> signals) {
+        if (job.getJobCategory() == null) {
+            return null;
+        }
+        List<JobClassificationResponse.Signal> mapped = signals == null ? List.of()
+                : signals.stream()
+                        .map(signal -> new JobClassificationResponse.Signal(
+                                signal.getSignalType(),
+                                signal.getSignalValue(),
+                                signal.getWeight().doubleValue()))
+                        .toList();
+        return new JobClassificationResponse(
+                job.getJobCategory(),
+                job.getClassificationConfidence() == null
+                        ? null : job.getClassificationConfidence().doubleValue(),
+                mapped);
     }
 
     public CompanyResponse toCompany(Company company) {

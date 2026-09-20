@@ -11,7 +11,8 @@ import java.util.Set;
  * <p>Still not a JPA entity. The writer uses JDBC batches, and keeping this a plain
  * record means the pipeline never accidentally acquires persistence-context behaviour.
  *
- * @param skills canonical skill names; the writer resolves them to {@code skills.id}
+ * @param skills         canonical skill names; the writer resolves them to {@code skills.id}
+ * @param classification which kind of role this is, with the evidence behind it
  */
 public record TransformedJob(
         String title,
@@ -32,7 +33,8 @@ public record TransformedJob(
         String source,
         String sourceUrl,
         String contentFingerprint,
-        Set<String> skills) {
+        Set<String> skills,
+        JobClassification classification) {
 
     public boolean hasLocation() {
         return country != null;

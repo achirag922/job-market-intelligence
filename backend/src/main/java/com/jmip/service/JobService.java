@@ -7,7 +7,9 @@ import com.jmip.dto.JobSummaryResponse;
 import com.jmip.dto.PagedResponse;
 import com.jmip.dto.SkillResponse;
 import com.jmip.entity.Job;
+import com.jmip.entity.JobClassificationSignal;
 import com.jmip.mapper.JobMapper;
+import com.jmip.repository.JobClassificationSignalRepository;
 import com.jmip.repository.JobRepository;
 import com.jmip.repository.JobSpecifications;
 import com.jmip.repository.projection.JobSkillRow;
@@ -39,10 +41,13 @@ public class JobService {
 
     private final JobRepository jobRepository;
     private final JobMapper jobMapper;
+    private final JobClassificationSignalRepository signalRepository;
 
-    public JobService(JobRepository jobRepository, JobMapper jobMapper) {
+    public JobService(JobRepository jobRepository, JobMapper jobMapper,
+                      JobClassificationSignalRepository signalRepository) {
         this.jobRepository = jobRepository;
         this.jobMapper = jobMapper;
+        this.signalRepository = signalRepository;
     }
 
     public PagedResponse<JobSummaryResponse> search(JobSearchCriteria criteria, Pageable pageable) {
@@ -64,9 +69,13 @@ public class JobService {
     }
 
     public JobDetailResponse findById(Long id) {
-        return jobRepository.findDetailById(id)
-                .map(jobMapper::toDetail)
+        Job job = jobRepository.findDetailById(id)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", id));
+        // One extra query, only on the detail view, and only when there is a category to
+        // explain. The list view never pays for it.
+        List<JobClassificationSignal> signals = job.getJobCategory() == null
+                ? List.of() : signalRepository.findByJobId(id);
+        return jobMapper.toDetail(job, signals);
     }
 
     private Specification<Job> toSpecification(JobSearchCriteria criteria) {
@@ -85,6 +94,9 @@ public class JobService {
         }
         if (criteria.hasEmploymentType()) {
             specification = specification.and(JobSpecifications.employmentTypeIs(criteria.employmentType()));
+        }
+        if (criteria.hasCategory()) {
+            specification = specification.and(JobSpecifications.categoryIs(criteria.category()));
         }
         return specification;
     }

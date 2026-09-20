@@ -1,5 +1,6 @@
 package com.jmip.etl.load;
 
+import com.jmip.etl.model.JobClassification;
 import com.jmip.etl.model.TransformedJob;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Types;
@@ -48,9 +50,15 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
     private static final String INSERT_JOB = """
             INSERT INTO jobs (title, company_id, location_id, description, employment_type,
                               experience_min, experience_max, salary_min, salary_max, currency,
-                              posted_date, source, source_url, content_fingerprint)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              posted_date, source, source_url, content_fingerprint,
+                              job_category, classification_confidence, classified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
+            """;
+
+    private static final String INSERT_CLASSIFICATION_SIGNAL = """
+            INSERT INTO job_classification_signals (job_id, signal_type, signal_value, weight)
+            VALUES (?, ?, ?, ?) ON CONFLICT DO NOTHING
             """;
 
     private static final String INSERT_JOB_SKILL = """
@@ -111,6 +119,7 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
         }
 
         linkSkills(byFingerprint.values(), jobIds);
+        linkClassificationSignals(byFingerprint.values(), jobIds);
     }
 
     private Map<String, Long> findExistingJobIds(java.util.Collection<String> fingerprints) {
@@ -146,7 +155,47 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             ps.setString(12, job.source());
             ps.setString(13, job.sourceUrl());
             ps.setString(14, job.contentFingerprint());
+            // The schema requires category, confidence and timestamp together or none of
+            // them, so all three move as a unit.
+            if (job.classification() == null) {
+                ps.setNull(15, Types.VARCHAR);
+                ps.setNull(16, Types.NUMERIC);
+                ps.setNull(17, Types.TIMESTAMP_WITH_TIMEZONE);
+            } else {
+                ps.setString(15, job.classification().category());
+                ps.setBigDecimal(16, BigDecimal.valueOf(job.classification().confidence()));
+                ps.setTimestamp(17, java.sql.Timestamp.from(java.time.Instant.now()));
+            }
         });
+    }
+
+    /**
+     * Records why each posting was classified as it was.
+     *
+     * <p>{@code ON CONFLICT DO NOTHING} against the composite key, so re-ingesting the
+     * same posting cannot duplicate its evidence.
+     */
+    private void linkClassificationSignals(java.util.Collection<TransformedJob> jobs, Map<String, Long> jobIds) {
+        List<Object[]> rows = new ArrayList<>();
+        for (TransformedJob job : jobs) {
+            Long jobId = jobIds.get(job.contentFingerprint());
+            if (jobId == null || job.classification() == null) {
+                continue;
+            }
+            for (JobClassification.Signal signal : job.classification().signals()) {
+                rows.add(new Object[]{jobId, signal.type().name(), signal.value(), signal.weight()});
+            }
+        }
+        if (rows.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.batchUpdate(INSERT_CLASSIFICATION_SIGNAL, rows, rows.size(),
+                (PreparedStatement ps, Object[] row) -> {
+                    ps.setLong(1, (Long) row[0]);
+                    ps.setString(2, (String) row[1]);
+                    ps.setString(3, (String) row[2]);
+                    ps.setBigDecimal(4, BigDecimal.valueOf((Double) row[3]));
+                });
     }
 
     private void linkSkills(java.util.Collection<TransformedJob> jobs, Map<String, Long> jobIds) {

@@ -59,6 +59,50 @@ export function JobDetails() {
               </dd>
             </dl>
 
+            {data.classification && (
+              <div className="card">
+                <h2>
+                  Category: {data.classification.category}
+                  {data.classification.confidence !== undefined && (
+                    <span className="trend trend-stable">
+                      {' '}
+                      · {data.classification.confidence.toFixed(0)}% confidence
+                    </span>
+                  )}
+                </h2>
+                <p className="subtitle">
+                  Assigned by matching the title, description and extracted skills against
+                  a fixed set of rules. The confidence reflects how much evidence matched
+                  and how clearly it beat the other categories — it is not a probability
+                  that the category is right.
+                </p>
+
+                <h2>Why this category?</h2>
+                {data.classification.signals.length === 0 ? (
+                  <p className="status">No signals were recorded for this posting.</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Matched</th>
+                        <th>Found in</th>
+                        <th>Weight</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.classification.signals.map((signal) => (
+                        <tr key={`${signal.type}-${signal.value}`}>
+                          <td>{signal.value}</td>
+                          <td>{formatSignalType(signal.type)}</td>
+                          <td>{signal.weight}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            )}
+
             <h2>Skills</h2>
             {data.skills.length === 0 ? (
               <p className="status">No skills were extracted from this posting.</p>
@@ -81,4 +125,18 @@ export function JobDetails() {
       </AsyncPanel>
     </section>
   );
+}
+
+/** TITLE / DESCRIPTION / SKILL read better as plain words next to the matched value. */
+function formatSignalType(type: string): string {
+  switch (type) {
+    case 'TITLE':
+      return 'Job title';
+    case 'DESCRIPTION':
+      return 'Description';
+    case 'SKILL':
+      return 'Required skill';
+    default:
+      return type;
+  }
 }

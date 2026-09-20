@@ -14,6 +14,7 @@ import jakarta.validation.constraints.Size;
  * @param company        case-insensitive substring of the company name
  * @param skill          exact skill name, case-insensitive
  * @param employmentType one of the six values the schema allows
+ * @param category       exact V4 job category, case-insensitive
  */
 public record JobSearchCriteria(
         @Size(max = 300, message = "title filter must be at most 300 characters")
@@ -32,7 +33,10 @@ public record JobSearchCriteria(
                 regexp = "(?i)FULL_TIME|PART_TIME|CONTRACT|INTERNSHIP|TEMPORARY|FREELANCE",
                 message = "employmentType must be one of FULL_TIME, PART_TIME, CONTRACT, "
                         + "INTERNSHIP, TEMPORARY, FREELANCE")
-        String employmentType) {
+        String employmentType,
+
+        @Size(max = 50, message = "category filter must be at most 50 characters")
+        String category) {
 
     /** Blank query parameters are treated as absent, so "?title=" does not filter on "". */
     public JobSearchCriteria {
@@ -41,6 +45,7 @@ public record JobSearchCriteria(
         company = blankToNull(company);
         skill = blankToNull(skill);
         employmentType = blankToNull(employmentType);
+        category = blankToNull(category);
     }
 
     public boolean hasTitle() {
@@ -61,6 +66,10 @@ public record JobSearchCriteria(
 
     public boolean hasEmploymentType() {
         return employmentType != null;
+    }
+
+    public boolean hasCategory() {
+        return category != null;
     }
 
     private static String blankToNull(String value) {

@@ -1,7 +1,10 @@
 package com.jmip.repository;
 
 import com.jmip.entity.Job;
+import com.jmip.repository.projection.CategoryCountRow;
+import com.jmip.repository.projection.CompanyDemandRow;
 import com.jmip.repository.projection.ExperienceCountRow;
+import com.jmip.repository.projection.LocationDemandRow;
 import com.jmip.repository.projection.SkillDemandRow;
 import com.jmip.repository.projection.TitleCountRow;
 import com.jmip.repository.projection.TitleSkillCountRow;
@@ -128,6 +131,59 @@ public interface AnalyticsRepository extends Repository<Job, Long> {
             group by j.title, s.id, s.name, s.category
             """)
     List<TitleSkillCountRow> countSkillsByTitle();
+
+    // -------------------------------------------------------------- V4: job categories
+
+    /**
+     * Postings per category. Unclassified postings are excluded rather than counted as a
+     * category of their own, so the percentages describe the classified corpus.
+     */
+    @Query("""
+            select new com.jmip.repository.projection.CategoryCountRow(j.jobCategory, count(j.id))
+            from Job j
+            where j.jobCategory is not null
+            group by j.jobCategory
+            order by count(j.id) desc, j.jobCategory asc
+            """)
+    List<CategoryCountRow> countByCategory();
+
+    @Query("select count(j.id) from Job j where j.jobCategory is not null")
+    long countClassifiedJobs();
+
+    @Query("select count(j.id) from Job j where j.jobCategory = :category")
+    long countJobsInCategory(@Param("category") String category);
+
+    /** The skills most asked for within one category. */
+    @Query("""
+            select new com.jmip.repository.projection.SkillDemandRow(s.id, s.name, s.category, count(j.id))
+            from Job j join j.skills s
+            where j.jobCategory = :category
+            group by s.id, s.name, s.category
+            order by count(j.id) desc, s.name asc
+            """)
+    List<SkillDemandRow> findSkillsForCategory(@Param("category") String category, Pageable limit);
+
+    /** Where postings in one category are concentrated. Remote postings have no location. */
+    @Query("""
+            select new com.jmip.repository.projection.LocationDemandRow(
+                l.id, l.city, l.state, l.country, count(j.id))
+            from Job j join j.location l
+            where j.jobCategory = :category
+            group by l.id, l.city, l.state, l.country
+            order by count(j.id) desc, l.country asc
+            """)
+    List<LocationDemandRow> findLocationsForCategory(@Param("category") String category, Pageable limit);
+
+    /** Which companies are hiring for one category. */
+    @Query("""
+            select new com.jmip.repository.projection.CompanyDemandRow(
+                c.id, c.name, c.industry, c.website, count(j.id))
+            from Job j join j.company c
+            where j.jobCategory = :category
+            group by c.id, c.name, c.industry, c.website
+            order by count(j.id) desc, c.name asc
+            """)
+    List<CompanyDemandRow> findCompaniesForCategory(@Param("category") String category, Pageable limit);
 
     @Query("select count(j.id) from Job j where j.company.id = :companyId")
     long countJobsForCompany(@Param("companyId") Long companyId);

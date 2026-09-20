@@ -1,5 +1,6 @@
 package com.jmip.etl.transform;
 
+import com.jmip.etl.config.ClassificationProperties;
 import com.jmip.etl.config.SkillDictionaryProperties;
 import com.jmip.etl.config.SkillDictionaryProperties.SkillDefinition;
 import com.jmip.etl.model.TransformedJob;
@@ -33,6 +34,11 @@ class JobItemProcessorTest {
                     new SkillDefinition("Java", "LANGUAGE", List.of(), List.of()),
                     new SkillDefinition("Spring Boot", "FRAMEWORK", List.of(), List.of()),
                     new SkillDefinition("PostgreSQL", "DATABASE", List.of(), List.of())))),
+            new JobDescriptionProcessor(),
+            new JobClassifier(new ClassificationProperties(
+                    new ClassificationProperties.Weights(5, 2, 1), 10,
+                    List.of(new ClassificationProperties.Category("Backend Developer",
+                            List.of("backend engineer"), List.of(), List.of("Java", "Spring Boot"))))),
             new ContentFingerprint(),
             new JobValidator(FIXED_CLOCK));
 

@@ -181,7 +181,7 @@ class JobValidatorTest {
             return new TransformedJob(title, companyName, "Software", "https://acme.example.invalid",
                     city, state, country, description, employmentType,
                     experienceMin, experienceMax, salaryMin, salaryMax, currency,
-                    postedDate, "test", "https://acme.example.invalid/jobs/1", "fingerprint", Set.of());
+                    postedDate, "test", "https://acme.example.invalid/jobs/1", "fingerprint", Set.of(), null);
         }
     }
 }

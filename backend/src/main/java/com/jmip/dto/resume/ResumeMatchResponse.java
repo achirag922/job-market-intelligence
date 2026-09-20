@@ -31,6 +31,8 @@ public record ResumeMatchResponse(
         Long jobId,
         String jobTitle,
         String companyName,
+        /** V4: the category assigned to this posting, so the match reads in context. */
+        String jobCategory,
         Double matchPercentage,
         String matchNote,
         int totalJobSkills,

@@ -1,5 +1,6 @@
 package com.jmip.etl.transform;
 
+import com.jmip.etl.model.JobClassification;
 import com.jmip.etl.model.TransformedJob;
 import com.jmip.etl.raw.RawJobRecord;
 import com.jmip.etl.transform.ExperienceParser.ExperienceRange;
@@ -46,6 +47,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
     private final SalaryParser salaryParser;
     private final EmploymentTypeNormalizer employmentTypeNormalizer;
     private final SkillExtractor skillExtractor;
+    private final JobDescriptionProcessor jobDescriptionProcessor;
+    private final JobClassifier jobClassifier;
     private final ContentFingerprint contentFingerprint;
     private final JobValidator jobValidator;
 
@@ -55,6 +58,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                             SalaryParser salaryParser,
                             EmploymentTypeNormalizer employmentTypeNormalizer,
                             SkillExtractor skillExtractor,
+                            JobDescriptionProcessor jobDescriptionProcessor,
+                            JobClassifier jobClassifier,
                             ContentFingerprint contentFingerprint,
                             JobValidator jobValidator) {
         this.textNormalizer = textNormalizer;
@@ -63,6 +68,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
         this.salaryParser = salaryParser;
         this.employmentTypeNormalizer = employmentTypeNormalizer;
         this.skillExtractor = skillExtractor;
+        this.jobDescriptionProcessor = jobDescriptionProcessor;
+        this.jobClassifier = jobClassifier;
         this.contentFingerprint = contentFingerprint;
         this.jobValidator = jobValidator;
     }
@@ -75,12 +82,16 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
         String company = textNormalizer.normalizeCompany(raw.company());
         String description = textNormalizer.normalizeDescription(raw.description());
 
+        // The stored description keeps its own formatting; this working copy is the one
+        // extraction and classification read, with markup and layout artefacts removed.
+        String processedDescription = jobDescriptionProcessor.process(description);
+
         ParsedLocation location = parseLocation(raw, parseFailures);
         ExperienceRange experience = parseExperience(raw, parseFailures);
         SalaryRange salary = parseSalary(raw, parseFailures);
         LocalDate postedDate = parsePostedDate(raw, parseFailures);
 
-        Set<String> skills = skillExtractor.extract(title, description);
+        Set<String> skills = skillExtractor.extract(title, processedDescription);
 
         TransformedJob job = new TransformedJob(
                 title,
@@ -101,7 +112,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                 textNormalizer.normalize(raw.source()),
                 textNormalizer.normalize(raw.sourceUrl()),
                 null,
-                skills);
+                skills,
+                null);
 
         List<String> reasons = new ArrayList<>(parseFailures);
         reasons.addAll(jobValidator.validate(job));
@@ -115,12 +127,16 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
         String fingerprint = contentFingerprint.compute(
                 job.title(), job.companyName(), job.city(), job.state(), job.country(), job.postedDate());
 
+        // Classified only once the record is known to be loadable, so effort is not spent
+        // on postings that are about to be rejected.
+        JobClassification classification = jobClassifier.classify(title, processedDescription, skills);
+
         return new TransformedJob(
                 job.title(), job.companyName(), job.companyIndustry(), job.companyWebsite(),
                 job.city(), job.state(), job.country(), job.description(), job.employmentType(),
                 job.experienceMin(), job.experienceMax(), job.salaryMin(), job.salaryMax(),
                 job.currency(), job.postedDate(), job.source(), job.sourceUrl(),
-                fingerprint, job.skills());
+                fingerprint, job.skills(), classification);
     }
 
     private ParsedLocation parseLocation(RawJobRecord raw, List<String> failures) {

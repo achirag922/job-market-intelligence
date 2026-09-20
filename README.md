@@ -62,6 +62,11 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_SERVER_PORT` | `8080`      |
 | `JMIP_RESUME_DIR`  | `./data/resumes` |
 | `JMIP_RESUME_MAX_FILE_SIZE` | `5MB` |
+| `JMIP_ETL_JOB`     | `ingestJobPostings` |
+
+Classification rules — the categories, their keywords and the signal weights — live in
+`etl/src/main/resources/application.yml` under `jmip.etl.classification`. They are
+configuration, not code: adding a category or retuning a weight needs no recompile.
 
 ## Building
 
@@ -92,6 +97,9 @@ A `.csv` file is read with Apache Commons CSV instead, chosen by extension. CSV 
 without a source column take one from an optional `defaultSource=<name>` parameter.
 
 Re-running the same file is safe: duplicate detection means nothing is loaded twice.
+
+To re-read postings already in the database after the rules or the skill dictionary change,
+run the reprocessing job instead — see [Job categories and text processing](#job-categories-and-text-processing-v4).
 
 ## Running the frontend
 
@@ -128,7 +136,8 @@ etl/src/main/java/com/jmip/etl
   transform/                               Cleaning, parsing, skill extraction, fingerprinting
   validation/                              Validation rules and rejected-record storage
   load/                                    Chunk writer, reference-data cache, metrics
-  batch/                                   Spring Batch job, step and listeners
+  batch/                                   Spring Batch jobs, steps and listeners
+  reprocess/                               Re-reads stored postings when the rules change
 etl/data
   README.md                                Dataset sources, licensing, column dictionary
   raw/                                     Raw job-posting input read by the ETL
@@ -145,6 +154,7 @@ etl/data
 - [x] Phase 7 — deeper analytics: skill filters and ranking, experience bands, per-company and per-location breakdowns, grouped job titles
 - [x] V2 — skill trends: monthly demand snapshots, backfilled from posted dates, and rising/falling detection
 - [x] V3 — resume intelligence: PDF upload, text and skill extraction, resume-to-job match and skill gap
+- [x] V4 — NLP and job intelligence: description text processing, skill extraction from prose, rule-based job classification with confidence and evidence, and per-category analytics
 
 ## API
 
@@ -153,8 +163,8 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 
 | Endpoint | Notes |
 |---|---|
-| `GET /api/jobs` | Filters: `title`, `location`, `company`, `skill`, `employmentType`, combined with AND. Sort: `postedDate`, `title`, `salaryMin`, `salaryMax`, `createdAt`. Default is newest first with undated postings last |
-| `GET /api/jobs/{id}` | Full posting including description and source |
+| `GET /api/jobs` | Filters: `title`, `location`, `company`, `skill`, `employmentType`, `category`, combined with AND. Sort: `postedDate`, `title`, `salaryMin`, `salaryMax`, `createdAt`. Default is newest first with undated postings last |
+| `GET /api/jobs/{id}` | Full posting including description and source, plus `classification` — the category, its confidence and the signals behind it, or `null` when unclassified |
 | `GET /api/skills` | Filter: `name` |
 | `GET /api/skills/top` | Most in-demand skills, `limit` 1–100, default 10 |
 | `GET /api/companies` | Filter: `name` |
@@ -163,6 +173,10 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 | `GET /api/analytics/overview` | Total jobs, companies, skills and locations |
 | `GET /api/analytics/skills` | Skills ranked by demand. Filters: `location`, `fromDate`, `toDate`, `title`. Returns `scope.totalJobsInScope`, the denominator behind every percentage |
 | `GET /api/analytics/skills/trends` | Skills gaining or losing demand. `months`, `minJobs`, `direction` (RISING/FALLING/STABLE), `limit`. Measured from the snapshot history |
+| `GET /api/analytics/job-categories` | Postings per job category, ranked, as a share of the **classified** postings |
+| `GET /api/analytics/category/skills` | Top skills in one category, as a share of that category. Takes `category` and `limit` |
+| `GET /api/analytics/category/locations` | Where one category's postings are. Takes `category` and `limit` |
+| `GET /api/analytics/category/companies` | Who is hiring for one category. Takes `category` and `limit` |
 | `GET /api/analytics/experience` | Distribution across 0–2, 2–5, 5–8, 8+ years, plus "not specified" |
 | `GET /api/analytics/locations` | Locations ranked by posting count; remote postings have none and are excluded |
 | `GET /api/analytics/locations/{id}/skills` | Top skills in one location, as a share of that location |
@@ -225,6 +239,74 @@ curl http://localhost:8080/api/resumes/56aedd0e-.../match/133
 # -> {"matchPercentage":25.0,"totalJobSkills":4,"matchedSkillCount":1,
 #     "missingSkills":[{"name":"Airflow"},{"name":"Snowflake"},{"name":"Spark"}]}
 ```
+
+### Job categories and text processing (V4)
+
+V4 reads the job description as text rather than as an opaque blob, and uses what it finds
+to put each posting into a role category. Everything here is deterministic and rule-based:
+**no model, no training, no external service**. The same posting always classifies the same
+way, and changing an outcome means changing a rule in `etl/src/main/resources/application.yml`.
+
+**Description processing.** Before anything reads a description it is normalised:
+Unicode NFKC, HTML block tags turned into line breaks, remaining tags and entities removed,
+words rejoined across soft hyphens, bullet markers regularised, runs of whitespace
+collapsed. It deliberately does **not** lower-case or strip punctuation — `Node.js`, `C#`
+and `C++` lose their identity that way — and it keeps line structure, because a bulleted
+requirements list is information. The stored `description` is never modified; normalisation
+happens on read, so it is recomputed rather than duplicated into a second column.
+
+**Skill extraction from prose.** The same `skills` table is still the only vocabulary, but
+separators are now flexible: one entry matches "Spring Boot", "spring-boot" and
+"SpringBoot". Aliases cover the forms that are not spelling variants at all — `JS` for
+JavaScript, `RESTful APIs` for REST API, `Postgres` for PostgreSQL. Word boundaries still
+stop `Java` matching inside `JavaScript`, `SQL` inside `PostgreSQL` and `Git` inside
+`GitHub`.
+
+**Classification** scores every category from three kinds of signal, weighted because they
+are not equally telling:
+
+| Signal | Weight | Why |
+|---|---|---|
+| Title keyword | 5 | The title is the employer naming the role outright |
+| Required skill | 2 | A stack is strong evidence, but stacks overlap between roles |
+| Description keyword | 1 | A phrase in prose is the weakest of the three; anything can be mentioned in passing |
+
+At most one title signal counts per category: the keyword list carries synonyms on purpose
+("backend engineer" and "back end engineer" both match "Backend Engineer"), and scoring
+both would count one piece of evidence twice. The highest-scoring category wins; a posting
+that matches nothing is recorded as `Other` rather than forced into the least-bad fit.
+
+**Confidence** combines two things, because either alone misleads:
+
+```
+coverage  = min(1, winner score / full evidence score)   # how much evidence there was
+dominance = winner score / (winner score + runner-up)    # how clearly it won
+confidence = coverage × dominance × 100
+```
+
+A posting scoring equally as backend and frontend is genuinely ambiguous however much
+evidence it carries, and its confidence says so. This is **not** a probability that the
+category is correct — it describes the strength and clarity of the evidence, nothing more.
+
+Every signal that contributed is stored in `job_classification_signals`, so
+`GET /api/jobs/{id}` can show *why* a posting got its category instead of asserting it.
+
+**Reprocessing.** Rules and the skill dictionary will change, so postings already in the
+database can be re-read without re-ingesting anything:
+
+```
+JMIP_ETL_JOB=reprocessJobPostings java -jar etl/target/etl-0.0.1-SNAPSHOT.jar
+```
+
+It reads stored titles and descriptions, and rewrites skills, classification and signals.
+It is idempotent by construction: the rows it owns are deleted before being rewritten, so a
+narrowed rule leaves no residue and repeated runs produce the same state rather than
+accumulating. Descriptions themselves are never touched.
+
+**Category names are query parameters, not path segments.** One of them contains a slash —
+"QA / Automation Engineer" — and an encoded slash inside a path segment is rejected by the
+servlet container with a 400 before any handler sees it. The alternative, relaxing that
+check application-wide, trades a security control for a URL shape.
 
 ### Reading the numbers
 

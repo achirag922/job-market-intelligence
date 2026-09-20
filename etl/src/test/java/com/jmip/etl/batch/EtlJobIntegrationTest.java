@@ -59,11 +59,20 @@ class EtlJobIntegrationTest {
     private EtlMetrics metrics;
 
     /**
+     * Two jobs exist since V4, so the launcher cannot choose one by type. Naming the
+     * ingestion job here keeps this test about ingestion.
+     */
+    @Autowired
+    @org.springframework.beans.factory.annotation.Qualifier("ingestJobPostingsJob")
+    private org.springframework.batch.core.Job ingestJob;
+
+    /**
      * The container is shared by every test in the class, so each one starts from an
      * empty set of ingested rows. Spring Batch's own metadata is left alone.
      */
     @BeforeEach
     void clearIngestedData() {
+        jobLauncherTestUtils.setJob(ingestJob);
         jdbcTemplate.execute(
                 "TRUNCATE job_skills, jobs, skills, companies, locations, etl_rejected_record RESTART IDENTITY CASCADE");
     }

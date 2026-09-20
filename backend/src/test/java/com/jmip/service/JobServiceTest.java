@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 class JobServiceTest {
 
     private static final JobSearchCriteria NO_FILTERS =
-            new JobSearchCriteria(null, null, null, null, null);
+            new JobSearchCriteria(null, null, null, null, null, null);
 
     @Mock
     private JobRepository jobRepository;

@@ -96,6 +96,79 @@ class SkillExtractorTest {
         assertThat(extractor.extract("", "")).isEmpty();
     }
 
+    // ------------------------------------------------------- V4: natural description text
+
+    private final SkillExtractor v4Extractor = new SkillExtractor(new SkillDictionaryProperties(List.of(
+            new SkillDefinition("Spring Boot", "FRAMEWORK", List.of("springboot"), List.of()),
+            new SkillDefinition("REST API", "ARCHITECTURE",
+                    List.of("rest apis", "restful api", "restful apis"), List.of()),
+            new SkillDefinition("AWS", "CLOUD", List.of("amazon web services"), List.of()),
+            new SkillDefinition("EC2", "CLOUD", List.of(), List.of()),
+            new SkillDefinition("S3", "CLOUD", List.of(), List.of()),
+            new SkillDefinition("Lambda", "CLOUD", List.of(), List.of()),
+            new SkillDefinition("Docker", "PLATFORM", List.of(), List.of()),
+            new SkillDefinition("Kubernetes", "PLATFORM", List.of("k8s"), List.of()),
+            new SkillDefinition("JavaScript", "LANGUAGE", List.of("js"), List.of()),
+            new SkillDefinition("TypeScript", "LANGUAGE", List.of("ts"), List.of()))));
+
+    @Test
+    @DisplayName("finds skills in a natural sentence about REST APIs")
+    void findsSkillsInRestApiSentence() {
+        assertThat(v4Extractor.extract(null,
+                "Experience developing RESTful APIs using Spring Boot"))
+                .containsExactlyInAnyOrder("Spring Boot", "REST API");
+    }
+
+    @Test
+    @DisplayName("finds a cloud provider and its named services together")
+    void findsCloudServices() {
+        assertThat(v4Extractor.extract(null,
+                "Strong experience with AWS services including EC2, S3 and Lambda"))
+                .containsExactlyInAnyOrder("AWS", "EC2", "S3", "Lambda");
+    }
+
+    @Test
+    @DisplayName("finds container technologies in a natural sentence")
+    void findsContainerSkills() {
+        assertThat(v4Extractor.extract(null,
+                "Experience with containerized applications using Docker and Kubernetes"))
+                .containsExactlyInAnyOrder("Docker", "Kubernetes");
+    }
+
+    @Test
+    @DisplayName("separators between the words of a skill do not matter")
+    void separatorsDoNotMatter() {
+        // The same skill however the description spells it.
+        assertThat(v4Extractor.extract(null, "SpringBoot experience")).containsExactly("Spring Boot");
+        assertThat(v4Extractor.extract(null, "Spring-Boot experience")).containsExactly("Spring Boot");
+        assertThat(v4Extractor.extract(null, "Spring_Boot experience")).containsExactly("Spring Boot");
+        assertThat(v4Extractor.extract(null, "spring boot experience")).containsExactly("Spring Boot");
+    }
+
+    @Test
+    @DisplayName("short aliases resolve to their canonical skill")
+    void shortAliasesResolve() {
+        assertThat(v4Extractor.extract(null, "Strong JS and TS skills, deployed on K8s"))
+                .containsExactlyInAnyOrder("JavaScript", "TypeScript", "Kubernetes");
+    }
+
+    @Test
+    @DisplayName("an alias does not fire inside a longer word")
+    void aliasesDoNotMatchInsideWords() {
+        // "js" must not match inside "jsonschema", nor "ts" inside "artifacts".
+        assertThat(v4Extractor.extract(null, "We publish jsonschema files and build artifacts"))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("a skill repeated through a long description is returned once")
+    void repeatedSkillReturnedOnce() {
+        String description = "Docker is used here. We containerise with Docker. Docker everywhere. "
+                + "Our Docker images are small.";
+
+        assertThat(v4Extractor.extract("Docker Engineer", description)).containsExactly("Docker");
+    }
+
     @Test
     @DisplayName("category lookup returns the configured category")
     void categoryLookup() {

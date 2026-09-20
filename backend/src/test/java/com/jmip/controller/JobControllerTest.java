@@ -147,7 +147,7 @@ class JobControllerTest {
                 new ExperienceResponse(5, 9),
                 new SalaryResponse(new BigDecimal("150000"), new BigDecimal("190000"), "USD"),
                 LocalDate.of(2026, 8, 13), "itest", "https://example.invalid/1",
-                List.of(new SkillResponse(1L, "Java", "LANGUAGE")), null, null));
+                List.of(new SkillResponse(1L, "Java", "LANGUAGE")), null, null, null));
 
         mockMvc.perform(get("/api/jobs/1"))
                 .andExpect(status().isOk())
@@ -185,6 +185,7 @@ class JobControllerTest {
                 new ExperienceResponse(5, 9),
                 new SalaryResponse(new BigDecimal("150000"), new BigDecimal("190000"), "USD"),
                 LocalDate.of(2026, 8, 13),
+                "Backend Developer",
                 List.of(new SkillResponse(1L, "Java", "LANGUAGE")));
     }
 }

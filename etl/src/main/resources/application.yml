@@ -19,6 +19,14 @@ spring:
     jdbc:
       # Flyway owns every table, including Spring Batch's own metadata (see V2).
       initialize-schema: never
+    job:
+      # Two jobs exist since V4, and Spring Batch refuses to guess between them. Naming
+      # the default here keeps the original command working unchanged:
+      #   java -jar etl.jar inputFile=...
+      # Reprocess existing postings with either
+      #   JMIP_ETL_JOB=reprocessJobPostings java -jar etl.jar
+      #   java -jar etl.jar --spring.batch.job.name=reprocessJobPostings
+      name: ${JMIP_ETL_JOB:ingestJobPostings}
 
 jmip:
   etl:
@@ -102,9 +110,164 @@ jmip:
           category: TESTING
           aliases: [ "selenium webdriver" ]
 
+    # V4 classification rules. Held here rather than in Java because these lists change
+    # far more often than the scoring code, and adding a category should be a
+    # configuration change rather than a code change.
+        # V4 additions. These appear throughout job descriptions but were missing from the
+        # V1 dictionary, so they were being lost.
+        - name: JavaScript
+          category: LANGUAGE
+          # "JS" standalone is unambiguous in a job description; word boundaries stop it
+          # matching inside another word.
+          aliases: [ "js", "ecmascript" ]
+        - name: TypeScript
+          category: LANGUAGE
+          aliases: [ "ts" ]
+        - name: REST API
+          category: ARCHITECTURE
+          # "RESTful APIs" is how descriptions usually phrase it, and would otherwise be
+          # missed entirely: word boundaries stop "REST" matching inside "RESTful".
+          aliases: [ "rest apis", "restful api", "restful apis", "restful web service",
+                     "restful web services", "rest web service", "rest service" ]
+        - name: EC2
+          category: CLOUD
+          aliases: [ "amazon ec2" ]
+        - name: S3
+          category: CLOUD
+          aliases: [ "amazon s3" ]
+        - name: Lambda
+          category: CLOUD
+          aliases: [ "aws lambda" ]
+        - name: TestNG
+          category: TESTING
+        - name: Cypress
+          category: TESTING
+        - name: PostgreSQL
+          category: DATABASE
+          aliases: [ "postgres" ]
+        - name: CSS
+          category: FRONTEND
+        - name: Redux
+          category: FRONTEND
+        - name: Django
+          category: FRAMEWORK
+        - name: Flask
+          category: FRAMEWORK
+        - name: PyTorch
+          category: DATA
+        - name: TensorFlow
+          category: DATA
+        - name: scikit-learn
+          category: DATA
+          aliases: [ "sklearn", "scikit learn" ]
+        - name: MLflow
+          category: DATA
+        - name: dbt
+          category: DATA
+        - name: Prometheus
+          category: PLATFORM
+        - name: Ansible
+          category: PLATFORM
+        - name: Tableau
+          category: DATA
+        - name: Power BI
+          category: DATA
+        - name: Excel
+          category: TOOL
+        - name: Agile
+          category: PRACTICE
+        - name: Roadmapping
+          category: PRACTICE
+        - name: Stakeholder Management
+          category: PRACTICE
+        - name: Penetration Testing
+          category: SECURITY
+          aliases: [ "pen testing", "pentesting" ]
+        - name: SIEM
+          category: SECURITY
+        - name: Cryptography
+          category: SECURITY
+        - name: Performance Tuning
+          category: DATABASE
+          aliases: [ "query tuning" ]
+    classification:
+      weights:
+        # A title naming the role is the employer stating it directly. A skill is
+        # supporting evidence: Java appears in plenty of jobs that are not Java roles. A
+        # description keyword is weakest, being easiest to mention in passing.
+        title: 5
+        skill: 2
+        description: 1
+      # The score at which evidence is treated as complete; more does not raise confidence.
+      full-evidence-score: 10
+      categories:
+        - name: Backend Developer
+          title-keywords: [ backend engineer, backend developer, back end engineer, server side engineer ]
+          description-keywords: [ backend services, server side, microservices architecture, rest apis ]
+          skills: [ Java, Spring Boot, Spring, Microservices, Kafka, REST API ]
+        - name: Frontend Developer
+          title-keywords: [ frontend engineer, frontend developer, front end engineer, ui engineer, web developer ]
+          description-keywords: [ user interface, responsive design, single page application, browser ]
+          skills: [ React, Angular, JavaScript, TypeScript, CSS, Redux ]
+        - name: Full Stack Developer
+          title-keywords: [ full stack developer, full stack engineer, fullstack engineer ]
+          description-keywords: [ across the stack, end to end feature, front and back end ]
+          skills: [ React, Spring Boot, Node.js, TypeScript ]
+        - name: Data Engineer
+          title-keywords: [ data engineer, etl developer, big data engineer, analytics engineer ]
+          description-keywords: [ data pipeline, data warehouse, etl, batch and streaming, ingestion ]
+          skills: [ Spark, Airflow, Snowflake, Databricks, Kafka, SQL, dbt ]
+        - name: Data Analyst
+          title-keywords: [ data analyst, business analyst, reporting analyst, bi analyst ]
+          description-keywords: [ dashboards, reporting, business stakeholders, data visualisation ]
+          skills: [ SQL, Excel, Tableau, Power BI ]
+        - name: Machine Learning Engineer
+          title-keywords: [ machine learning engineer, ml engineer, data scientist, ai engineer ]
+          description-keywords: [ machine learning models, model training, feature engineering, notebook to production ]
+          skills: [ PyTorch, scikit-learn, MLflow, TensorFlow, Python ]
+        - name: DevOps Engineer
+          title-keywords: [ devops engineer, site reliability engineer, sre, platform engineer, build engineer ]
+          description-keywords: [ ci cd, delivery pipeline, infrastructure as code, observability, on call ]
+          skills: [ Kubernetes, Terraform, Docker, Jenkins, Prometheus, Ansible ]
+        - name: Cloud Engineer
+          title-keywords: [ cloud engineer, cloud architect, solutions architect, infrastructure engineer ]
+          description-keywords: [ cloud migration, cloud native, landing zone, multi cloud ]
+          skills: [ AWS, Azure, GCP, Terraform, EC2, S3, Lambda ]
+        - name: QA / Automation Engineer
+          title-keywords: [ qa engineer, qa automation engineer, test engineer, automation engineer, sdet ]
+          description-keywords: [ test automation, regression coverage, test cases, quality assurance ]
+          skills: [ Selenium, JUnit, TestNG, Cypress ]
+        - name: Java Developer
+          title-keywords: [ java developer, java engineer ]
+          description-keywords: [ core java, jvm ]
+          skills: [ Java, Spring Boot, JUnit ]
+        - name: Python Developer
+          title-keywords: [ python developer, python engineer ]
+          description-keywords: [ pythonic ]
+          skills: [ Python, Django, Flask ]
+        - name: Database Engineer
+          title-keywords: [ database administrator, dba, database engineer, database developer ]
+          description-keywords: [ query tuning, replication, backup and recovery, database estate ]
+          skills: [ PostgreSQL, SQL, Performance Tuning ]
+        - name: Security Engineer
+          title-keywords: [ security engineer, security analyst, application security engineer ]
+          description-keywords: [ threat modelling, penetration testing, vulnerability, security reviews ]
+          skills: [ Penetration Testing, SIEM, Cryptography ]
+        - name: Product Manager
+          title-keywords: [ product manager, product owner ]
+          description-keywords: [ roadmap, stakeholder management, product area, discovery ]
+          skills: [ Roadmapping, Stakeholder Management, Agile ]
+        - name: Software Engineer
+          # Deliberately last and deliberately weak. It is the catch-all for postings that
+          # are clearly engineering roles but name no specialism, so it should only win
+          # when nothing more specific scored.
+          title-keywords: [ software engineer, software developer, application developer ]
+          description-keywords: [ software development lifecycle, write clean code ]
+          skills: [ Git ]
 logging:
   level:
     com.jmip.etl: INFO
     org.springframework.batch: INFO
   pattern:
     console: "%d{HH:mm:ss.SSS} %-5level %logger{36} - %msg%n"
+

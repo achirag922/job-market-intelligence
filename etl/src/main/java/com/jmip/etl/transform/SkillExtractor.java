@@ -86,20 +86,52 @@ public class SkillExtractor {
                     Set.copyOf(definition.supersededBy()));
         }
 
+        /**
+         * Separators writers use between the words of one technology name, including
+         * none at all: "Spring Boot", "Spring-Boot", "Spring_Boot" and "SpringBoot" are
+         * the same skill, and a description may use any of them.
+         */
+        private static final String FLEXIBLE_SEPARATOR = "[\\s\\-_.]*";
+
+        private static final Pattern TERM_SEPARATOR = Pattern.compile("[^\\p{Alnum}#+]+");
+
         private static List<Pattern> compile(List<String> terms) {
             List<Pattern> compiled = new ArrayList<>();
             for (String term : terms) {
                 if (term == null || term.isBlank()) {
                     continue;
                 }
-                // Lookarounds rather than \b: they behave correctly for terms that start
-                // or end with punctuation, such as "Node.js" or ".NET", where \b would
-                // anchor in the wrong place.
                 compiled.add(Pattern.compile(
-                        "(?<![\\w])" + Pattern.quote(term.trim()) + "(?![\\w])",
+                        // Lookarounds rather than \b: they behave correctly for terms
+                        // that start or end with punctuation, such as "Node.js" or ".NET",
+                        // where \b would anchor in the wrong place. They are also what
+                        // stops Java matching inside JavaScript, SQL inside PostgreSQL and
+                        // Git inside GitHub.
+                        "(?<![\\w])" + toFlexibleRegex(term.trim()) + "(?![\\w])",
                         Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
             }
             return List.copyOf(compiled);
+        }
+
+        /**
+         * Turns a term into a pattern that tolerates any separator between its words.
+         *
+         * <p>Characters that are part of a technology's name — {@code #} in "C#",
+         * {@code +} in "C++" — are kept and quoted rather than treated as separators.
+         */
+        private static String toFlexibleRegex(String term) {
+            String[] words = TERM_SEPARATOR.split(term);
+            StringBuilder regex = new StringBuilder();
+            for (String word : words) {
+                if (word.isEmpty()) {
+                    continue;
+                }
+                if (regex.length() > 0) {
+                    regex.append(FLEXIBLE_SEPARATOR);
+                }
+                regex.append(Pattern.quote(word));
+            }
+            return regex.length() == 0 ? Pattern.quote(term) : regex.toString();
         }
 
         boolean matches(String haystack) {

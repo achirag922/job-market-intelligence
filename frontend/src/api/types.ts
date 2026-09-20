@@ -60,10 +60,14 @@ export interface JobSummary {
   experience?: Experience;
   salary?: Salary;
   postedDate?: string;
+  /** V4: rule-based category, absent until the posting has been classified. */
+  category?: string;
   skills: Skill[];
 }
 
 export interface JobDetail extends JobSummary {
+  /** V4: the category and the evidence behind it. */
+  classification?: JobClassification;
   description?: string;
   source: string;
   sourceUrl?: string;
@@ -113,6 +117,7 @@ export interface ApiErrorBody {
 }
 
 export interface JobFilters {
+  category?: string;
   title?: string;
   location?: string;
   company?: string;
@@ -214,6 +219,8 @@ export interface ResumeMatch {
   jobId: number;
   jobTitle: string;
   companyName: string;
+  /** V4 */
+  jobCategory?: string;
   /** Absent when the job lists no skills; matchNote then says why. */
   matchPercentage?: number;
   matchNote?: string;
@@ -225,4 +232,42 @@ export interface ResumeMatch {
   /** The skill gap: what this job wants that the resume does not show. */
   missingSkills: Skill[];
   resumeOnlySkills: Skill[];
+}
+
+// ---------------------------------------------------------------- V4: job intelligence
+
+export interface CategoryDemand {
+  category: string;
+  jobCount: number;
+  /** PERCENTAGE: share of the classified postings, not of every posting. */
+  percentageOfJobs: number;
+  rank: number;
+}
+
+export interface ClassificationSignal {
+  /** TITLE, DESCRIPTION or SKILL — where the match came from. */
+  type: string;
+  value: string;
+  weight: number;
+}
+
+export interface JobClassification {
+  category: string;
+  /** DERIVED: strength and clarity of the evidence, 0-100. Not a probability. */
+  confidence?: number;
+  signals: ClassificationSignal[];
+}
+
+/**
+ * A skill in demand within one company, location or category.
+ *
+ * <p>percentageOfJobs is a share of that entity's own postings, never of all postings.
+ */
+export interface EntitySkill {
+  skillId: number;
+  skill: string;
+  category?: string;
+  jobCount: number;
+  percentageOfJobs: number;
+  rank: number;
 }

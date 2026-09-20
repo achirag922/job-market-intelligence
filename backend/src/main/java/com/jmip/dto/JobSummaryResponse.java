@@ -19,5 +19,7 @@ public record JobSummaryResponse(
         ExperienceResponse experience,
         SalaryResponse salary,
         LocalDate postedDate,
+        /** V4: the rule-based category, absent until the posting has been classified. */
+        String category,
         List<SkillResponse> skills) {
 }

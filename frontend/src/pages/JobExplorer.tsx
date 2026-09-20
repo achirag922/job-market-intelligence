@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type { JobSummary, PagedResponse } from '../api/types';
+import type { CategoryDemand, JobSummary, PagedResponse } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { Pagination } from '../components/Pagination';
 import {
@@ -35,19 +35,22 @@ export function JobExplorer() {
   const company = searchParams.get('company') ?? '';
   const skill = searchParams.get('skill') ?? '';
   const employmentType = searchParams.get('employmentType') ?? '';
+  const category = searchParams.get('category') ?? '';
   const page = Number(searchParams.get('page') ?? '0');
 
   // The inputs are uncontrolled between submits so that typing does not fire a request
   // per keystroke.
-  const [draft, setDraft] = useState({ title, location, company, skill, employmentType });
+  const [draft, setDraft] = useState({ title, location, company, skill, employmentType, category });
 
   useEffect(() => {
-    setDraft({ title, location, company, skill, employmentType });
-  }, [title, location, company, skill, employmentType]);
+    setDraft({ title, location, company, skill, employmentType, category });
+  }, [title, location, company, skill, employmentType, category]);
+
+  const categories = useApi<CategoryDemand[]>(() => api.jobCategories(), []);
 
   const jobs = useApi<PagedResponse<JobSummary>>(
-    () => api.jobs({ title, location, company, skill, employmentType }, page, PAGE_SIZE),
-    [title, location, company, skill, employmentType, page],
+    () => api.jobs({ title, location, company, skill, employmentType, category }, page, PAGE_SIZE),
+    [title, location, company, skill, employmentType, category, page],
   );
 
   const applyFilters = (next: typeof draft, nextPage = 0) => {
@@ -124,12 +127,28 @@ export function JobExplorer() {
             ))}
           </select>
         </label>
+        <label>
+          Job category
+          {/* Options come from the classified data, so the list can never offer a
+              category that no posting actually carries. */}
+          <select
+            value={draft.category}
+            onChange={(event) => setDraft({ ...draft, category: event.target.value })}
+          >
+            <option value="">Any</option>
+            {(categories.data ?? []).map((option) => (
+              <option key={option.category} value={option.category}>
+                {option.category} ({option.jobCount})
+              </option>
+            ))}
+          </select>
+        </label>
         <div className="filter-actions">
           <button type="submit">Search</button>
           <button
             type="button"
             onClick={() => {
-              const cleared = { title: '', location: '', company: '', skill: '', employmentType: '' };
+              const cleared = { title: '', location: '', company: '', skill: '', employmentType: '', category: '' };
               setDraft(cleared);
               applyFilters(cleared);
             }}
@@ -151,6 +170,7 @@ export function JobExplorer() {
                 <tr>
                   <th>Title</th>
                   <th>Company</th>
+                  <th>Category</th>
                   <th>Location</th>
                   <th>Experience</th>
                   <th>Employment type</th>
@@ -164,6 +184,7 @@ export function JobExplorer() {
                       <Link to={`/jobs/${job.id}`}>{job.title}</Link>
                     </td>
                     <td>{job.company.name}</td>
+                    <td>{job.category ?? '—'}</td>
                     <td>{formatLocation(job)}</td>
                     <td>{formatExperience(job.experience)}</td>
                     <td>{formatEmploymentType(job.employmentType)}</td>
