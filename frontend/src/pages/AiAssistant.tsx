@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../api/client';
 import type { AssistantResponse, ConversationContext, Resume } from '../api/types';
 import { AssistantVisualization } from '../components/AssistantVisualization';
+import { Badge, Card, EmptyState, PageHeader } from '../components/ui';
+import { IconChat, IconFile, IconSend } from '../components/icons';
 
 /** Starting points, so the first question does not have to be invented from nothing. */
 const EXAMPLES = [
@@ -38,6 +40,12 @@ export function AiAssistant() {
   const [resume, setResume] = useState<Resume | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
   const nextId = useRef(1);
+  const logEnd = useRef<HTMLDivElement>(null);
+
+  // A new answer that appears below the fold reads as nothing having happened.
+  useEffect(() => {
+    logEnd.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns]);
 
   const submit = async (asked: string) => {
     const trimmed = asked.trim();
@@ -84,74 +92,91 @@ export function AiAssistant() {
   };
 
   return (
-    <section>
-      <h1>Ask the Data</h1>
-      <p className="subtitle">
-        Ask about skills, categories, companies, locations, salaries or trends in this
-        dataset. Every answer is generated from figures read out of the database, and the
-        rows behind it are shown so you can check them. The dataset is synthetic
-        development data and does not describe the real job market.
-      </p>
+    <>
+      <PageHeader
+        title="AI Job Market Assistant"
+        description="Ask about skills, categories, companies, locations, salaries or trends. Every answer is generated from figures read out of the database, and the rows behind it are shown so you can check them."
+        actions={
+          (turns.length > 0 || context) && (
+            <button
+              type="button"
+              onClick={() => {
+                setTurns([]);
+                setContext(undefined);
+              }}
+            >
+              New conversation
+            </button>
+          )
+        }
+      />
 
-      <div className="card">
-        <form
-          className="filters"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit(question);
-          }}
-        >
-          <label style={{ flex: 1 }}>
-            Your question
+      <div className="chat">
+        <div className="chat-log" role="log" aria-live="polite" aria-label="Conversation">
+          {turns.length === 0 ? (
+            <EmptyState
+              title="Ask a question to begin"
+              message="Try one of the suggestions below, or type your own question about the dataset."
+            />
+          ) : (
+            turns.map((turn) => <TurnView key={turn.id} turn={turn} />)
+          )}
+          <div ref={logEnd} />
+        </div>
+
+        {/* Sticky, so the composer is reachable without scrolling to the end of a long
+            conversation. Suggestions stay available throughout: they double as a reminder
+            of what kinds of question this can answer. */}
+        <div className="chat-composer-wrap">
+          <ul className="chat-suggestions">
+            {EXAMPLES.map((example) => (
+              <li key={example}>
+                <button
+                  type="button"
+                  className="skill-tag"
+                  disabled={pending}
+                  onClick={() => void submit(example)}
+                >
+                  {example}
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <form
+            className="chat-composer"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void submit(question);
+            }}
+          >
+            <label className="visually-hidden" htmlFor="assistant-question">
+              Your question
+            </label>
             <input
+              id="assistant-question"
               type="text"
               value={question}
-              placeholder="e.g. What are the top skills for Data Engineer jobs?"
+              placeholder="Ask a question…"
               aria-label="Your question"
               maxLength={500}
               onChange={(event) => setQuestion(event.target.value)}
             />
-          </label>
-          <div className="filter-actions">
             <button type="submit" disabled={pending || question.trim() === ''}>
-              {pending ? 'Thinking…' : 'Ask'}
+              <IconSend size={15} />
+              {pending ? 'Thinking…' : 'Send'}
             </button>
-            {(turns.length > 0 || context) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setTurns([]);
-                  setContext(undefined);
-                }}
-              >
-                New conversation
-              </button>
-            )}
-          </div>
-        </form>
+          </form>
+        </div>
+      </div>
 
-        {turns.length === 0 && (
-          <>
-            <p className="subtitle">Try one of these:</p>
-            <ul className="skill-list">
-              {EXAMPLES.map((example) => (
-                <li key={example}>
-                  <button type="button" className="skill-tag" onClick={() => void submit(example)}>
-                    {example}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-
-        <details>
-          <summary>Ask about your resume</summary>
-          <p className="subtitle">
-            Questions like &ldquo;what skills am I missing for Data Engineer jobs?&rdquo;
-            need a resume. It is compared against job skills only, and nothing from it is
-            sent anywhere except this application.
-          </p>
+      <Card
+        title="Ask about your resume"
+        description="Questions like “what skills am I missing for Data Engineer jobs?” need a resume. It is compared against job skills only, and nothing from it is sent anywhere except this application."
+        actions={resume ? <Badge tone="success">{resume.skills.length} skills</Badge> : undefined}
+      >
+        <label className="field">
+          <span className="visually-hidden">Resume PDF</span>
           <input
             type="file"
             accept="application/pdf,.pdf"
@@ -163,61 +188,74 @@ export function AiAssistant() {
               }
             }}
           />
-          {resume && (
-            <p className="status">
-              Using <strong>{resume.fileName}</strong> ({resume.skills.length} skills recognised).
-            </p>
-          )}
-          {resumeError && (
-            <p className="status status-error" role="alert">
-              {resumeError}
-            </p>
-          )}
-        </details>
-      </div>
-
-      {turns.map((turn) => (
-        <TurnView key={turn.id} turn={turn} />
-      ))}
-    </section>
+        </label>
+        {resume && (
+          <p className="status" style={{ paddingBottom: 0 }}>
+            <IconFile size={14} /> Using <strong>{resume.fileName}</strong>.
+          </p>
+        )}
+        {resumeError && (
+          <p className="status status-error" role="alert">
+            {resumeError}
+          </p>
+        )}
+      </Card>
+    </>
   );
 }
 
 function TurnView({ turn }: { turn: Turn }) {
   return (
-    <div className="card">
-      <p className="assistant-question">
-        <strong>You asked:</strong> {turn.question}
-      </p>
+    <>
+      <div className="chat-turn user">
+        <div className="chat-bubble">{turn.question}</div>
+      </div>
 
-      {turn.error && (
-        <p className="status status-error" role="alert">
-          {turn.error}
-        </p>
-      )}
-
-      {!turn.response && !turn.error && (
-        <p className="status">Looking this up in the dataset…</p>
-      )}
-
-      {turn.response && (
-        <>
-          <p>{turn.response.answer}</p>
-
-          {turn.response.note && <p className="subtitle">{turn.response.note}</p>}
-
-          {turn.response.grounded ? (
-            <AssistantVisualization
-              visualization={turn.response.visualization}
-              rows={turn.response.data}
-            />
-          ) : (
-            // Said plainly rather than implied by an empty table: this reply is the
-            // assistant describing itself, not a finding about the dataset.
-            <p className="subtitle">No data was retrieved for this question.</p>
+      <div className="chat-turn assistant">
+        <span className="chat-avatar" aria-hidden="true">
+          <IconChat size={16} />
+        </span>
+        <div className="chat-bubble">
+          {turn.error && (
+            <p className="status status-error" role="alert" style={{ margin: 0 }}>
+              {turn.error}
+            </p>
           )}
-        </>
-      )}
-    </div>
+
+          {!turn.response && !turn.error && (
+            <span className="typing" role="status" aria-label="Looking this up in the dataset">
+              <span />
+              <span />
+              <span />
+            </span>
+          )}
+
+          {turn.response && (
+            <>
+              <p className="chat-answer">{turn.response.answer}</p>
+
+              {turn.response.note && (
+                <p className="card-description" style={{ marginTop: 8 }}>
+                  {turn.response.note}
+                </p>
+              )}
+
+              {turn.response.grounded ? (
+                <AssistantVisualization
+                  visualization={turn.response.visualization}
+                  rows={turn.response.data}
+                />
+              ) : (
+                // Said plainly rather than implied by an empty table: this reply is the
+                // assistant describing itself, not a finding about the dataset.
+                <p className="card-description" style={{ marginTop: 8, marginBottom: 0 }}>
+                  No data was retrieved for this question.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </>
   );
 }

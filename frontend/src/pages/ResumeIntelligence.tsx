@@ -1,21 +1,30 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
 import type { JobSummary, PagedResponse, Resume, ResumeMatch } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
+import { Badge, Card, EmptyState, PageHeader, SkillBadge, StatCard } from '../components/ui';
+import { IconCheck, IconFile } from '../components/icons';
 import { formatLocation } from '../components/format';
 import { useApi } from '../hooks/useApi';
 
 const JOB_RESULTS = 8;
 
+const STEPS = ['Upload resume', 'Extracted skills', 'Choose a job', 'Match and gap'];
+
 /**
- * The resume workflow: upload, then read the extracted skills, then pick a job and see
- * the overlap and the gap.
+ * The resume workflow: upload, read the extracted skills, pick a job, see the overlap and
+ * the gap.
  *
  * <p>Steps below the current one stay hidden rather than appearing disabled, so the page
- * only ever shows what can actually be done next.
+ * only ever shows what can actually be done next. The stepper along the top is what makes
+ * the sequence legible while they are hidden.
  */
 export function ResumeIntelligence() {
+  const [searchParams] = useSearchParams();
+  // Arriving from a posting's "Compare with resume" preselects that job.
+  const requestedJobId = Number(searchParams.get('jobId')) || null;
+
   const [resume, setResume] = useState<Resume | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -26,11 +35,39 @@ export function ResumeIntelligence() {
 
   const [match, setMatch] = useState<ResumeMatch | null>(null);
   const [matchError, setMatchError] = useState<string | null>(null);
+  const [matching, setMatching] = useState(false);
 
   const jobs = useApi<PagedResponse<JobSummary>>(
     () => api.jobs({ title: appliedQuery }, 0, JOB_RESULTS),
     [appliedQuery],
   );
+
+  const readyToMatch = resume?.status === 'COMPLETED';
+
+  const runMatch = async (jobId: number, job?: JobSummary) => {
+    if (!resume) {
+      return;
+    }
+    setSelectedJob(job ?? null);
+    setMatch(null);
+    setMatchError(null);
+    setMatching(true);
+    try {
+      setMatch(await api.resumeMatch(resume.id, jobId));
+    } catch (error) {
+      setMatchError(error instanceof ApiError ? error.message : 'Could not compare the resume');
+    } finally {
+      setMatching(false);
+    }
+  };
+
+  // A job carried in from Job Details is compared as soon as a resume is ready.
+  useEffect(() => {
+    if (requestedJobId && readyToMatch && !match && !matching) {
+      void runMatch(requestedJobId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedJobId, readyToMatch]);
 
   const handleUpload = async (file: File) => {
     setUploading(true);
@@ -47,147 +84,166 @@ export function ResumeIntelligence() {
     }
   };
 
-  const handleSelectJob = async (job: JobSummary) => {
-    if (!resume) {
-      return;
-    }
-    setSelectedJob(job);
-    setMatch(null);
-    setMatchError(null);
-    try {
-      setMatch(await api.resumeMatch(resume.id, job.id));
-    } catch (error) {
-      setMatchError(error instanceof ApiError ? error.message : 'Could not compare the resume');
-    }
-  };
-
-  const readyToMatch = resume?.status === 'COMPLETED';
+  const currentStep = match ? 3 : readyToMatch ? 2 : resume ? 1 : 0;
 
   return (
-    <section>
-      <h1>Resume Intelligence</h1>
-      <p className="subtitle">
-        Upload a PDF resume, then pick a job to see which of its skills you already have
-        and which are missing. The comparison looks only at skills — it says nothing about
-        experience, seniority or your chances of being hired.
-      </p>
+    <>
+      <PageHeader
+        title="Resume Intelligence"
+        description="Upload a PDF resume, then pick a job to see which of its skills you already have and which are missing. The comparison looks only at skills — it says nothing about experience, seniority or your chances of being hired."
+      />
 
-      <div className="card">
-        <h2>1. Upload your resume</h2>
-        <input
-          type="file"
-          accept="application/pdf,.pdf"
-          disabled={uploading}
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-              void handleUpload(file);
-            }
-          }}
-        />
-        {uploading && <p className="status">Uploading and processing…</p>}
+      <ol className="stepper">
+        {STEPS.map((label, index) => (
+          <li
+            key={label}
+            className={`step ${index === currentStep ? 'active' : ''} ${index < currentStep ? 'done' : ''}`}
+            aria-current={index === currentStep ? 'step' : undefined}
+          >
+            <span className="step-number" aria-hidden="true">
+              {index < currentStep ? '✓' : index + 1}
+            </span>
+            {label}
+          </li>
+        ))}
+      </ol>
+
+      <Card title="1. Upload your resume" description="PDF only. It is stored on this server and compared against job skills.">
+        <label className="field">
+          <span className="visually-hidden">Resume PDF</span>
+          <input
+            type="file"
+            accept="application/pdf,.pdf"
+            aria-label="Resume PDF"
+            disabled={uploading}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) {
+                void handleUpload(file);
+              }
+            }}
+          />
+        </label>
+
+        {uploading && (
+          <p className="status" role="status">
+            Uploading and extracting skills…
+          </p>
+        )}
         {uploadError && (
           <p className="status status-error" role="alert">
             {uploadError}
           </p>
         )}
+
         {resume && (
-          <dl className="detail-grid">
-            <dt>File</dt>
-            <dd>{resume.fileName}</dd>
-            <dt>Size</dt>
-            <dd>{formatBytes(resume.fileSizeBytes)}</dd>
-            <dt>Status</dt>
-            <dd>
-              <StatusTag status={resume.status} />
-            </dd>
-            {resume.errorMessage && (
-              <>
-                <dt>Problem</dt>
-                <dd>{resume.errorMessage}</dd>
-              </>
-            )}
-          </dl>
+          <div className="row" style={{ marginTop: 16, gap: 20 }}>
+            <span className="row" style={{ gap: 8 }}>
+              <IconFile size={16} />
+              <strong>{resume.fileName}</strong>
+              <span className="muted">{formatBytes(resume.fileSizeBytes)}</span>
+            </span>
+            <StatusBadge status={resume.status} />
+            {resume.errorMessage && <span className="muted">{resume.errorMessage}</span>}
+          </div>
         )}
-      </div>
+      </Card>
 
       {resume?.status === 'COMPLETED' && (
-        <div className="card">
-          <h2>2. Your skills</h2>
+        <Card
+          title="2. Your skills"
+          description="Only skills that already appear in job postings can be recognised."
+          actions={<Badge>{resume.skills.length} found</Badge>}
+        >
           {resume.skills.length === 0 ? (
-            <p className="status">
-              No known skills were recognised in this resume. Only skills that already
-              appear in job postings can be recognised.
-            </p>
+            <EmptyState
+              title="No skills recognised"
+              message="Nothing in this resume matched the skill dictionary. The comparison below will show every job skill as missing."
+            />
           ) : (
-            <ul className="skill-list">
+            <ul className="skill-list" style={{ marginBottom: 0 }}>
               {resume.skills.map((skill) => (
-                <li key={skill.id} className="skill-tag">
-                  {skill.name}
-                </li>
+                <SkillBadge key={skill.id} name={skill.name} />
               ))}
             </ul>
           )}
-        </div>
+        </Card>
       )}
 
       {readyToMatch && (
-        <div className="card">
-          <h2>3. Choose a job</h2>
+        <Card title="3. Choose a job" description="Search by title, then compare.">
           <form
-            className="filters"
+            className="search-row"
             onSubmit={(event) => {
               event.preventDefault();
               setAppliedQuery(jobQuery.trim());
             }}
           >
-            <label>
-              Search job titles
-              <input
-                type="text"
-                value={jobQuery}
-                placeholder="e.g. backend engineer"
-                onChange={(event) => setJobQuery(event.target.value)}
-              />
-            </label>
-            <div className="filter-actions">
-              <button type="submit">Search</button>
-            </div>
+            <input
+              type="search"
+              value={jobQuery}
+              placeholder="Search job titles — e.g. backend engineer"
+              aria-label="Search job titles"
+              onChange={(event) => setJobQuery(event.target.value)}
+            />
+            <button type="submit">Search</button>
           </form>
 
           <AsyncPanel
             state={jobs}
+            skeleton="table"
+            skeletonCount={4}
             isEmpty={(data) => data.content.length === 0}
-            empty="No jobs match that search."
+            emptyTitle="No jobs found"
+            empty="No postings match that search. Try a broader term."
           >
             {(data) => (
-              <table>
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Company</th>
-                    <th>Location</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.content.map((job) => (
-                    <tr key={job.id}>
-                      <td>{job.title}</td>
-                      <td>{job.company.name}</td>
-                      <td>{formatLocation(job)}</td>
-                      <td>
-                        <button type="button" onClick={() => void handleSelectJob(job)}>
-                          {selectedJob?.id === job.id ? 'Selected' : 'Compare'}
-                        </button>
-                      </td>
+              <div className="table-wrap" style={{ marginBottom: 0 }}>
+                <table>
+                  <caption className="visually-hidden">Jobs available to compare against</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Role</th>
+                      <th scope="col">Location</th>
+                      <th scope="col">
+                        <span className="visually-hidden">Actions</span>
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.content.map((job) => (
+                      <tr key={job.id}>
+                        <td className="wrap">
+                          <span className="cell-strong">{job.title}</span>
+                          <span className="cell-sub">{job.company.name}</span>
+                        </td>
+                        <td>{formatLocation(job)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="small"
+                            aria-pressed={selectedJob?.id === job.id}
+                            onClick={() => void runMatch(job.id, job)}
+                          >
+                            {selectedJob?.id === job.id ? 'Selected' : 'Compare'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </AsyncPanel>
-        </div>
+        </Card>
+      )}
+
+      {matching && (
+        <Card>
+          <p className="status" role="status">
+            Comparing your resume against this posting…
+          </p>
+        </Card>
       )}
 
       {matchError && (
@@ -198,83 +254,112 @@ export function ResumeIntelligence() {
 
       {match && (
         <>
-          <div className="card">
-            <h2>4. Match against {match.jobTitle}</h2>
-            <p className="subtitle">
-              {match.companyName} · {match.totalJobSkills} required skills
-              {match.jobCategory && <> · Category: <strong>{match.jobCategory}</strong></>}
-            </p>
-
+          <Card
+            title={`4. Match against ${match.jobTitle}`}
+            description={`${match.companyName} · ${match.totalJobSkills} required skills`}
+            actions={match.jobCategory ? <Badge tone="brand">{match.jobCategory}</Badge> : undefined}
+          >
             {match.matchPercentage === undefined ? (
-              <p className="status">{match.matchNote}</p>
+              <EmptyState title="No score available" message={match.matchNote ?? 'This job lists no skills to compare against.'} />
             ) : (
-              <div className="stat-grid">
-                <div className="stat-card">
-                  <span className="stat-value">{match.matchPercentage.toFixed(0)}%</span>
-                  <span className="stat-label">Skill match</span>
+              <div className="match-summary">
+                <div className="match-figure">
+                  <span className="match-figure-value">{match.matchPercentage.toFixed(0)}%</span>
+                  <span className="match-figure-label">Skill match</span>
                 </div>
-                <div className="stat-card">
-                  <span className="stat-value">{match.matchedSkillCount}</span>
-                  <span className="stat-label">Skills you have</span>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-value">{match.missingSkillCount}</span>
-                  <span className="stat-label">Skills you are missing</span>
+                <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                  <div className="stat-grid" style={{ marginBottom: 12 }}>
+                    <StatCard label="Skills you have" value={match.matchedSkillCount} />
+                    <StatCard label="Skills you are missing" value={match.missingSkillCount} />
+                    <StatCard label="Required by this job" value={match.totalJobSkills} />
+                  </div>
+                  <div
+                    className="match-meter"
+                    role="meter"
+                    aria-valuenow={Math.round(match.matchPercentage)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="Share of this job's skills your resume covers"
+                  >
+                    <div className="match-meter-fill" style={{ width: `${match.matchPercentage}%` }} />
+                  </div>
+                  <p className="card-description" style={{ marginTop: 8 }}>
+                    Skills only. This is not a prediction about being hired.
+                  </p>
                 </div>
               </div>
             )}
+          </Card>
 
-            <SkillGroup title="Matched" skills={match.matchedSkills} empty="None of this job's skills were found." />
-          </div>
+          <Card
+            title="5. Your skill gap"
+            description="What this job asks for, split by whether your resume shows it. Each skill is marked with a symbol as well as a colour."
+          >
+            <div className="gap-columns">
+              <div className="gap-column">
+                <h3>
+                  <IconCheck size={15} />
+                  On your resume ({match.matchedSkills.length})
+                </h3>
+                {match.matchedSkills.length === 0 ? (
+                  <p className="muted">None of this job's skills were found on your resume.</p>
+                ) : (
+                  <ul className="skill-list">
+                    {match.matchedSkills.map((skill) => (
+                      <SkillBadge key={skill.id} name={skill.name} state="matched" />
+                    ))}
+                  </ul>
+                )}
+              </div>
 
-          <div className="card">
-            <h2>5. Your skill gap</h2>
-            <p className="subtitle">
-              What this job asks for that your resume does not show. These are the skills
-              to work on for this role.
-            </p>
-            <SkillGroup
-              title="Missing"
-              skills={match.missingSkills}
-              empty="Nothing missing — your resume covers every skill this job lists."
-            />
-            <SkillGroup
-              title="On your resume but not required here"
-              skills={match.resumeOnlySkills}
-              empty="Every skill on your resume is asked for by this job."
-            />
-            <p className="subtitle">
-              <Link to={`/jobs/${match.jobId}`}>View the full job posting</Link>
-            </p>
-          </div>
+              <div className="gap-column">
+                <h3>
+                  <span aria-hidden="true">✕</span>
+                  Missing ({match.missingSkills.length})
+                </h3>
+                {match.missingSkills.length === 0 ? (
+                  <p className="muted">Nothing missing — your resume covers every skill this job lists.</p>
+                ) : (
+                  <ul className="skill-list">
+                    {match.missingSkills.map((skill) => (
+                      <SkillBadge key={skill.id} name={skill.name} state="missing" />
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <div className="gap-column">
+                <h3>Also on your resume ({match.resumeOnlySkills.length})</h3>
+                {match.resumeOnlySkills.length === 0 ? (
+                  <p className="muted">Every skill on your resume is asked for by this job.</p>
+                ) : (
+                  <ul className="skill-list">
+                    {match.resumeOnlySkills.map((skill) => (
+                      <SkillBadge key={skill.id} name={skill.name} />
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <hr className="divider" />
+            <Link to={`/jobs/${match.jobId}`}>View the full job posting</Link>
+          </Card>
         </>
-      )}
-    </section>
-  );
-}
-
-function SkillGroup({ title, skills, empty }: { title: string; skills: { id: number; name: string }[]; empty: string }) {
-  return (
-    <>
-      <h2>{title}</h2>
-      {skills.length === 0 ? (
-        <p className="status">{empty}</p>
-      ) : (
-        <ul className="skill-list">
-          {skills.map((skill) => (
-            <li key={skill.id} className="skill-tag">
-              {skill.name}
-            </li>
-          ))}
-        </ul>
       )}
     </>
   );
 }
 
-function StatusTag({ status }: { status: Resume['status'] }) {
-  const className = status === 'COMPLETED' ? 'trend-rising' : status === 'FAILED' ? 'trend-falling' : 'trend-stable';
-  return <span className={`trend ${className}`}>{status}</span>;
+/** Processing status, as a word rather than only a colour. */
+function StatusBadge({ status }: { status: Resume['status'] }) {
+  if (status === 'COMPLETED') {
+    return <Badge tone="success">Processed</Badge>;
+  }
+  if (status === 'FAILED') {
+    return <Badge tone="danger">Failed</Badge>;
+  }
+  return <Badge tone="warning">{status.toLowerCase()}</Badge>;
 }
 
 function formatBytes(bytes: number): string {

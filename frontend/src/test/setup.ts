@@ -51,3 +51,10 @@ class SizedResizeObserver implements ResizeObserver {
 }
 
 globalThis.ResizeObserver = SizedResizeObserver;
+
+/**
+ * jsdom implements no layout, so it has no scrolling either and `scrollIntoView` is
+ * simply absent. Calling it is correct in a browser, so the component keeps the call and
+ * the environment gets the no-op it is missing.
+ */
+HTMLElement.prototype.scrollIntoView = function scrollIntoView(): void {};

@@ -13,16 +13,19 @@ export function Pagination({ page, totalPages, totalElements, first, last, onCha
     return null;
   }
   return (
-    <div className="pagination">
-      <button type="button" onClick={() => onChange(page - 1)} disabled={first}>
-        Previous
-      </button>
+    <nav className="pagination" aria-label="Pagination">
       <span>
-        Page {page + 1} of {Math.max(totalPages, 1)} · {totalElements} results
+        Page {page + 1} of {Math.max(totalPages, 1)} ·{' '}
+        <strong>{totalElements.toLocaleString('en-US')}</strong> results
       </span>
-      <button type="button" onClick={() => onChange(page + 1)} disabled={last}>
-        Next
-      </button>
-    </div>
+      <div className="pagination-controls">
+        <button type="button" className="small" onClick={() => onChange(page - 1)} disabled={first}>
+          Previous
+        </button>
+        <button type="button" className="small" onClick={() => onChange(page + 1)} disabled={last}>
+          Next
+        </button>
+      </div>
+    </nav>
   );
 }

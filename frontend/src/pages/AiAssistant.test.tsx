@@ -47,7 +47,7 @@ function reply(overrides: Partial<AssistantResponse> = {}): AssistantResponse {
 
 async function ask(question: string) {
   fireEvent.change(screen.getByLabelText('Your question'), { target: { value: question } });
-  fireEvent.click(screen.getByRole('button', { name: 'Ask' }));
+  fireEvent.click(screen.getByRole('button', { name: /Send/ }));
 }
 
 describe('AiAssistant', () => {
@@ -78,22 +78,29 @@ describe('AiAssistant', () => {
 
     await ask('top skills');
 
-    expect(await screen.findByText('Looking this up in the dataset…')).toBeInTheDocument();
+    // The typing indicator is three dots, so its accessible name is what carries the
+    // state to anyone not looking at it.
+    expect(
+      await screen.findByRole('status', { name: 'Looking this up in the dataset' }),
+    ).toBeInTheDocument();
 
     release(reply());
     await waitFor(() =>
-      expect(screen.queryByText('Looking this up in the dataset…')).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole('status', { name: 'Looking this up in the dataset' }),
+      ).not.toBeInTheDocument(),
     );
   });
 
-  it('renders the question back with the answer', async () => {
+  it('shows the question back in the conversation', async () => {
     askAssistant.mockResolvedValue(reply());
     render(<AiAssistant />);
 
     await ask('top skills');
 
-    expect(await screen.findByText(/You asked:/)).toBeInTheDocument();
-    expect(screen.getByText(/top skills/)).toBeInTheDocument();
+    await screen.findByText('Java appears most often in this dataset.');
+    // The question stays visible above its answer, so the log reads as a conversation.
+    expect(screen.getByText('top skills')).toBeInTheDocument();
   });
 
   it('renders a chart when the backend asks for one', async () => {
@@ -104,7 +111,11 @@ describe('AiAssistant', () => {
     await screen.findByText('Java appears most often in this dataset.');
 
     expect(screen.getByText('Top skills')).toBeInTheDocument();
-    await waitFor(() => expect(container.querySelector('svg')).toBeTruthy());
+    // Scoped to the chart frame: the page also contains icon SVGs, so a bare svg query
+    // would pass whether or not a chart was drawn.
+    await waitFor(() =>
+      expect(container.querySelector('.chart-frame svg')).toBeTruthy(),
+    );
   });
 
   it('renders a table of rows when the visualization is TABLE', async () => {
@@ -136,7 +147,7 @@ describe('AiAssistant', () => {
     await ask('tell me about this dataset');
     await screen.findByText('Java appears most often in this dataset.');
 
-    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('.chart-frame')).toBeNull();
   });
 
   it('says plainly when an answer is not backed by data', async () => {
@@ -174,7 +185,8 @@ describe('AiAssistant', () => {
     await ask('top skills');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the API');
-    expect(screen.getByText(/You asked:/)).toBeInTheDocument();
+    // The question is not lost when its answer fails — the turn stays in the log.
+    expect(screen.getByText('top skills')).toBeInTheDocument();
   });
 
   it('sends the previous turn as context with the next question', async () => {
@@ -227,7 +239,7 @@ describe('AiAssistant', () => {
   it('will not submit an empty question', async () => {
     render(<AiAssistant />);
 
-    expect(screen.getByRole('button', { name: 'Ask' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Send/ })).toBeDisabled();
     expect(askAssistant).not.toHaveBeenCalled();
   });
 

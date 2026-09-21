@@ -1,24 +1,5 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import type { Visualization } from '../api/types';
-
-/** Enough hues for the categories this dataset has; it repeats rather than running out. */
-const SLICE_COLOURS = [
-  '#3b6ea5', '#57a773', '#c8763a', '#8c5ba8', '#c25b6e',
-  '#4a9ba5', '#a5a03b', '#6b7a8f', '#a3574d', '#5d8c5a',
-];
+import { BarChartPanel, LineChartPanel, PieChartPanel } from './charts';
 
 interface Props {
   visualization: Visualization;
@@ -33,6 +14,10 @@ interface Props {
  * name to a component that already exists. An unrecognised type renders nothing rather
  * than falling back to something arbitrary: there is no path by which a response could
  * cause the page to render content it chose.
+ *
+ * <p>The drawing itself is the same {@code charts} module every other page uses, so an
+ * assistant answer looks like the rest of the application rather than like a second
+ * charting style bolted on beside it.
  */
 export function AssistantVisualization({ visualization, rows }: Props) {
   const { type, title, xAxis, yAxis, points } = visualization;
@@ -52,55 +37,10 @@ export function AssistantVisualization({ visualization, rows }: Props) {
   return (
     <figure className="assistant-chart">
       {title && <figcaption>{title}</figcaption>}
-      {type === 'BAR' && <Bars points={points} xAxis={xAxis} yAxis={yAxis} />}
-      {type === 'LINE' && <Series points={points} yAxis={yAxis} />}
-      {type === 'PIE' && <Slices points={points} />}
+      {type === 'BAR' && <BarChartPanel data={points} valueLabel={yAxis ?? xAxis ?? 'Value'} />}
+      {type === 'LINE' && <LineChartPanel data={points} valueLabel={yAxis ?? 'Value'} />}
+      {type === 'PIE' && <PieChartPanel data={points} />}
     </figure>
-  );
-}
-
-function Bars({ points, xAxis, yAxis }: { points: Visualization['points']; xAxis?: string; yAxis?: string }) {
-  // Horizontal, because the labels are skill, company and place names. Rotated vertical
-  // labels are what happens when long names are forced onto an x-axis.
-  return (
-    <ResponsiveContainer width="100%" height={Math.max(200, points.length * 30 + 60)}>
-      <BarChart data={points} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-        <XAxis type="number" allowDecimals={false} name={yAxis} />
-        <YAxis type="category" dataKey="label" width={150} tick={{ fontSize: 12 }} name={xAxis} />
-        <Tooltip />
-        <Bar dataKey="value" name={yAxis ?? 'Value'} fill="#3b6ea5" />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function Series({ points, yAxis }: { points: Visualization['points']; yAxis?: string }) {
-  return (
-    <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={points} margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-        <YAxis tick={{ fontSize: 12 }} />
-        <Tooltip />
-        <Line type="monotone" dataKey="value" name={yAxis ?? 'Value'} stroke="#3b6ea5" dot />
-      </LineChart>
-    </ResponsiveContainer>
-  );
-}
-
-function Slices({ points }: { points: Visualization['points'] }) {
-  return (
-    <ResponsiveContainer width="100%" height={300}>
-      <PieChart>
-        <Pie data={points} dataKey="value" nameKey="label" outerRadius={110} label>
-          {points.map((point, index) => (
-            <Cell key={point.label} fill={SLICE_COLOURS[index % SLICE_COLOURS.length]} />
-          ))}
-        </Pie>
-        <Tooltip />
-      </PieChart>
-    </ResponsiveContainer>
   );
 }
 
@@ -126,25 +66,29 @@ function RowTable({ title, rows }: { title?: string; rows: unknown[] }) {
 
   return (
     <div className="assistant-chart">
-      {title && <p className="subtitle">{title}</p>}
-      <table>
-        <thead>
-          <tr>
-            {columns.map((column) => (
-              <th key={column}>{humanise(column)}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, index) => (
-            <tr key={index}>
+      {title && <p className="card-description">{title}</p>}
+      <div className="table-wrap" style={{ marginBottom: 0 }}>
+        <table>
+          <thead>
+            <tr>
               {columns.map((column) => (
-                <td key={column}>{cellText((row as Record<string, unknown>)[column])}</td>
+                <th scope="col" key={column}>
+                  {humanise(column)}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index}>
+                {columns.map((column) => (
+                  <td key={column}>{cellText((row as Record<string, unknown>)[column])}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
