@@ -58,3 +58,6 @@ globalThis.ResizeObserver = SizedResizeObserver;
  * the environment gets the no-op it is missing.
  */
 HTMLElement.prototype.scrollIntoView = function scrollIntoView(): void {};
+
+/** Page changes scroll back to the results; jsdom logs "not implemented" without this. */
+window.scrollTo = (() => {}) as typeof window.scrollTo;

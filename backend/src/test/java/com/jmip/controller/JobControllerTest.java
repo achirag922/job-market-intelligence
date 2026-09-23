@@ -11,6 +11,7 @@ import com.jmip.dto.PagedResponse;
 import com.jmip.dto.SalaryResponse;
 import com.jmip.dto.SkillResponse;
 import com.jmip.service.JobService;
+import com.jmip.service.analytics.SalaryAnalyticsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -41,10 +42,14 @@ class JobControllerTest {
     @MockitoBean
     private JobService jobService;
 
+    /** Needed by the controller for the salary-currency options; unused by these tests. */
+    @MockitoBean
+    private SalaryAnalyticsService salaryAnalyticsService;
+
     @Test
     @DisplayName("returns 200 and the paging envelope")
     void returnsPagedJobs() throws Exception {
-        when(jobService.search(any(), any())).thenReturn(new PagedResponse<>(
+        when(jobService.search(any(), any(), any())).thenReturn(new PagedResponse<>(
                 List.of(sampleJob()), 0, 20, 1, 1, true, true));
 
         mockMvc.perform(get("/api/jobs"))
@@ -63,7 +68,7 @@ class JobControllerTest {
     @Test
     @DisplayName("never leaks Spring's own page internals")
     void doesNotLeakPageInternals() throws Exception {
-        when(jobService.search(any(), any()))
+        when(jobService.search(any(), any(), any()))
                 .thenReturn(new PagedResponse<>(List.of(), 0, 20, 0, 0, true, true));
 
         mockMvc.perform(get("/api/jobs"))
@@ -76,7 +81,7 @@ class JobControllerTest {
     @Test
     @DisplayName("binds every filter from the query string")
     void bindsAllFilters() throws Exception {
-        when(jobService.search(any(), any()))
+        when(jobService.search(any(), any(), any()))
                 .thenReturn(new PagedResponse<>(List.of(), 0, 20, 0, 0, true, true));
 
         mockMvc.perform(get("/api/jobs")
@@ -88,7 +93,7 @@ class JobControllerTest {
                 .andExpect(status().isOk());
 
         ArgumentCaptor<JobSearchCriteria> captor = ArgumentCaptor.forClass(JobSearchCriteria.class);
-        verify(jobService).search(captor.capture(), any(Pageable.class));
+        verify(jobService).search(captor.capture(), any(Pageable.class), any());
 
         JobSearchCriteria criteria = captor.getValue();
         assertThat(criteria.title()).isEqualTo("engineer");
@@ -101,27 +106,27 @@ class JobControllerTest {
     @Test
     @DisplayName("treats a blank filter as absent")
     void blankFilterIsAbsent() throws Exception {
-        when(jobService.search(any(), any()))
+        when(jobService.search(any(), any(), any()))
                 .thenReturn(new PagedResponse<>(List.of(), 0, 20, 0, 0, true, true));
 
         mockMvc.perform(get("/api/jobs").param("title", "   ")).andExpect(status().isOk());
 
         ArgumentCaptor<JobSearchCriteria> captor = ArgumentCaptor.forClass(JobSearchCriteria.class);
-        verify(jobService).search(captor.capture(), any(Pageable.class));
+        verify(jobService).search(captor.capture(), any(Pageable.class), any());
         assertThat(captor.getValue().title()).isNull();
     }
 
     @Test
     @DisplayName("passes page and size through to the service")
     void passesPaging() throws Exception {
-        when(jobService.search(any(), any()))
+        when(jobService.search(any(), any(), any()))
                 .thenReturn(new PagedResponse<>(List.of(), 3, 5, 0, 0, false, true));
 
         mockMvc.perform(get("/api/jobs").param("page", "3").param("size", "5"))
                 .andExpect(status().isOk());
 
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(jobService).search(any(JobSearchCriteria.class), captor.capture());
+        verify(jobService).search(any(JobSearchCriteria.class), captor.capture(), any());
         assertThat(captor.getValue().getPageNumber()).isEqualTo(3);
         assertThat(captor.getValue().getPageSize()).isEqualTo(5);
     }

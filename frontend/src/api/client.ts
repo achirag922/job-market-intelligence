@@ -7,6 +7,7 @@ import type {
   ExperienceDistribution,
   JobDetail,
   JobFilters,
+  JobOrder,
   JobSummary,
   Location,
   LocationDemand,
@@ -16,6 +17,7 @@ import type {
   PagedResponse,
   Resume,
   ResumeMatch,
+  SalaryRange,
   Skill,
   SkillAnalytics,
   SkillAnalyticsFilters,
@@ -148,8 +150,15 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
 }
 
 export const api = {
-  jobs: (filters: JobFilters, page: number, size: number, sort?: string) =>
-    request<PagedResponse<JobSummary>>('/api/jobs', { ...filters, page, size, sort }),
+  /**
+   * @param order a named ordering. Takes precedence over `sort`, which is kept only for
+   *              the callers that already pass a plain field
+   */
+  jobs: (filters: JobFilters, page: number, size: number, sort?: string, order?: JobOrder) =>
+    request<PagedResponse<JobSummary>>('/api/jobs', { ...filters, page, size, sort, order }),
+
+  /** The currencies salaries are stated in, for the salary filter. */
+  salaryCurrencies: () => request<SalaryRange[]>('/api/jobs/salary-currencies'),
 
   job: (id: number) => request<JobDetail>(`/api/jobs/${id}`),
 

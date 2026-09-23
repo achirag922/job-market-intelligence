@@ -116,13 +116,51 @@ export interface ApiErrorBody {
   fieldErrors?: { field: string; message: string }[];
 }
 
+/**
+ * Job search filters, exactly as the API takes them.
+ *
+ * `title` is the pre-V6.2 search and is kept so old links still work; the search box now
+ * writes `q`, which matches across title, company, location, description and skills.
+ */
 export interface JobFilters {
+  q?: string;
   category?: string;
   title?: string;
   location?: string;
   company?: string;
   skill?: string;
   employmentType?: string;
+  /** An experience band: 0-2, 2-5, 5-8, 8+ or unspecified. */
+  experience?: string;
+  /** Scopes the salary bounds; the API refuses bounds without it. */
+  currency?: string;
+  salaryMin?: string;
+  salaryMax?: string;
+  /**
+   * "true" for postings naming a place, "false" for those that do not. Not a remote
+   * filter: the dataset records "remote" and "unspecified" the same way.
+   */
+  locationStated?: string;
+}
+
+/** The named orderings the job search accepts. */
+export type JobOrder =
+  | 'newest'
+  | 'oldest'
+  | 'relevance'
+  | 'salary-high'
+  | 'salary-low'
+  | 'title'
+  | 'company';
+
+/** One currency salaries are stated in, and the range seen in it. */
+export interface SalaryRange {
+  currency: string;
+  jobCount: number;
+  lowestMin: number;
+  highestMax?: number;
+  averageMin?: number;
+  averageMax?: number;
 }
 
 /**

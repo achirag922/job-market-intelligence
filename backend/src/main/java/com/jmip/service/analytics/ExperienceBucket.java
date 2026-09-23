@@ -42,6 +42,27 @@ public enum ExperienceBucket {
         return maxYearsExclusive;
     }
 
+    /**
+     * The band a URL-friendly slug names — {@code 0-2}, {@code 2-5}, {@code 5-8}, {@code 8+}
+     * or {@code unspecified}.
+     *
+     * <p>Lives here so job search filters on exactly the bands the distribution endpoint
+     * reports. A second definition in the search code would drift, and "2–5 years" would
+     * then mean one thing on the chart and another in the filter beside it.
+     *
+     * @throws IllegalArgumentException for an unknown slug
+     */
+    public static ExperienceBucket fromSlug(String slug) {
+        return switch (slug.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "0-2" -> ZERO_TO_TWO;
+            case "2-5" -> TWO_TO_FIVE;
+            case "5-8" -> FIVE_TO_EIGHT;
+            case "8+" -> EIGHT_PLUS;
+            case "unspecified" -> UNSPECIFIED;
+            default -> throw new IllegalArgumentException("Unknown experience band: " + slug);
+        };
+    }
+
     /** @param experienceMin minimum years the posting asks for, or null if it did not say */
     public static ExperienceBucket of(Integer experienceMin) {
         if (experienceMin == null) {

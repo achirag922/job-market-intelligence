@@ -185,6 +185,8 @@ etl/data
 - [x] V3 — resume intelligence: PDF upload, text and skill extraction, resume-to-job match and skill gap
 - [x] V4 — NLP and job intelligence: description text processing, skill extraction from prose, rule-based job classification with confidence and evidence, and per-category analytics
 - [x] V5 — AI job market assistant: natural-language questions answered from the database, with validated intents, reused analytics services, grounded answers and chart metadata
+- [x] V6.1 — professional UI: design system with light and dark themes, application shell, shared cards, charts, tables and loading, empty and error states
+- [x] V6.2 — advanced job search: cross-field text search, experience and salary filters, named orderings including relevance, and searches kept in the URL
 
 ## API
 
@@ -193,7 +195,8 @@ All list endpoints take `page` and `size` (max 100) and return the same envelope
 
 | Endpoint | Notes |
 |---|---|
-| `GET /api/jobs` | Filters: `title`, `location`, `company`, `skill`, `employmentType`, `category`, combined with AND. Sort: `postedDate`, `title`, `salaryMin`, `salaryMax`, `createdAt`. Default is newest first with undated postings last |
+| `GET /api/jobs` | Filters: `q`, `title`, `location`, `company`, `skill`, `employmentType`, `category`, `experience`, `currency` + `salaryMin`/`salaryMax`, `locationStated`, combined with AND. Order with `order` (`newest`, `oldest`, `relevance`, `salary-high`, `salary-low`, `title`, `company`); the older `sort` still works. See [Job search](#job-search-v62) |
+| `GET /api/jobs/salary-currencies` | The currencies salaries are stated in, with the range seen in each — the salary filter's options |
 | `GET /api/jobs/{id}` | Full posting including description and source, plus `classification` — the category, its confidence and the signals behind it, or `null` when unclassified |
 | `GET /api/skills` | Filter: `name` |
 | `GET /api/skills/top` | Most in-demand skills, `limit` 1–100, default 10 |
@@ -339,6 +342,75 @@ accumulating. Descriptions themselves are never touched.
 "QA / Automation Engineer" — and an encoded slash inside a path segment is rejected by the
 servlet container with a 400 before any handler sees it. The alternative, relaxing that
 check application-wide, trades a security control for a URL shape.
+
+### Job search (V6.2)
+
+Job Explorer searches, filters, orders and pages entirely through `GET /api/jobs` — the
+same endpoint as before, extended rather than duplicated.
+
+**Text search (`q`).** Matched, case-insensitively, against title, company, city, state,
+country, description and skills. Several words all have to match, each anywhere: `java
+spring` finds a posting titled "Java Engineer" that lists Spring Boot. Matching is by
+substring, as partial search requires — so `engineer` also matches "engineering", which
+every synthetic description contains. Relevance ordering is what keeps that useful: title
+matches rank first. `%` and `_` in the input are escaped, so `50%` means fifty percent.
+
+**Filters.** All optional, all combined with AND.
+
+| Parameter | Matches |
+|---|---|
+| `category`, `skill` | Exact V4 category / exact skill name |
+| `location`, `company`, `title` | Substring of city/state/country, company name, title |
+| `employmentType` | One of the six schema values |
+| `experience` | `0-2`, `2-5`, `5-8`, `8+`, `unspecified` — the bands the experience distribution uses, by minimum requirement, half open |
+| `currency` + `salaryMin` / `salaryMax` | Postings in that currency whose stated range overlaps the request |
+| `locationStated` | `true`: names a place. `false`: does not |
+
+**Salary needs a currency.** The dataset states salaries in eight currencies with no
+exchange rates, so a bare "at least 100,000" would compare rupees with dollars. A bound
+without `currency` is a 400, not a guess. Postings without a stated salary never match a
+salary filter — unknown is not zero.
+
+**There is no remote filter,** because the data cannot support one. The ETL maps "remote",
+"work from home" and "unspecified" all to no location, so a remote role and one that simply
+did not say look identical. `locationStated=false` asks the only question the data can
+answer — whether a place is named — and the UI labels it that way.
+
+**Orderings.** Named, because the useful ones are not plain columns:
+
+| `order` | Notes |
+|---|---|
+| `newest` (default), `oldest` | Undated postings last in both directions |
+| `relevance` | Needs `q`. Per word: 3 points in the title, 2 in the company, 1 in the description; summed, newest first within a score. A deterministic score, not a model. Without `q` it falls back to newest rather than an arbitrary order |
+| `salary-high`, `salary-low` | Needs `currency` — 400 otherwise. Unsalaried postings last |
+| `title`, `company` | Alphabetical, case-insensitive |
+
+**The URL is the search.** Every filter, the ordering, the page and the page size live in
+the query string and nowhere else — no store, no context. That is what makes a search
+survive a refresh, work with the back button, and open unchanged from a shared link.
+Defaults are left out, so a plain search stays short:
+
+```
+/jobs?q=java&category=Backend+Developer&skill=Spring+Boot&experience=2-5&page=2
+```
+
+`page` is one-based in the URL and zero-based to the API. Opening a posting carries the
+search with it, so its back link returns to the same results. Links written before V6.2
+(`?company=`, `?skill=`, `?title=`, …) still open the search they described.
+
+**Requests.** One search request per change, however many filters it touches. Text waits for
+a 350–400ms pause before searching; Enter searches at once. Suggestions for skills and
+companies use the existing name-filter endpoints after a pause; the location list is fetched
+once, on the first keystroke. A production page load makes three requests — the search, the
+category list and the currency list. (A development build shows each twice: React StrictMode
+mounts effects twice on purpose, in development only.)
+
+**Indexes.** Migration V7 adds two, chosen from the predicates the search actually issues: a
+partial `(currency, salary_min)` index for the salary filter, and `experience_min` for the
+experience bands. At the current few hundred rows the planner correctly prefers a sequential
+scan and uses neither; they are there for the shape of the queries. `employment_type` is not
+indexed — six values, one dominant — and neither are the text fields, whose `LIKE '%…%'`
+cannot use a btree index at all.
 
 ### AI assistant (V5)
 

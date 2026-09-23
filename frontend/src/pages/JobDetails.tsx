@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import type { JobDetail } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
@@ -18,10 +18,17 @@ export function JobDetails() {
   const jobId = Number(id);
   const job = useApi<JobDetail>(() => api.job(jobId), [jobId]);
 
+  // Job Explorer hands over the search that led here, so "back" returns to those exact
+  // results rather than an empty explorer. Opened directly — from a shared link, say —
+  // there is no search to return to, and the plain explorer is the right destination.
+  const location = useLocation();
+  const from = (location.state as { from?: unknown } | null)?.from;
+  const backTo = typeof from === 'string' && from.startsWith('?') ? `/jobs${from}` : '/jobs';
+
   return (
     <>
-      <Link to="/jobs" className="back-link">
-        <span aria-hidden="true">←</span> Back to Job Explorer
+      <Link to={backTo} className="back-link">
+        <span aria-hidden="true">←</span> {backTo === '/jobs' ? 'Back to Job Explorer' : 'Back to results'}
       </Link>
 
       <AsyncPanel state={job} skeleton="text">
