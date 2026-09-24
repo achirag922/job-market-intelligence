@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
-import { OtpInput } from './OtpInput';
+import { ORBIT_RADIUS, OtpInput, orbitLayout, polarPath, type SlotGeometry } from './OtpInput';
 
 function Harness({ onComplete }: { onComplete?: (code: string) => void }) {
   const [value, setValue] = useState('');
@@ -89,5 +89,98 @@ describe('OtpInput', () => {
   it('marks every box invalid for screen readers when told to', () => {
     render(<OtpInput value="111111" onChange={() => {}} invalid />);
     expect(screen.getAllByRole('textbox').every((input) => input.getAttribute('aria-invalid') === 'true')).toBe(true);
+  });
+
+  it('plays a light sweep on a box each time a digit lands in it', () => {
+    const { container } = render(<Harness />);
+    expect(container.querySelectorAll('.otp-sweep')).toHaveLength(0);
+    fireEvent.change(box(1), { target: { value: '4' } });
+    expect(box(1).parentElement?.querySelectorAll('.otp-sweep')).toHaveLength(1);
+    expect(container.querySelectorAll('.otp-sweep')).toHaveLength(1);
+  });
+});
+
+describe('orbit geometry', () => {
+  const size = 50;
+  const centres = [-150, -90, -30, 30, 90, 150];
+  const radius = size * ORBIT_RADIUS;
+
+  const parse = (frame: Keyframe) => {
+    const [, x, y] = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/.exec(String(frame.transform))!;
+    return { x: Number(x), y: Number(y) };
+  };
+
+  it('places the first digit on the left and the rest clockwise, evenly spaced', () => {
+    const slots = orbitLayout(centres);
+    expect(slots.map((slot) => slot.orbitAngle)).toEqual([180, 240, 300, 360, 420, 480]);
+    expect(slots.map((slot) => slot.startAngle)).toEqual([180, 180, 180, 0, 0, 0]);
+  });
+
+  it('curls each box from its row position onto its exact point on the ring', () => {
+    orbitLayout(centres).forEach((slot) => {
+      const sweep = (((slot.orbitAngle - slot.startAngle) % 360) + 360) % 360;
+      const frames = polarPath(slot, slot.startRadius, slot.startAngle, radius, sweep);
+      const start = parse(frames[0]);
+      const end = parse(frames[frames.length - 1]);
+      expect(start.x).toBeCloseTo(0, 1);
+      expect(start.y).toBeCloseTo(0, 1);
+      // Where the box centre ends up, relative to the hub: on the ring, at its angle.
+      const centre = { x: end.x + slot.cx, y: end.y };
+      expect(Math.hypot(centre.x, centre.y)).toBeCloseTo(radius, 1);
+      const angle = ((Math.atan2(centre.y, centre.x) * 180) / Math.PI + 360) % 360;
+      expect(angle).toBeCloseTo(slot.orbitAngle % 360, 0);
+    });
+  });
+
+  it('curls the left half upward and the right half downward', () => {
+    const [, second, , , fifth] = orbitLayout(centres);
+    const midway = (slot: SlotGeometry) => {
+      const sweep = (((slot.orbitAngle - slot.startAngle) % 360) + 360) % 360;
+      return parse(polarPath(slot, slot.startRadius, slot.startAngle, radius, sweep)[4]);
+    };
+    expect(midway(second).y).toBeLessThan(0);
+    expect(midway(fifth).y).toBeGreaterThan(0);
+  });
+});
+
+describe('OtpInput motion', () => {
+  const originalAnimate = Element.prototype.animate;
+  const originalGetAnimations = Element.prototype.getAnimations;
+
+  afterEach(() => {
+    Element.prototype.animate = originalAnimate;
+    Element.prototype.getAnimations = originalGetAnimations;
+  });
+
+  it('without animation support, reports each motion as settled at once and still shows the ring state', () => {
+    const onMotionEnd = vi.fn();
+    const { container, rerender } = render(<OtpInput value="123456" onChange={() => {}} onMotionEnd={onMotionEnd} />);
+    const stage = container.querySelector('.otp-stage')!;
+    expect(stage.className).toBe('otp-stage');
+
+    rerender(<OtpInput value="123456" onChange={() => {}} onMotionEnd={onMotionEnd} motion="orbit" />);
+    expect(stage.className).toContain('is-orbit');
+    return waitFor(() => expect(onMotionEnd).toHaveBeenCalledWith('orbit'));
+  });
+
+  it('curls onto the orbit, spins one and a quarter turns about the hub, then collapses', async () => {
+    const played: string[] = [];
+    Element.prototype.animate = vi.fn(function (frames: Keyframe[] | PropertyIndexedKeyframes | null) {
+      played.push(JSON.stringify(frames));
+      return { finished: Promise.resolve(), cancel: vi.fn() } as unknown as Animation;
+    }) as typeof Element.prototype.animate;
+    Element.prototype.getAnimations = () => [];
+    const onMotionEnd = vi.fn();
+    const { rerender } = render(<OtpInput value="123456" onChange={() => {}} onMotionEnd={onMotionEnd} />);
+
+    rerender(<OtpInput value="123456" onChange={() => {}} onMotionEnd={onMotionEnd} motion="orbit" />);
+    await waitFor(() => expect(onMotionEnd).toHaveBeenCalledWith('orbit'));
+    expect(played.some((frames) => frames.includes('scale('))).toBe(true);
+    expect(played.filter((frames) => frames.includes('rotate(450deg)'))).toHaveLength(7);
+    expect(played.filter((frames) => frames.includes('rotate(-90deg)'))).toHaveLength(6);
+
+    rerender(<OtpInput value="123456" onChange={() => {}} onMotionEnd={onMotionEnd} motion="collapse" />);
+    await waitFor(() => expect(onMotionEnd).toHaveBeenCalledWith('collapse'));
+    expect(played.some((frames) => frames.includes('"opacity":0'))).toBe(true);
   });
 });

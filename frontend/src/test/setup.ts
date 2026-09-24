@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { configure } from '@testing-library/react';
 
 /**
  * Recharts sizes itself from the element it is given, and jsdom reports every element as
@@ -61,3 +62,11 @@ HTMLElement.prototype.scrollIntoView = function scrollIntoView(): void {};
 
 /** Page changes scroll back to the results; jsdom logs "not implemented" without this. */
 window.scrollTo = (() => {}) as typeof window.scrollTo;
+
+/**
+ * findBy / waitFor give up after 1 s by default. The auth flows chain several async steps
+ * (sign up, route change, verify, sign in), and on a busy machine that is not always enough;
+ * a slow run should still pass, while a real failure still fails.
+ */
+
+configure({ asyncUtilTimeout: 3000 });

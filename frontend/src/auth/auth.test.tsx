@@ -184,14 +184,28 @@ describe('authentication screens', () => {
 
     expect(await screen.findByRole('heading', { name: 'Verify your email' })).toBeInTheDocument();
     expect(signup).toHaveBeenCalledWith('Chirag Agarwal', EMAIL, PASSWORD);
-    expect(screen.getByLabelText('Digit 1 of 6')).toHaveFocus();
+    // Focused by an effect just after the screen appears, so wait for it rather than race it.
+    await waitFor(() => expect(screen.getByLabelText('Digit 1 of 6')).toHaveFocus());
 
     pasteCode('482913');
 
     expect(await screen.findByRole('heading', { name: 'Email verified' })).toBeInTheDocument();
     expect(verifyEmail).toHaveBeenCalledWith(EMAIL, '482913');
     expect(login).toHaveBeenCalledWith(EMAIL, PASSWORD);
+    expect(screen.getByText('Verified and secure')).toBeInTheDocument();
+    // Continues on its own; the button is there for anyone who does not want to wait.
     expect(await screen.findByText('Dashboard home', {}, { timeout: 2000 })).toBeInTheDocument();
+  });
+
+  it('continues at once from the success screen with the Continue button', async () => {
+    renderApp('/signup');
+    fillSignup();
+    click('Create Account');
+    await screen.findByRole('heading', { name: 'Verify your email' });
+    pasteCode('482913');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Dashboard home')).toBeInTheDocument();
   });
 
   it('shows an invalid code clearly, and clears the error as the user retypes', async () => {

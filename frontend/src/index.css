@@ -2568,64 +2568,314 @@ button.filter-chip-remove:hover:not(:disabled) {
 
 /* ---------------------------------------------------------------- OTP boxes */
 
-.otp-group {
+/*
+ * Square boxes in a centred row. Colour is kept for verdicts; focus and attention are light
+ * (--otp-ice), not a hue. When the code is complete the row curls onto a dotted ring around
+ * a hub, spins once, and — on success — collapses into the hub. The stage always has room for
+ * the ring, as in the reference, so nothing around it moves while the boxes do.
+ */
+.otp-stage {
+  --otp-box: clamp(38px, 11.4vw, 50px);
+  --otp-ice: #dceaff;
+  --otp-ok: #2ee6a8;
+  --otp-bad: #ff4d6a;
+
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: clamp(6px, 2vw, 12px);
+  place-items: center;
+  min-height: calc(var(--otp-box) * 4.2);
+}
+
+.otp-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(var(--otp-box) * 3);
+  height: calc(var(--otp-box) * 3);
+  margin: calc(var(--otp-box) * -1.5) 0 0 calc(var(--otp-box) * -1.5);
+  overflow: visible;
+  opacity: 0;
+  transform: scale(0.55);
+  transition: opacity 360ms var(--ease), transform 540ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  pointer-events: none;
+}
+
+/* Dotted on purpose: a solid ring at this size reads as a loading spinner. */
+.otp-ring circle {
+  fill: none;
+  stroke: rgba(220, 234, 255, 0.4);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 6;
+  stroke-linecap: round;
+}
+
+.otp-hub {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: var(--otp-ice);
+  box-shadow: 0 0 10px rgba(220, 234, 255, 0.55);
+  opacity: 0;
+  transform: scale(0.4);
+  transition: opacity 280ms var(--ease) 180ms, transform 280ms var(--ease) 180ms;
+  pointer-events: none;
+}
+
+.otp-stage.is-orbit .otp-ring {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.otp-stage.is-orbit .otp-hub {
+  opacity: 0.85;
+  transform: scale(1);
+}
+
+.otp-stage.is-collapse .otp-ring {
+  opacity: 0;
+  transform: scale(0.3);
+  transition-duration: 420ms;
+}
+
+.otp-stage.is-collapse .otp-hub {
+  opacity: 0;
+  transform: scale(2.2);
+  transition-delay: 260ms;
+}
+
+.otp-group {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: clamp(6px, 2vw, 10px);
+}
+
+.otp-slot {
+  position: relative;
+  flex: none;
+  width: var(--otp-box);
+  height: var(--otp-box);
 }
 
 .auth-screen .otp-box {
   width: 100%;
-  height: clamp(48px, 14vw, 58px);
+  height: 100%;
   padding: 0;
+  border-color: rgba(255, 255, 255, 0.1);
   border-radius: 12px;
+  background: #15181e;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   text-align: center;
-  font-size: clamp(20px, 6vw, 24px);
+  font-size: clamp(18px, 5.4vw, 22px);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
-  caret-color: var(--auth-accent);
+  caret-color: var(--otp-ice);
+  /* No transform transition: position and rotation belong to the orbit animation. */
+  transition: border-color 200ms var(--ease), box-shadow 200ms var(--ease), background 240ms var(--ease),
+    color 240ms var(--ease);
+}
+
+/* Focus selects the digit so typing replaces it; the highlight itself would only be noise. */
+.auth-screen .otp-box::selection {
+  background: transparent;
 }
 
 .auth-screen .otp-box.filled {
-  border-color: rgba(122, 167, 255, 0.45);
-  background: #161b26;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: #181b22;
+  animation: otp-land 220ms var(--ease);
 }
 
 .auth-screen .otp-box:focus-visible {
-  transform: translateY(-1px);
-  box-shadow: 0 0 0 3px rgba(122, 167, 255, 0.2), 0 0 22px var(--auth-glow);
+  border-color: var(--otp-ice);
+  box-shadow: 0 0 0 1px rgba(220, 234, 255, 0.35), 0 0 18px rgba(220, 234, 255, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* A light running once round the border as a digit lands. */
+@property --otp-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.otp-sweep {
+  position: absolute;
+  inset: 0;
+  padding: 1.5px;
+  border-radius: 12px;
+  background: conic-gradient(from var(--otp-sweep), transparent 0deg, rgba(220, 234, 255, 0.95) 45deg,
+    transparent 110deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: otp-sweep 620ms cubic-bezier(0.3, 0.6, 0.3, 1) forwards;
 }
 
 .otp-invalid {
   animation: auth-shake 360ms var(--ease);
 }
 
+/* No shake while the boxes travel; it plays once they are back in the row. */
+.otp-stage.is-orbit .otp-group,
+.otp-stage.is-returning .otp-group {
+  animation: none;
+}
+
 .auth-screen .otp-invalid .otp-box {
-  border-color: var(--auth-danger);
-  box-shadow: 0 0 14px var(--auth-danger-glow);
+  border-color: var(--otp-bad);
+  background: #1f1216;
+  box-shadow: 0 0 16px rgba(255, 77, 106, 0.3);
+  color: #ffd6dd;
 }
 
 .auth-screen .otp-success .otp-box {
-  border-color: var(--auth-success);
-  box-shadow: 0 0 16px var(--auth-success-glow);
-  color: var(--auth-success);
+  border-color: var(--otp-ok);
+  background: #0f2520;
+  box-shadow: 0 0 18px rgba(46, 230, 168, 0.32), inset 0 0 12px rgba(46, 230, 168, 0.12);
+  color: #bff7e3;
 }
 
-.auth-success {
+@keyframes otp-land {
+  from { transform: scale(0.92); }
+  to { transform: scale(1); }
+}
+
+@keyframes otp-sweep {
+  from { --otp-sweep: -60deg; opacity: 1; }
+  75% { opacity: 1; }
+  to { --otp-sweep: 300deg; opacity: 0; }
+}
+
+/* ---------------------------------------------------------------- success badge */
+
+.auth-title.is-success {
+  color: #7ff0c7;
+}
+
+.verified {
   display: grid;
   place-items: center;
+  padding: var(--space-5) 0 var(--space-2);
 }
 
-.auth-success-icon {
-  width: 56px;
-  height: 56px;
+.verified-badge {
+  --ok: #2ee6a8;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 128px;
+  height: 128px;
+}
+
+.verified-ring,
+.verified-core {
+  position: absolute;
+  border: 1px solid rgba(46, 230, 168, 0.28);
+  border-radius: 26px;
+}
+
+.verified-ring-outer {
+  inset: 0;
+  border-color: rgba(46, 230, 168, 0.14);
+  animation: verified-ring 640ms cubic-bezier(0.2, 0.8, 0.2, 1) 180ms both;
+}
+
+.verified-ring-inner {
+  inset: 18px;
+  border-radius: 20px;
+  animation: verified-ring 560ms cubic-bezier(0.2, 0.8, 0.2, 1) 90ms both;
+}
+
+.verified-core {
+  inset: 36px;
+  display: grid;
+  place-items: center;
+  border-color: var(--ok);
+  border-radius: 14px;
+  background: radial-gradient(circle at 50% 35%, rgba(46, 230, 168, 0.22), rgba(46, 230, 168, 0.05) 70%);
+  box-shadow: 0 0 22px rgba(46, 230, 168, 0.35), inset 0 0 12px rgba(46, 230, 168, 0.15);
+  animation: auth-pop 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.verified-check {
+  width: 26px;
+  height: 26px;
   fill: none;
-  stroke: var(--auth-success);
-  stroke-width: 1.6;
+  stroke: #eafff7;
+  stroke-width: 2.2;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 0 12px var(--auth-success-glow));
-  animation: auth-pop 420ms var(--ease) both;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 6px rgba(46, 230, 168, 0.7));
+  animation: verified-draw 420ms var(--ease) 320ms forwards;
+}
+
+.verified-particle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 8px rgba(46, 230, 168, 0.8);
+  opacity: 0;
+  animation: verified-burst 1100ms cubic-bezier(0.15, 0.7, 0.3, 1) var(--delay, 0ms) forwards;
+}
+
+.verified-secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #7ff0c7;
+  font-size: var(--text-sm);
+  animation: auth-fade 300ms var(--ease) 500ms both;
+}
+
+.verified-secure svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+.auth-submit.auth-continue {
+  border: 1px solid rgba(46, 230, 168, 0.6);
+  background: #2ee6a8;
+  color: #04120d;
+  box-shadow: 0 0 0 3px rgba(46, 230, 168, 0.14), 0 0 22px rgba(46, 230, 168, 0.3);
+  animation: auth-fade 300ms var(--ease) 600ms both;
+}
+
+.auth-submit.auth-continue:hover:not(:disabled) {
+  background: #45ecb4;
+  box-shadow: 0 0 0 3px rgba(46, 230, 168, 0.2), 0 0 28px rgba(46, 230, 168, 0.4);
+}
+
+@keyframes verified-ring {
+  from { opacity: 0; transform: scale(0.7); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes verified-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes verified-burst {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--x), var(--y)) scale(1); }
 }
 
 @keyframes auth-rise {
@@ -2668,13 +2918,30 @@ button.filter-chip-remove:hover:not(:disabled) {
   .auth-alert,
   .auth-notice,
   .otp-invalid,
-  .auth-success-icon,
-  .auth-spinner {
+  .otp-sweep,
+  .auth-screen .otp-box.filled,
+  .auth-spinner,
+  .verified-ring,
+  .verified-core,
+  .verified-secure,
+  .auth-submit.auth-continue {
     animation: none;
   }
 
+  /* No burst; the check is simply drawn. */
+  .verified-particle {
+    display: none;
+  }
+
+  .verified-check {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
   .auth-screen input,
-  .auth-submit {
+  .auth-submit,
+  .otp-ring,
+  .otp-hub {
     transition: none;
   }
 }

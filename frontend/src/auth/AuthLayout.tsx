@@ -6,7 +6,13 @@ import { IconDashboard } from '../components/icons';
  * nothing else. Dark regardless of the app theme, like the reference; contrast is kept at
  * WCAG AA for all text.
  */
-export function AuthLayout({ title, subtitle, children }: { title: string; subtitle?: ReactNode; children: ReactNode }) {
+export function AuthLayout({ title, subtitle, tone, children }: {
+  title: string;
+  subtitle?: ReactNode;
+  /** Colours the heading for a verdict, as the success screen does. */
+  tone?: 'success';
+  children: ReactNode;
+}) {
   return (
     <main className="auth-screen">
       <div className="auth-glow" aria-hidden="true" />
@@ -18,7 +24,7 @@ export function AuthLayout({ title, subtitle, children }: { title: string; subti
           JMIP
           <span className="auth-brand-name">Job Market Intelligence</span>
         </p>
-        <h1 id="auth-title" className="auth-title">
+        <h1 id="auth-title" className={tone === 'success' ? 'auth-title is-success' : 'auth-title'}>
           {title}
         </h1>
         {subtitle && <p className="auth-subtitle">{subtitle}</p>}
