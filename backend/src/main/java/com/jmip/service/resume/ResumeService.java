@@ -7,6 +7,7 @@ import com.jmip.dto.resume.ResumeSkillsResponse;
 import com.jmip.entity.Resume;
 import com.jmip.entity.Skill;
 import com.jmip.mapper.JobMapper;
+import com.jmip.service.auth.CurrentUser;
 import com.jmip.repository.ResumeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ public class ResumeService {
     private final ResumeSkillMatcher skillMatcher;
     private final JobMapper jobMapper;
     private final Clock clock;
+    private final CurrentUser currentUser;
 
     public ResumeService(ResumeRepository resumeRepository,
                          ResumeStorageService storageService,
@@ -51,7 +53,8 @@ public class ResumeService {
                          ResumeTextNormalizer textNormalizer,
                          ResumeSkillMatcher skillMatcher,
                          JobMapper jobMapper,
-                         Clock clock) {
+                         Clock clock,
+                         CurrentUser currentUser) {
         this.resumeRepository = resumeRepository;
         this.storageService = storageService;
         this.textExtractor = textExtractor;
@@ -59,6 +62,7 @@ public class ResumeService {
         this.skillMatcher = skillMatcher;
         this.jobMapper = jobMapper;
         this.clock = clock;
+        this.currentUser = currentUser;
     }
 
     /**
@@ -70,6 +74,8 @@ public class ResumeService {
      */
     @Transactional
     public ResumeResponse upload(MultipartFile file) {
+        // The owner comes from the session, before anything is stored.
+        UUID ownerId = currentUser.requireId();
         storageService.validate(file);
 
         UUID resumeId = UUID.randomUUID();
@@ -78,6 +84,7 @@ public class ResumeService {
 
         Resume resume = new Resume(
                 resumeId,
+                ownerId,
                 sanitizeDisplayName(file.getOriginalFilename()),
                 storedFileName,
                 file.getContentType(),
@@ -126,8 +133,17 @@ public class ResumeService {
         return resume;
     }
 
+    /**
+     * The one way any feature reaches a resume — fetch, skills, match, recommendations,
+     * career insights, the assistant — so ownership is enforced here, once.
+     *
+     * <p>Someone else's resume gets exactly the same 404 as one that does not exist: a
+     * different answer would confirm that the id is real.
+     */
     private Resume requireResume(UUID id) {
+        UUID ownerId = currentUser.requireId();
         return resumeRepository.findWithSkillsById(id)
+                .filter(resume -> resume.isOwnedBy(ownerId))
                 .orElseThrow(() -> ResourceNotFoundException.of("Resume", id));
     }
 

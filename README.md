@@ -198,6 +198,7 @@ etl/data
 - [x] V6.10.2 — signup, login and logout: HttpOnly SameSite=Strict session cookie (Secure in prod), per-session CSRF token, Log in / Sign up pages and header user menu
 - [x] V6.10.3 — API authorization: every /api endpoint needs a signed-in USER (JSON 401 otherwise) except signup, login, logout and /me; frontend route guard
 - [x] Auth UI upgrade: dark Sign up / Login / Verify screens; full name on accounts; 6-digit email verification codes (Gmail SMTP, HMAC-stored, 10 min expiry, 5 attempts, 60 s resend cooldown)
+- [x] V6.10.4 — resume ownership: each resume belongs to the uploading account; other accounts get 404 on it and on its skills, matches, recommendations, career insights and assistant answers
 
 ## API
 

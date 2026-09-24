@@ -1,5 +1,6 @@
 package com.jmip.integration;
 
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,8 +49,12 @@ class CareerInsightsIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    /** The account behind @WithMockUser; resumes seeded here belong to it. */
+    private java.util.UUID ownerId;
+
     @BeforeEach
     void seed() {
+        ownerId = MockUserAccount.ensure(jdbcTemplate);
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes, skill_demand_snapshot, job_skills, jobs, skills, "
                 + "companies, locations RESTART IDENTITY CASCADE");
 
@@ -156,10 +161,10 @@ class CareerInsightsIntegrationTest {
 
     private void resume(UUID id, String status) {
         jdbcTemplate.update("""
-                        INSERT INTO resumes (id, original_file_name, stored_file_name, content_type,
+                        INSERT INTO resumes (id, user_id, original_file_name, stored_file_name, content_type,
                                              file_size_bytes, processing_status)
-                        VALUES (?, 'resume.pdf', ?, 'application/pdf', 100, ?)
+                        VALUES (?, ?, 'resume.pdf', ?, 'application/pdf', 100, ?)
                         """,
-                id, id + ".pdf", status);
+                id, ownerId, id + ".pdf", status);
     }
 }

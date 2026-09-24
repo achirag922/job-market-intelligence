@@ -36,6 +36,10 @@ public class Resume {
     @Id
     private UUID id;
 
+    /** The account that uploaded it; null only for resumes from before accounts existed. */
+    @Column(name = "user_id", updatable = false)
+    private UUID userId;
+
     @Column(name = "original_file_name", nullable = false)
     private String originalFileName;
 
@@ -85,6 +89,18 @@ public class Resume {
         this.fileSizeBytes = fileSizeBytes;
         this.uploadedAt = uploadedAt;
         this.processingStatus = ResumeProcessingStatus.UPLOADED;
+    }
+
+    /** A resume owned by {@code userId}, the account that is uploading it. */
+    public Resume(UUID id, UUID userId, String originalFileName, String storedFileName,
+                  String contentType, long fileSizeBytes, OffsetDateTime uploadedAt) {
+        this(id, originalFileName, storedFileName, contentType, fileSizeBytes, uploadedAt);
+        this.userId = userId;
+    }
+
+    /** False for every account when the resume has no owner. */
+    public boolean isOwnedBy(UUID accountId) {
+        return userId != null && userId.equals(accountId);
     }
 
     public void markProcessing() {

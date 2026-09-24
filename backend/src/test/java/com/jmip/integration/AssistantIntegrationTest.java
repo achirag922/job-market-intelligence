@@ -2,6 +2,7 @@ package com.jmip.integration;
 
 import com.jmip.ai.AiClient;
 import com.jmip.testsupport.ScriptedAiClient;
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -89,8 +90,12 @@ class AssistantIntegrationTest {
     @Autowired
     private ScriptedAiClient ai;
 
+    /** The account behind @WithMockUser; resumes seeded here belong to it. */
+    private java.util.UUID ownerId;
+
     @BeforeEach
     void seed() {
+        ownerId = MockUserAccount.ensure(jdbcTemplate);
         ai.respondingWithIntent("""
                 {"intent":"GENERAL_JOB_MARKET","entities":{},"timeRange":null,"limit":null}""")
           .respondingWithAnswer("A description of the retrieved rows.");

@@ -3,6 +3,7 @@ package com.jmip.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmip.testsupport.PdfFixtures;
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -74,6 +75,7 @@ class SecurityHardeningIntegrationTest {
 
     @BeforeEach
     void clear() throws Exception {
+        MockUserAccount.ensure(jdbcTemplate);
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes RESTART IDENTITY CASCADE");
         try (var files = Files.list(storageDirectory)) {
             for (Path file : files.toList()) {

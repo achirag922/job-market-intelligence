@@ -3,6 +3,7 @@ package com.jmip.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmip.testsupport.PdfFixtures;
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -69,8 +70,12 @@ class ResumeIntegrationTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** The account behind @WithMockUser; resumes seeded here belong to it. */
+    private java.util.UUID ownerId;
+
     @BeforeEach
     void seed() {
+        ownerId = MockUserAccount.ensure(jdbcTemplate);
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes, job_skills, jobs, skills, companies, locations "
                 + "RESTART IDENTITY CASCADE");
 
