@@ -35,6 +35,10 @@ public class User {
     @Column(name = "email", nullable = false, unique = true, length = 320)
     private String email;
 
+    /** As the user typed it, trimmed. Null for accounts created before names were collected. */
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -45,11 +49,17 @@ public class User {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    /** When the email was confirmed with a one-time code; null until then. */
+    @Column(name = "email_verified_at")
+    private OffsetDateTime emailVerifiedAt;
+
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
-    public User(UUID id, String email, String passwordHash, UserRole role, OffsetDateTime createdAt) {
+    public User(UUID id, String fullName, String email, String passwordHash, UserRole role,
+                OffsetDateTime createdAt) {
         this.id = Objects.requireNonNull(id, "id");
+        this.fullName = fullName;
         this.email = Objects.requireNonNull(email, "email");
         this.passwordHash = Objects.requireNonNull(passwordHash, "passwordHash");
         this.role = Objects.requireNonNull(role, "role");
@@ -60,6 +70,15 @@ public class User {
     /** For re-hashing on a password change or an algorithm upgrade. */
     public void changePasswordHash(String newPasswordHash, OffsetDateTime at) {
         this.passwordHash = Objects.requireNonNull(newPasswordHash, "newPasswordHash");
+        this.updatedAt = at;
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
+    public void markEmailVerified(OffsetDateTime at) {
+        this.emailVerifiedAt = Objects.requireNonNull(at, "at");
         this.updatedAt = at;
     }
 

@@ -65,6 +65,15 @@ services:
       JMIP_SESSION_COOKIE_SECURE: ${JMIP_SESSION_COOKIE_SECURE:-true}
       JMIP_SESSION_COOKIE_SAME_SITE: ${JMIP_SESSION_COOKIE_SAME_SITE:-strict}
       JMIP_SESSION_TIMEOUT: ${JMIP_SESSION_TIMEOUT:-8h}
+      # Email verification codes. "log" prints them to this container's log for local use;
+      # set smtp plus the JMIP_MAIL_* values (Gmail: an app password) for real delivery.
+      JMIP_VERIFICATION_DELIVERY: ${JMIP_VERIFICATION_DELIVERY:-log}
+      JMIP_OTP_SECRET: ${JMIP_OTP_SECRET:?Set JMIP_OTP_SECRET in .env (a long random string)}
+      JMIP_MAIL_HOST: ${JMIP_MAIL_HOST:-smtp.gmail.com}
+      JMIP_MAIL_PORT: ${JMIP_MAIL_PORT:-587}
+      JMIP_MAIL_USERNAME: ${JMIP_MAIL_USERNAME:-}
+      JMIP_MAIL_PASSWORD: ${JMIP_MAIL_PASSWORD:-}
+      JMIP_MAIL_FROM: ${JMIP_MAIL_FROM:-}
     volumes:
       - resume-data:/app/data/resumes
     ports:

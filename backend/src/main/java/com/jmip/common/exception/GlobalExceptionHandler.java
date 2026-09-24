@@ -95,6 +95,18 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
     }
 
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiError> handleEmailNotVerified(EmailNotVerifiedException exception,
+                                                           HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(VerificationCodeException.class)
+    public ResponseEntity<ApiError> handleVerificationCode(VerificationCodeException exception,
+                                                           HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, exception.getMessage(), request);
+    }
+
     @ExceptionHandler(EmailAlreadyRegisteredException.class)
     public ResponseEntity<ApiError> handleEmailTaken(EmailAlreadyRegisteredException exception,
                                                      HttpServletRequest request) {

@@ -41,6 +41,21 @@ spring:
     # in-memory user, whose generated password Spring Boot would print to the log.
     exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
+  # Verification emails. Gmail: smtp.gmail.com:587 with STARTTLS and an app password
+  # (Google Account > Security > App passwords); a normal account password is refused.
+  mail:
+    host: ${JMIP_MAIL_HOST:smtp.gmail.com}
+    port: ${JMIP_MAIL_PORT:587}
+    username: ${JMIP_MAIL_USERNAME:}
+    password: ${JMIP_MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -67,6 +82,11 @@ server:
     include-stacktrace: never
 
 management:
+  health:
+    mail:
+      # A mail server outage must not mark the whole API unhealthy; delivery failures are
+      # handled per email (the user can resend).
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -98,6 +118,16 @@ jmip:
     # Origins the browser frontend is served from. Comma separated via
     # JMIP_CORS_ALLOWED_ORIGINS when deploying somewhere else.
     allowed-origins: ${JMIP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+  verification:
+    # smtp emails the 6-digit code; log prints it to this log (local development only).
+    delivery: ${JMIP_VERIFICATION_DELIVERY:log}
+    # HMAC key for stored codes. Required in production; blank here means a random key per start.
+    secret: ${JMIP_OTP_SECRET:}
+    code-ttl: ${JMIP_OTP_TTL:10m}
+    resend-cooldown: ${JMIP_OTP_RESEND_COOLDOWN:60s}
+    max-attempts: ${JMIP_OTP_MAX_ATTEMPTS:5}
+    mail-from: ${JMIP_MAIL_FROM:}
 
   # V5 assistant. The API key has no default and no value in this file: it comes from the
   # environment, it is never logged, and it never reaches the browser — every model call is

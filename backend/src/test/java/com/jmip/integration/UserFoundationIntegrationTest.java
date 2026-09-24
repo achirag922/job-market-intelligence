@@ -78,7 +78,7 @@ class UserFoundationIntegrationTest {
 
     @BeforeEach
     void clear() {
-        jdbcTemplate.execute("TRUNCATE users");
+        jdbcTemplate.execute("TRUNCATE users CASCADE");
     }
 
     // ------------------------------------------------------------------ persistence and role
@@ -86,7 +86,7 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("a registered user is persisted with a normalised email, the USER role and timestamps")
     void persistsUser() {
-        UserResponse created = userService.register(new RegisterRequest("  Jane.Doe@Example.COM ", PASSWORD));
+        UserResponse created = userService.register(new RegisterRequest("Jane Doe", "  Jane.Doe@Example.COM ", PASSWORD));
 
         User stored = userRepository.findById(created.id()).orElseThrow();
         assertThat(stored.getEmail()).isEqualTo("jane.doe@example.com");
@@ -100,7 +100,7 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("the role becomes a Spring Security authority, and an unknown email reveals nothing")
     void roleAsAuthority() {
-        userService.register(new RegisterRequest("jane@example.com", PASSWORD));
+        userService.register(new RegisterRequest("Jane Doe", "jane@example.com", PASSWORD));
 
         UserDetails details = userDetailsService.loadUserByUsername("Jane@Example.com");
         assertThat(details.getAuthorities()).extracting(GrantedAuthority::getAuthority).containsExactly("ROLE_USER");
@@ -116,8 +116,8 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("passwords are stored only as salted bcrypt hashes that verify the original")
     void passwordIsHashed() {
-        UserResponse first = userService.register(new RegisterRequest("a@example.com", PASSWORD));
-        UserResponse second = userService.register(new RegisterRequest("b@example.com", PASSWORD));
+        UserResponse first = userService.register(new RegisterRequest("Jane Doe", "a@example.com", PASSWORD));
+        UserResponse second = userService.register(new RegisterRequest("Jane Doe", "b@example.com", PASSWORD));
 
         String storedHash = jdbcTemplate.queryForObject(
                 "SELECT password_hash FROM users WHERE id = ?", String.class, first.id());
@@ -136,9 +136,9 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("an email can register once, whatever its letter case")
     void emailIsUnique() {
-        userService.register(new RegisterRequest("jane@example.com", PASSWORD));
+        userService.register(new RegisterRequest("Jane Doe", "jane@example.com", PASSWORD));
 
-        assertThatThrownBy(() -> userService.register(new RegisterRequest("JANE@example.com", PASSWORD)))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", "JANE@example.com", PASSWORD)))
                 .isInstanceOf(EmailAlreadyRegisteredException.class)
                 .hasMessageNotContaining("jane");
         assertThat(userRepository.count()).isEqualTo(1);
@@ -147,7 +147,7 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("the database itself enforces uniqueness and normalised emails")
     void databaseConstraints() {
-        userService.register(new RegisterRequest("jane@example.com", PASSWORD));
+        userService.register(new RegisterRequest("Jane Doe", "jane@example.com", PASSWORD));
 
         assertThatThrownBy(() -> insertRaw("jane@example.com")).isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> insertRaw("Other@Example.com")).isInstanceOf(DataIntegrityViolationException.class);
@@ -158,16 +158,16 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("invalid emails and weak or oversized passwords are rejected before anything is stored")
     void validation() {
-        assertThatThrownBy(() -> userService.register(new RegisterRequest("not-an-email", PASSWORD)))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", "not-an-email", PASSWORD)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> userService.register(new RegisterRequest(" ", PASSWORD)))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", " ", PASSWORD)))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> userService.register(new RegisterRequest("jane@example.com", "short")))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", "jane@example.com", "short")))
                 .isInstanceOf(ConstraintViolationException.class);
-        assertThatThrownBy(() -> userService.register(new RegisterRequest("jane@example.com", "x".repeat(73))))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", "jane@example.com", "x".repeat(73))))
                 .isInstanceOf(ConstraintViolationException.class);
         // 25 characters but 75 bytes: within @Size, beyond what bcrypt would actually read.
-        assertThatThrownBy(() -> userService.register(new RegisterRequest("jane@example.com", "€".repeat(25))))
+        assertThatThrownBy(() -> userService.register(new RegisterRequest("Jane Doe", "jane@example.com", "€".repeat(25))))
                 .isInstanceOf(InvalidRequestException.class)
                 .hasMessageContaining("72 bytes");
 
@@ -179,15 +179,15 @@ class UserFoundationIntegrationTest {
     @Test
     @DisplayName("neither the password nor its hash appears in responses, toString or logs")
     void noPasswordExposure(CapturedOutput output) throws Exception {
-        UserResponse created = userService.register(new RegisterRequest("jane@example.com", PASSWORD));
+        UserResponse created = userService.register(new RegisterRequest("Jane Doe", "jane@example.com", PASSWORD));
         User user = userRepository.findById(created.id()).orElseThrow();
 
         String json = objectMapper.writeValueAsString(created);
-        assertThat(objectMapper.readValue(json, Map.class)).containsOnlyKeys("id", "email", "role", "createdAt");
+        assertThat(objectMapper.readValue(json, Map.class)).containsOnlyKeys("id", "fullName", "email", "role", "emailVerified", "createdAt");
         assertThat(json).doesNotContain("password", "$2a$");
 
         assertThat(user.toString()).doesNotContain(user.getPasswordHash(), "jane@example.com");
-        assertThat(new RegisterRequest("jane@example.com", PASSWORD).toString()).doesNotContain(PASSWORD);
+        assertThat(new RegisterRequest("Jane Doe", "jane@example.com", PASSWORD).toString()).doesNotContain(PASSWORD);
         assertThat(new LoginRequest("jane@example.com", PASSWORD).toString()).doesNotContain(PASSWORD);
 
         assertThat(output.getAll()).doesNotContain(PASSWORD, user.getPasswordHash(), "jane@example.com");

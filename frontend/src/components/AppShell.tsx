@@ -221,7 +221,8 @@ function UserMenu() {
     return (
       <div className="header-user">
         <span className="header-user-email" title={user.email}>
-          {user.email}
+          {/* The name when we have it; accounts from before names were collected show the email. */}
+          {user.fullName ?? user.email}
         </span>
         <button
           type="button"

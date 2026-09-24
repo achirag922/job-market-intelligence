@@ -57,7 +57,8 @@ import java.util.Set;
 public class SecurityConfig {
 
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
-    private static final Set<String> CSRF_EXEMPT_PATHS = Set.of("/api/auth/login", "/api/auth/signup");
+    private static final Set<String> CSRF_EXEMPT_PATHS = Set.of("/api/auth/login", "/api/auth/signup",
+            "/api/auth/verify-email", "/api/auth/resend-verification");
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
@@ -88,7 +89,8 @@ public class SecurityConfig {
                         // CORS preflights never carry credentials; the CORS configuration answers them.
                         .requestMatchers(HttpMethod.OPTIONS, "/api/**").permitAll()
                         // Getting into an account, and finding out whether you are in one.
-                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/logout")
+                        .requestMatchers(HttpMethod.POST, "/api/auth/signup", "/api/auth/login", "/api/auth/logout",
+                                "/api/auth/verify-email", "/api/auth/resend-verification")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").permitAll()
                         // Container and load-balancer health checks carry no session.

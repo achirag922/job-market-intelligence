@@ -1,6 +1,7 @@
 package com.jmip.service.auth;
 
 import com.jmip.common.exception.AuthenticationFailedException;
+import com.jmip.common.exception.EmailNotVerifiedException;
 import com.jmip.dto.auth.AuthResponse;
 import com.jmip.dto.auth.LoginRequest;
 import com.jmip.dto.auth.UserResponse;
@@ -43,16 +44,19 @@ public class AuthSessionService {
     private final CsrfTokenRepository csrfTokenRepository;
     private final UserService userService;
     private final String sessionCookieName;
+    private final EmailVerificationService emailVerificationService;
 
     public AuthSessionService(AuthenticationManager authenticationManager,
                               SecurityContextRepository securityContextRepository,
                               CsrfTokenRepository csrfTokenRepository,
                               UserService userService,
-                              ServerProperties serverProperties) {
+                              ServerProperties serverProperties,
+                              EmailVerificationService emailVerificationService) {
         this.authenticationManager = authenticationManager;
         this.securityContextRepository = securityContextRepository;
         this.csrfTokenRepository = csrfTokenRepository;
         this.userService = userService;
+        this.emailVerificationService = emailVerificationService;
         String configured = serverProperties.getServlet().getSession().getCookie().getName();
         this.sessionCookieName = configured == null ? "JSESSIONID" : configured;
     }
@@ -74,6 +78,15 @@ public class AuthSessionService {
             throw new AuthenticationFailedException(AuthenticationFailedException.INVALID_CREDENTIALS);
         }
 
+        // The password was right, but the email is unconfirmed: no session. A code is sent if
+        // the user has none that still works, and the UI moves to the code screen.
+        User user = currentUser(authentication);
+        if (!user.isEmailVerified()) {
+            emailVerificationService.issueIfNoValidCode(user);
+            log.info("Sign-in for user {} is waiting on email verification", user.getId());
+            throw new EmailNotVerifiedException();
+        }
+
         HttpSession previous = httpRequest.getSession(false);
         if (previous != null) {
             previous.invalidate();
@@ -85,7 +98,6 @@ public class AuthSessionService {
         SecurityContextHolder.setContext(context);
         securityContextRepository.saveContext(context, httpRequest, httpResponse);
 
-        User user = currentUser(authentication);
         log.info("User {} signed in", user.getId());
         return new AuthResponse(UserResponse.of(user), issueCsrfToken(httpRequest, httpResponse));
     }

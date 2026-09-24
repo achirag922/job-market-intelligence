@@ -2,6 +2,7 @@ import type {
   AssistantRequest,
   AuthSession,
   AuthUser,
+  VerificationStatus,
   CareerInsights,
   EtlRun,
   AssistantResponse,
@@ -135,14 +136,43 @@ async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
   return response.status === 204 ? null : ((await response.json()) as T);
 }
 
-async function signup(email: string, password: string): Promise<AuthUser> {
-  return (await postJson<AuthUser>('/api/auth/signup', { email, password }))!;
+/**
+ * Login refused because the email is not confirmed yet. Only raised after the password was
+ * right; the UI moves to the code screen.
+ */
+export class EmailNotVerifiedError extends ApiError {
+  constructor(message: string) {
+    super(403, message);
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
+/** Creates an unverified account; the backend emails a 6-digit code. Does not sign in. */
+async function signup(fullName: string, email: string, password: string): Promise<AuthUser> {
+  return (await postJson<AuthUser>('/api/auth/signup', { fullName, email, password }))!;
 }
 
 async function login(email: string, password: string): Promise<AuthSession> {
-  const session = (await postJson<AuthSession>('/api/auth/login', { email, password }))!;
-  csrfToken = session.csrfToken;
-  return session;
+  try {
+    const session = (await postJson<AuthSession>('/api/auth/login', { email, password }))!;
+    csrfToken = session.csrfToken;
+    return session;
+  } catch (error) {
+    // Login is exempt from CSRF, so a 403 here can only mean "verify your email first".
+    if (error instanceof ApiError && error.status === 403) {
+      throw new EmailNotVerifiedError(error.message);
+    }
+    throw error;
+  }
+}
+
+/** Confirms the email with the code. Does not sign in. */
+async function verifyEmail(email: string, code: string): Promise<void> {
+  await postJson<void>('/api/auth/verify-email', { email, code });
+}
+
+async function resendVerification(email: string): Promise<VerificationStatus> {
+  return (await postJson<VerificationStatus>('/api/auth/resend-verification', { email }))!;
 }
 
 async function logout(): Promise<void> {
@@ -303,6 +333,8 @@ export const api = {
   login,
   logout,
   currentSession,
+  verifyEmail,
+  resendVerification,
 
   resume: (id: string) => request<Resume>(`/api/resumes/${id}`),
 

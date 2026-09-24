@@ -41,6 +41,9 @@ management:
       show-details: never
 
 jmip:
+  verification:
+    # Real deliveries unless explicitly set to log.
+    delivery: ${JMIP_VERIFICATION_DELIVERY:smtp}
   resume:
     storage:
       # An explicit location, usually a mounted volume. The relative default is for local use.

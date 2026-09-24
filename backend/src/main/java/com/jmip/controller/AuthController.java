@@ -3,8 +3,12 @@ package com.jmip.controller;
 import com.jmip.dto.auth.AuthResponse;
 import com.jmip.dto.auth.LoginRequest;
 import com.jmip.dto.auth.RegisterRequest;
+import com.jmip.dto.auth.ResendVerificationRequest;
 import com.jmip.dto.auth.UserResponse;
+import com.jmip.dto.auth.VerificationStatusResponse;
+import com.jmip.dto.auth.VerifyEmailRequest;
 import com.jmip.service.auth.AuthSessionService;
+import com.jmip.service.auth.EmailVerificationService;
 import com.jmip.service.auth.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -31,13 +35,16 @@ public class AuthController {
 
     private final UserService userService;
     private final AuthSessionService authSessionService;
+    private final EmailVerificationService emailVerificationService;
 
-    public AuthController(UserService userService, AuthSessionService authSessionService) {
+    public AuthController(UserService userService, AuthSessionService authSessionService,
+                          EmailVerificationService emailVerificationService) {
         this.userService = userService;
         this.authSessionService = authSessionService;
+        this.emailVerificationService = emailVerificationService;
     }
 
-    /** Creates a USER account. It does not sign in; the frontend signs in straight after. */
+    /** Creates an unverified USER account and emails a code. It does not sign in. */
     @PostMapping("/signup")
     public ResponseEntity<UserResponse> signup(@Valid @RequestBody RegisterRequest request) {
         log.info("POST /api/auth/signup");
@@ -58,6 +65,25 @@ public class AuthController {
         log.info("POST /api/auth/logout");
         authSessionService.logout(httpRequest, httpResponse);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Confirms the email with the 6-digit code. Does not sign in: the frontend signs in with
+     * the credentials the user just typed, so a code alone never grants a session.
+     */
+    @PostMapping("/verify-email")
+    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        log.info("POST /api/auth/verify-email");
+        emailVerificationService.verify(request.email(), request.code());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Sends a new code if one is due. Answers the same for every email, known or not. */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<VerificationStatusResponse> resendVerification(
+            @Valid @RequestBody ResendVerificationRequest request) {
+        log.info("POST /api/auth/resend-verification");
+        return ResponseEntity.accepted().body(emailVerificationService.resend(request.email()));
     }
 
     /** Who is signed in, for restoring state after a page load. 401 when nobody is. */

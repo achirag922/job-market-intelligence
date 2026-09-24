@@ -1,15 +1,29 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api, UNAUTHORIZED_EVENT } from '../api/client';
-import type { AuthUser } from '../api/types';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { api, EmailNotVerifiedError, UNAUTHORIZED_EVENT } from '../api/client';
+import type { AuthUser, VerificationStatus } from '../api/types';
 
 export type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
+
+/** The account waiting for its email code. Its password never leaves memory. */
+interface PendingVerification {
+  email: string;
+}
 
 interface AuthValue {
   status: AuthStatus;
   user: AuthUser | null;
+  /** Set after signup, or after a login refused for an unconfirmed email. */
+  pendingVerification: PendingVerification | null;
+  /** @throws EmailNotVerifiedError when the password was right but the email is unconfirmed */
   login: (email: string, password: string) => Promise<void>;
-  /** Creates the account, then signs straight in with the same credentials. */
-  signup: (email: string, password: string) => Promise<void>;
+  /** Creates the account; the backend emails a code and the UI moves to the code screen. */
+  signup: (fullName: string, email: string, password: string) => Promise<void>;
+  /**
+   * Confirms the email. Signs in straight away when the password typed a moment ago is still
+   * in memory; otherwise returns 'needsLogin' (e.g. after a page reload).
+   */
+  verifyEmail: (code: string) => Promise<'signedIn' | 'needsLogin'>;
+  resendVerification: () => Promise<VerificationStatus>;
   logout: () => Promise<void>;
 }
 
@@ -25,6 +39,9 @@ const AuthContext = createContext<AuthValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [pendingVerification, setPendingVerification] = useState<PendingVerification | null>(null);
+  // Only in memory, only between "create account"/"login" and entering the code.
+  const pendingPassword = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -58,19 +75,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const session = await api.login(email, password);
-    setUser(session.user);
-    setStatus('signedIn');
+  const awaitVerification = useCallback((email: string, password: string) => {
+    pendingPassword.current = password;
+    setPendingVerification({ email: email.trim() });
   }, []);
 
-  const signup = useCallback(
+  const login = useCallback(
     async (email: string, password: string) => {
-      await api.signup(email, password);
-      await login(email, password);
+      try {
+        const session = await api.login(email, password);
+        pendingPassword.current = null;
+        setPendingVerification(null);
+        setUser(session.user);
+        setStatus('signedIn');
+      } catch (error) {
+        if (error instanceof EmailNotVerifiedError) {
+          awaitVerification(email, password);
+        }
+        throw error;
+      }
     },
-    [login],
+    [awaitVerification],
   );
+
+  const signup = useCallback(
+    async (fullName: string, email: string, password: string) => {
+      await api.signup(fullName, email, password);
+      awaitVerification(email, password);
+    },
+    [awaitVerification],
+  );
+
+  const verifyEmail = useCallback(
+    async (code: string): Promise<'signedIn' | 'needsLogin'> => {
+      if (!pendingVerification) {
+        return 'needsLogin';
+      }
+      await api.verifyEmail(pendingVerification.email, code);
+      const password = pendingPassword.current;
+      if (!password) {
+        setPendingVerification(null);
+        return 'needsLogin';
+      }
+      await login(pendingVerification.email, password);
+      return 'signedIn';
+    },
+    [pendingVerification, login],
+  );
+
+  const resendVerification = useCallback(async () => {
+    if (!pendingVerification) {
+      throw new Error('No email is waiting for verification');
+    }
+    return api.resendVerification(pendingVerification.email);
+  }, [pendingVerification]);
 
   const logout = useCallback(async () => {
     try {
@@ -82,7 +140,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(() => ({ status, user, login, signup, logout }), [status, user, login, signup, logout]);
+  const value = useMemo(
+    () => ({ status, user, pendingVerification, login, signup, verifyEmail, resendVerification, logout }),
+    [status, user, pendingVerification, login, signup, verifyEmail, resendVerification, logout],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

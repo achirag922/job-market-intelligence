@@ -39,16 +39,19 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
+    private final EmailVerificationService emailVerificationService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, Clock clock) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, Clock clock,
+                       EmailVerificationService emailVerificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.clock = clock;
+        this.emailVerificationService = emailVerificationService;
     }
 
     /**
-     * Registers a new user with the default {@link UserRole#USER} role. Not yet called by an
-     * endpoint; the signup endpoint arrives with login.
+     * Registers a new, unverified user with the default {@link UserRole#USER} role and emails
+     * a verification code. The account cannot sign in until the code is entered.
      *
      * @throws EmailAlreadyRegisteredException when the email is taken, in any letter case
      */
@@ -63,7 +66,7 @@ public class UserService {
             throw new EmailAlreadyRegisteredException();
         }
 
-        User user = new User(UUID.randomUUID(), email, passwordEncoder.encode(request.password()),
+        User user = new User(UUID.randomUUID(), request.fullName(), email, passwordEncoder.encode(request.password()),
                 UserRole.USER, OffsetDateTime.now(clock));
         try {
             // Flushed here so a concurrent registration of the same email fails on the unique
@@ -74,6 +77,7 @@ public class UserService {
         }
         // The id only: the email is personal data, and nothing about the password is logged.
         log.info("User {} registered with role {}", user.getId(), user.getRole());
+        emailVerificationService.issueFor(user);
         return UserResponse.of(user);
     }
 

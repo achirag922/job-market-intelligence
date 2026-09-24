@@ -20,14 +20,19 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
 
     static final List<String> REQUIRED = List.of(
             "JMIP_DB_HOST", "JMIP_DB_NAME", "JMIP_DB_USERNAME", "JMIP_DB_PASSWORD",
-            "JMIP_RESUME_DIR", "JMIP_CORS_ALLOWED_ORIGINS");
+            "JMIP_RESUME_DIR", "JMIP_CORS_ALLOWED_ORIGINS", "JMIP_OTP_SECRET");
+
+    /** Needed unless verification codes are explicitly logged instead of emailed. */
+    static final List<String> REQUIRED_FOR_SMTP = List.of("JMIP_MAIL_USERNAME", "JMIP_MAIL_PASSWORD");
 
     @Override
     public void postProcessEnvironment(ConfigurableEnvironment environment, SpringApplication application) {
         if (!environment.acceptsProfiles(Profiles.of("prod"))) {
             return;
         }
-        List<String> missing = REQUIRED.stream()
+        boolean emailsCodes = !"log".equalsIgnoreCase(environment.getProperty("JMIP_VERIFICATION_DELIVERY", "smtp"));
+        List<String> missing = java.util.stream.Stream.concat(REQUIRED.stream(),
+                        emailsCodes ? REQUIRED_FOR_SMTP.stream() : java.util.stream.Stream.<String>empty())
                 .filter(name -> !StringUtils.hasText(environment.getProperty(name)))
                 .toList();
         if (!missing.isEmpty()) {

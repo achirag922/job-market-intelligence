@@ -78,7 +78,7 @@ class AuthIntegrationTest {
 
     @BeforeEach
     void clear() {
-        jdbcTemplate.execute("TRUNCATE users");
+        jdbcTemplate.execute("TRUNCATE users CASCADE");
     }
 
     // ------------------------------------------------------------------ signup
@@ -90,7 +90,10 @@ class AuthIntegrationTest {
 
         assertThat(response.statusCode()).isEqualTo(201);
         JsonNode user = objectMapper.readTree(response.body());
-        assertThat(fieldNames(user)).containsExactlyInAnyOrder("id", "email", "role", "createdAt");
+        assertThat(fieldNames(user)).containsExactlyInAnyOrder("id", "fullName", "email", "role", "emailVerified",
+                "createdAt");
+        assertThat(user.get("fullName").asText()).isEqualTo("Jane Doe");
+        assertThat(user.get("emailVerified").asBoolean()).isFalse();
         assertThat(user.get("email").asText()).isEqualTo(EMAIL);
         assertThat(user.get("role").asText()).isEqualTo("USER");
         assertThat(response.body()).doesNotContain("password", "$2a$");
@@ -173,6 +176,21 @@ class AuthIntegrationTest {
             assertThat(message(response)).isEqualTo("Invalid email or password");
             assertThat(response.setCookies()).noneMatch(value -> value.startsWith("JMIP_SESSION="));
         }
+    }
+
+    @Test
+    @DisplayName("a correct password for an unverified email gets 403 and no session")
+    void unverifiedLoginIsRefused() throws Exception {
+        assertThat(post("/api/auth/signup", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(201);
+
+        Resp response = post("/api/auth/login", credentials(EMAIL, PASSWORD), null, null);
+
+        assertThat(response.statusCode()).isEqualTo(403);
+        assertThat(message(response)).contains("Verify your email");
+        assertThat(response.setCookies()).noneMatch(value -> value.startsWith("JMIP_SESSION="));
+        // A wrong password on the same account still says only "invalid", not "unverified".
+        Resp wrong = post("/api/auth/login", credentials(EMAIL, "not the password"), null, null);
+        assertThat(wrong.statusCode()).isEqualTo(401);
     }
 
     // ------------------------------------------------------------------ session behaviour
@@ -263,6 +281,11 @@ class AuthIntegrationTest {
     @DisplayName("signup, login, logout, /me and health stay reachable without a session")
     void publicEndpointsStayPublic() throws Exception {
         assertThat(post("/api/auth/signup", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(201);
+        assertThat(post("/api/auth/resend-verification", "{\"email\":\"" + EMAIL + "\"}", null, null).statusCode())
+                .isEqualTo(202);
+        assertThat(post("/api/auth/verify-email", "{\"email\":\"" + EMAIL + "\",\"code\":\"000000\"}", null, null)
+                .statusCode()).isIn(204, 400);
+        markVerified();
         assertThat(post("/api/auth/login", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(200);
         assertThat(post("/api/auth/logout", "", null, null).statusCode()).isEqualTo(204);
         // Reachable: its own answer, not the generic "sign in" refusal.
@@ -347,8 +370,14 @@ class AuthIntegrationTest {
     private record Session(String cookie, String csrfToken) {
     }
 
+    /** A signed-up account whose email is already confirmed; verification itself is tested separately. */
     private void signup() throws Exception {
         assertThat(post("/api/auth/signup", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(201);
+        markVerified();
+    }
+
+    private void markVerified() {
+        jdbcTemplate.update("UPDATE users SET email_verified_at = now()");
     }
 
     private Session login() throws Exception {
@@ -359,7 +388,8 @@ class AuthIntegrationTest {
     }
 
     private String credentials(String email, String password) throws Exception {
-        return objectMapper.writeValueAsString(Map.of("email", email, "password", password));
+        // Login ignores fullName; signup needs it.
+        return objectMapper.writeValueAsString(Map.of("fullName", "Jane Doe", "email", email, "password", password));
     }
 
     /** Status, body and every Set-Cookie header of one response. */

@@ -1,10 +1,11 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
 import { EtlMonitoring } from './pages/EtlMonitoring';
 import { Login } from './pages/Login';
 import { RequireAuth } from './auth/RequireAuth';
 import { Signup } from './pages/Signup';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
@@ -16,16 +17,21 @@ import { SkillAnalytics } from './pages/SkillAnalytics';
 import { SkillTrends } from './pages/SkillTrends';
 
 /**
- * Routes, inside the application shell.
+ * Routes. The authentication screens stand alone; everything else sits in the application shell.
  *
  * <p>The shell owns the header, the sidebar and the page frame, so a page is only its own
  * content — no page repeats the chrome, and there is one place to change it.
  */
 export default function App() {
   return (
-    <AppShell>
-      <Routes>
-        {/* V6.10.3: everything except Log in and Sign up needs a signed-in user. */}
+    <Routes>
+      {/* Sign up, Login and Verify are full-screen, outside the application shell. */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+
+      <Route element={<ShellLayout />}>
+        {/* V6.10.3: everything inside the shell needs a signed-in user. */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/jobs" element={<JobExplorer />} />
@@ -39,10 +45,16 @@ export default function App() {
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/etl" element={<EtlMonitoring />} />
         </Route>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Route>
+    </Routes>
+  );
+}
+
+function ShellLayout() {
+  return (
+    <AppShell>
+      <Outlet />
     </AppShell>
   );
 }

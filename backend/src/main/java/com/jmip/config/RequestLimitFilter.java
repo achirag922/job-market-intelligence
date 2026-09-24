@@ -39,6 +39,8 @@ public class RequestLimitFilter extends OncePerRequestFilter {
     static final String AUTH_ENDPOINT = "/api/auth";
     static final String LOGIN_PATH = "/api/auth/login";
     static final String SIGNUP_PATH = "/api/auth/signup";
+    static final String VERIFY_PATH = "/api/auth/verify-email";
+    static final String RESEND_PATH = "/api/auth/resend-verification";
     private static final long WINDOW_MILLIS = 60_000;
     /** Expired windows are swept once the table grows past this, so it cannot grow unbounded. */
     private static final int SWEEP_THRESHOLD = 10_000;
@@ -107,7 +109,7 @@ public class RequestLimitFilter extends OncePerRequestFilter {
         if (path.equals(ASSISTANT_PATH)) {
             return ASSISTANT_PATH;
         }
-        if (path.equals(LOGIN_PATH) || path.equals(SIGNUP_PATH)) {
+        if (path.equals(LOGIN_PATH) || path.equals(SIGNUP_PATH) || path.equals(VERIFY_PATH) || path.equals(RESEND_PATH)) {
             return AUTH_ENDPOINT;
         }
         if (path.equals(UPLOAD_PATH) || path.equals(UPLOAD_PATH + "/")) {

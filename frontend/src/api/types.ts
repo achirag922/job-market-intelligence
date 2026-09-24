@@ -479,6 +479,9 @@ export interface AuthUser {
   id: string;
   email: string;
   role: 'USER';
+  /** Absent for accounts created before names were collected. */
+  fullName?: string;
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -486,4 +489,11 @@ export interface AuthUser {
 export interface AuthSession {
   user: AuthUser;
   csrfToken: string;
+}
+
+/** Returned by resend: when another code may be requested, and how long codes last. */
+export interface VerificationStatus {
+  email: string;
+  resendAvailableInSeconds: number;
+  codeValidForSeconds: number;
 }
