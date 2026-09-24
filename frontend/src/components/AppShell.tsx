@@ -6,6 +6,7 @@ import {
   IconBriefcase,
   IconBuilding,
   IconChat,
+  IconDatabase,
   IconClose,
   IconDashboard,
   IconFile,
@@ -53,6 +54,10 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/assistant', label: 'AI Assistant', icon: IconChat },
     ],
   },
+  {
+    label: 'System',
+    items: [{ to: '/etl', label: 'ETL Monitoring', icon: IconDatabase }],
+  },
 ];
 
 /** The page title shown in the header, matched longest-prefix-first. */
@@ -66,6 +71,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/analytics/categories', 'Job Categories'],
   ['/resume', 'Resume Intelligence'],
   ['/assistant', 'AI Assistant'],
+  ['/etl', 'ETL Monitoring'],
   ['/', 'Dashboard'],
 ];
 

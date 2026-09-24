@@ -1,6 +1,7 @@
 import type {
   AssistantRequest,
   CareerInsights,
+  EtlRun,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -205,6 +206,12 @@ export const api = {
   uploadResume,
 
   resume: (id: string) => request<Resume>(`/api/resumes/${id}`),
+
+  /** Newest first. */
+  etlRuns: (page: number, size: number) => request<PagedResponse<EtlRun>>('/api/etl/runs', { page, size }),
+
+  /** 404 when the ETL has never run. */
+  latestEtlRun: () => request<EtlRun>('/api/etl/runs/latest'),
 
   resumeMatch: (resumeId: string, jobId: number) =>
     request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),

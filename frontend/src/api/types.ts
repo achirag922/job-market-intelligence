@@ -445,3 +445,29 @@ export interface AssistantResponse {
   context?: ConversationContext;
   note?: string;
 }
+
+// ---------------------------------------------------------------- V6.5: ETL monitoring
+
+/** A Spring Batch status collapsed into what the dashboard shows. */
+export type EtlRunOutcome = 'SUCCEEDED' | 'FAILED' | 'RUNNING' | 'STOPPED';
+
+export interface EtlRun {
+  executionId: number;
+  jobName: string;
+  outcome: EtlRunOutcome;
+  batchStatus: string;
+  exitCode?: string;
+  exitMessage?: string;
+  /** ETL server local time, without a zone. */
+  startTime?: string;
+  endTime?: string;
+  /** Elapsed so far while running; absent when unknown. */
+  durationMillis?: number;
+  recordsRead: number;
+  recordsProcessed: number;
+  recordsWritten: number;
+  /** Absent while running, or for runs recorded before V6.5. */
+  recordsLoaded?: number;
+  duplicates?: number;
+  rejected: number;
+}

@@ -189,6 +189,7 @@ etl/data
 - [x] V6.2 — advanced job search: cross-field text search, experience and salary filters, named orderings including relevance, and searches kept in the URL
 - [x] V6.3 — job recommendations: completed resumes ranked against stored jobs by the existing deterministic skill-match percentage
 - [x] V6.4 — career insights: a resume against one category's skill demand and trends, with focus areas, related V6.3 jobs and an optional grounded AI summary
+- [x] V6.5 — ETL monitoring: run status, times, duration and counts from the Spring Batch job repository, on an ETL Monitoring page
 
 ## API
 
@@ -234,6 +235,8 @@ Upload a PDF resume, have its skills extracted, and compare them against a job p
 | `GET /api/resumes/{resumeId}/match/{jobId}` | Matched skills, the skill gap, and resume-only skills |
 | `GET /api/resumes/{resumeId}/recommendations` | Top skill-overlap jobs for a completed resume. Optional `limit` 1–20, default 10; jobs with no listed skills or no overlapping skill are excluded |
 | `GET /api/resumes/{resumeId}/career-insights` | Strong skills, skill gaps, high-demand and rising skills for a target `category` (defaults to the top recommendation's category), focus areas and related recommended jobs. `summary=true` adds a V5 AI description of the same figures |
+| `GET /api/etl/runs` | ETL run history from Spring Batch, newest first. Optional `job`, `page` (from 0), `size` 1–50 (default 10) |
+| `GET /api/etl/runs/latest` | The most recent ETL run; 404 when none has run. Optional `job` |
 
 **Flow.** `PDF → text extraction (PDFBox) → normalisation → skill matching → stored against
 the resume`. Extraction runs inside the upload request, so one call returns a final status;

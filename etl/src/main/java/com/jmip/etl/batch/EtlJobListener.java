@@ -1,6 +1,7 @@
 package com.jmip.etl.batch;
 
 import com.jmip.etl.load.EtlMetrics;
+import com.jmip.etl.load.EtlRunMetricsRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.JobExecution;
@@ -20,9 +21,11 @@ public class EtlJobListener implements JobExecutionListener {
     private static final Logger log = LoggerFactory.getLogger(EtlJobListener.class);
 
     private final EtlMetrics metrics;
+    private final EtlRunMetricsRepository runMetricsRepository;
 
-    public EtlJobListener(EtlMetrics metrics) {
+    public EtlJobListener(EtlMetrics metrics, EtlRunMetricsRepository runMetricsRepository) {
         this.metrics = metrics;
+        this.runMetricsRepository = runMetricsRepository;
     }
 
     @Override
@@ -77,6 +80,20 @@ public class EtlJobListener implements JobExecutionListener {
                         elapsed.toMillis() / 1000.0,
                         jobExecution.getStatus());
         log.info(summary);
+        persistRunMetrics(jobExecution);
+    }
+
+    /**
+     * Stores the counters Spring Batch does not keep, for the V6.5 monitoring API. A failure
+     * here must not change the outcome of a run whose data is already committed, so it is
+     * logged rather than thrown.
+     */
+    private void persistRunMetrics(JobExecution jobExecution) {
+        try {
+            runMetricsRepository.save(jobExecution.getId(), metrics);
+        } catch (RuntimeException exception) {
+            log.warn("Could not record run metrics for execution {}", jobExecution.getId(), exception);
+        }
     }
 
     private Duration elapsed(JobExecution jobExecution) {

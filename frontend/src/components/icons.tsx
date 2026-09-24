@@ -173,3 +173,11 @@ export const IconSend = (p: IconProps) => (
     <path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" />
   </Svg>
 );
+
+export const IconDatabase = (p: IconProps) => (
+  <Svg {...p}>
+    <ellipse cx="12" cy="5" rx="8" ry="3" />
+    <path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+    <path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3" />
+  </Svg>
+);

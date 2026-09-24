@@ -149,6 +149,19 @@ class EtlJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("stores the loaded and duplicate counts against the Spring Batch execution id")
+    void recordsRunMetrics() throws Exception {
+        JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT records_loaded, duplicates_skipped FROM etl_run_metrics WHERE job_execution_id = ?",
+                execution.getId());
+
+        assertThat(row.get("records_loaded")).isEqualTo(5L);
+        assertThat(row.get("duplicates_skipped")).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("records every rejection with its reason and the original input")
     void recordsRejections() throws Exception {
         JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
