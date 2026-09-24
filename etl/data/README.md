@@ -1,4 +1,4 @@
-# JMIP input data
+# JMIP input data test
 
 This directory holds the raw job-posting data the ETL reads. Nothing here is written
 by the application — these are inputs, checked in as fixtures or downloaded manually.
