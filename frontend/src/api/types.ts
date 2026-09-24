@@ -518,3 +518,17 @@ export interface JobAlert extends JobAlertInput {
   createdAt: string;
   updatedAt: string;
 }
+
+/** V7.2: where an application for a saved job stands. */
+export type ApplicationStatus = 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED' | 'WITHDRAWN';
+
+/** A job the signed-in user saved, with their private tracking details. */
+export interface SavedJob {
+  id: string;
+  job: JobSummary;
+  status: ApplicationStatus;
+  notes?: string | null;
+  savedAt: string;
+  appliedAt?: string | null;
+  updatedAt: string;
+}

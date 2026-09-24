@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import {
   IconBell,
+  IconBookmark,
   IconBriefcase,
   IconBuilding,
   IconChat,
@@ -53,6 +54,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Career',
     items: [
       { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
+      { to: '/saved-jobs', label: 'Saved Jobs', icon: IconBookmark },
       { to: '/alerts', label: 'Job Alerts', icon: IconBell },
       { to: '/assistant', label: 'AI Assistant', icon: IconChat },
     ],

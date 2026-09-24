@@ -7,6 +7,8 @@ import type {
   EtlRun,
   JobAlert,
   JobAlertInput,
+  ApplicationStatus,
+  SavedJob,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -416,6 +418,21 @@ export const api = {
     send<JobAlert>('PATCH', `/api/job-alerts/${id}/status`, { active }),
 
   deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
+
+  /** V7.2: the signed-in user's saved jobs, most recently changed first. */
+  savedJobs: (status?: ApplicationStatus) => request<SavedJob[]>('/api/saved-jobs', { status }),
+
+  /** Saving an already saved job returns the existing record. */
+  saveJob: (jobId: number) => send<SavedJob>('POST', `/api/jobs/${jobId}/save`),
+
+  unsaveJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/save`),
+
+  setSavedJobStatus: (id: string, status: ApplicationStatus) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/status`, { status }),
+
+  setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
+
+  deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
 };
 
 export { BASE_URL };

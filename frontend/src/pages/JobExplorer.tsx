@@ -27,6 +27,7 @@ import {
   withFilter,
 } from './jobSearchState';
 import type { PageSize, SearchState } from './jobSearchState';
+import { SaveJobButton } from '../saved/SavedJobs';
 
 /** Enough to show what a role is about without the card becoming a list of skills. */
 const SKILLS_SHOWN = 5;
@@ -378,6 +379,7 @@ function JobCard({ job, from }: { job: JobSummary; from: string }) {
           <IconFile size={15} />
           Compare resume
         </Link>
+        <SaveJobButton jobId={job.id} />
       </div>
     </article>
   );

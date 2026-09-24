@@ -204,6 +204,7 @@ etl/data
 - [x] V6.10.7 — dependency scanning: Dependabot (Maven, npm, GitHub Actions) plus a `Dependency scan` workflow where Trivy fails on HIGH/CRITICAL vulnerabilities that have a fix, using a Maven-resolved CycloneDX SBOM and `package-lock.json`
 - [x] V6.10.8 — final security review: rate limit and header filters match the decoded path (no %-encoding bypass), nginx drops client X-Forwarded-Host/Prefix and Forwarded, prod refuses log-delivered sign-up codes for non-localhost origins, Spring Boot 3.5.16 plus Tomcat/PostgreSQL/httpcore5 patch overrides (0 fixable HIGH/CRITICAL)
 - [x] V7.1 — job alerts foundation: saved job-search alerts per account (keywords, category, location, experience, skill; DAILY/WEEKLY; active/paused), `/api/job-alerts` CRUD + status, owner-scoped 404s, Job Alerts page; no notifications sent yet
+- [x] V7.2 — saved jobs & application tracking: bookmark jobs from results and details, SAVED → APPLIED → INTERVIEW → OFFER (plus REJECTED/WITHDRAWN) with application date and private notes, owner-scoped `/api/saved-jobs`, one row per user and job
 
 ## API
 
@@ -611,6 +612,23 @@ No notifications are sent yet; the frequency records the user's choice for a lat
 {"name": "Java in Berlin", "keywords": "backend", "category": "Software Engineering",
  "location": "Berlin", "experience": "2-5", "skill": "Java", "frequency": "WEEKLY"}
 ```
+
+### Saved jobs and applications (V7.2)
+
+Bookmark jobs and track each application. Statuses are `SAVED`, `APPLIED`, `INTERVIEW`,
+`OFFER`, `REJECTED` and `WITHDRAWN`; any move is allowed so mistakes can be corrected. The
+application date is set when a job first leaves `SAVED` and cleared if it goes back. There is
+one record per account and job (saving twice returns the same record), up to 500 per account.
+Records, statuses and notes are private: another account's record answers 404.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/jobs/{jobId}/save` | 201 new, or 200 with the existing record |
+| `DELETE` | `/api/jobs/{jobId}/save` | 204, saved or not |
+| `GET` | `/api/saved-jobs?status=APPLIED` | 200, your saved jobs (status optional), most recently changed first |
+| `PATCH` | `/api/saved-jobs/{id}/status` | 200, body `{"status": "INTERVIEW"}` |
+| `PATCH` | `/api/saved-jobs/{id}/notes` | 200, body `{"notes": "..."}` (up to 2000 characters; blank clears) |
+| `DELETE` | `/api/saved-jobs/{id}` | 204 |
 
 ## Running with Docker (V6.6)
 

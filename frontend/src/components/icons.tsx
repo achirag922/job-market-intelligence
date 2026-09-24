@@ -174,6 +174,13 @@ export const IconSend = (p: IconProps) => (
   </Svg>
 );
 
+/** Outlined, or filled when the job is saved. */
+export const IconBookmark = ({ filled = false, ...p }: IconProps & { filled?: boolean }) => (
+  <Svg {...p}>
+    <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" fill={filled ? 'currentColor' : 'none'} />
+  </Svg>
+);
+
 export const IconBell = (p: IconProps) => (
   <Svg {...p}>
     <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />

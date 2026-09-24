@@ -10,6 +10,8 @@ import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
 import { JobAlerts } from './pages/JobAlerts';
+import { SavedJobs } from './pages/SavedJobs';
+import { SavedJobsProvider } from './saved/SavedJobs';
 import { JobExplorer } from './pages/JobExplorer';
 import { JobIntelligence } from './pages/JobIntelligence';
 import { LocationAnalytics } from './pages/LocationAnalytics';
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
           <Route path="/resume" element={<ResumeIntelligence />} />
           <Route path="/alerts" element={<JobAlerts />} />
+          <Route path="/saved-jobs" element={<SavedJobs />} />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/etl" element={<EtlMonitoring />} />
         </Route>
@@ -54,9 +57,13 @@ export default function App() {
 }
 
 function ShellLayout() {
+  // Saved jobs are shared by every page in the shell; signing out leaves the shell, which
+  // drops them, so the next account never sees the last one's.
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <SavedJobsProvider>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </SavedJobsProvider>
   );
 }
