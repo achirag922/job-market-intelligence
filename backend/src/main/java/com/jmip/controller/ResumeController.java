@@ -1,14 +1,17 @@
 package com.jmip.controller;
 
+import com.jmip.dto.resume.CareerInsightsResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
 import com.jmip.dto.resume.ResumeRecommendationResponse;
 import com.jmip.dto.resume.ResumeResponse;
 import com.jmip.dto.resume.ResumeSkillsResponse;
+import com.jmip.service.resume.CareerInsightsService;
 import com.jmip.service.resume.ResumeMatchService;
 import com.jmip.service.resume.ResumeService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -37,10 +40,13 @@ public class ResumeController {
 
     private final ResumeService resumeService;
     private final ResumeMatchService resumeMatchService;
+    private final CareerInsightsService careerInsightsService;
 
-    public ResumeController(ResumeService resumeService, ResumeMatchService resumeMatchService) {
+    public ResumeController(ResumeService resumeService, ResumeMatchService resumeMatchService,
+                            CareerInsightsService careerInsightsService) {
         this.resumeService = resumeService;
         this.resumeMatchService = resumeMatchService;
+        this.careerInsightsService = careerInsightsService;
     }
 
     /**
@@ -93,5 +99,20 @@ public class ResumeController {
             @Max(20) int limit) {
         log.info("GET /api/resumes/{}/recommendations limit={}", resumeId, limit);
         return ResponseEntity.ok(resumeMatchService.recommend(resumeId, limit));
+    }
+
+    /**
+     * The resume set against one job category's skill demand and trends, with the V6.3
+     * recommendations that fall in that category. Without a category, the category of the
+     * best recommendation is used. {@code summary=true} adds a V5 AI description of the
+     * same figures.
+     */
+    @GetMapping("/{resumeId}/career-insights")
+    public ResponseEntity<CareerInsightsResponse> careerInsights(
+            @PathVariable UUID resumeId,
+            @RequestParam(required = false) @Size(max = 50) String category,
+            @RequestParam(defaultValue = "false") boolean summary) {
+        log.info("GET /api/resumes/{}/career-insights category={} summary={}", resumeId, category, summary);
+        return ResponseEntity.ok(careerInsightsService.insights(resumeId, category, summary));
     }
 }

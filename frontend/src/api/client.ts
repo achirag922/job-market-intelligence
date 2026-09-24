@@ -1,5 +1,6 @@
 import type {
   AssistantRequest,
+  CareerInsights,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -211,6 +212,13 @@ export const api = {
   /** Top deterministic skill-overlap matches for a completed resume. */
   resumeRecommendations: (resumeId: string, limit = 10) =>
     request<ResumeRecommendation[]>(`/api/resumes/${resumeId}/recommendations`, { limit }),
+
+  /** Without a category, the backend uses the category of the best recommendation. */
+  careerInsights: (resumeId: string, category?: string, summary = false) =>
+    request<CareerInsights>(`/api/resumes/${resumeId}/career-insights`, {
+      category,
+      summary: summary ? 'true' : undefined,
+    }),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),

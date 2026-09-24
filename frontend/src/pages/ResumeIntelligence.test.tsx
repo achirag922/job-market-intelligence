@@ -19,6 +19,10 @@ vi.mock('../api/client', async () => {
       resumeRecommendations: (...args: unknown[]) => resumeRecommendations(...args),
       jobs: (...args: unknown[]) => jobs(...args),
       resumeMatch: (...args: unknown[]) => resumeMatch(...args),
+      // V6.4 insights render on this page too; covered in CareerInsights.test.tsx.
+      careerInsights: () => Promise.resolve({ resumeId: 'r', resumeSkills: [], highDemandSkills: [],
+        strongSkills: [], skillGaps: [], trendingSkills: [], focusAreas: [], recommendedJobs: [] }),
+      jobCategories: () => Promise.resolve([]),
     },
   };
 });

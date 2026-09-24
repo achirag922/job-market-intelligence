@@ -286,6 +286,55 @@ export interface ResumeRecommendation {
   missingSkills: Skill[];
 }
 
+/** A category skill, with its V4 demand figures and whether the resume shows it. */
+export interface InsightDemandSkill {
+  skillId: number;
+  skill: string;
+  category?: string;
+  jobCount: number;
+  /** PERCENTAGE: share of the target category's postings. */
+  percentageOfJobs: number;
+  rank: number;
+  onResume: boolean;
+}
+
+/** A category skill whose market-wide share of postings is rising (V4 trends). */
+export interface InsightTrendingSkill {
+  skillId: number;
+  skill: string;
+  category?: string;
+  earlierSharePercentage: number;
+  recentSharePercentage: number;
+  changeInPercentagePoints: number;
+  onResume: boolean;
+}
+
+export interface InsightFocusArea {
+  skillId: number;
+  skill: string;
+  percentageOfJobs: number;
+  demandRank: number;
+  /** Present only when the skill is rising market-wide. */
+  changeInPercentagePoints?: number;
+}
+
+export interface CareerInsights {
+  resumeId: string;
+  /** Absent when no category was given and no recommendation suggested one. */
+  targetCategory?: string;
+  categorySource?: 'REQUESTED' | 'TOP_RECOMMENDATION';
+  resumeSkills: Skill[];
+  highDemandSkills: InsightDemandSkill[];
+  strongSkills: InsightDemandSkill[];
+  skillGaps: InsightDemandSkill[];
+  trendingSkills: InsightTrendingSkill[];
+  focusAreas: InsightFocusArea[];
+  recommendedJobs: ResumeRecommendation[];
+  /** V5 AI description of the figures, only when requested and available. */
+  summary?: string;
+  note?: string;
+}
+
 // ---------------------------------------------------------------- V4: job intelligence
 
 export interface CategoryDemand {

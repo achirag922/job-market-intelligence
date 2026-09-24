@@ -1455,6 +1455,56 @@ button.skill-tag:hover:not(:disabled) {
   margin-bottom: var(--space-3);
 }
 
+/* V6.4 career insights: short ranked lists with the figure right-aligned. */
+.insights {
+  gap: var(--space-5);
+}
+
+.insight-list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.insight-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+.insight-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.insight-reason {
+  display: block;
+  color: var(--text-muted);
+}
+
+.insight-footer,
+.insight-summary {
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.insight-footer > p,
+.insight-summary > p {
+  margin: 0 0 var(--space-3);
+}
+
+.insight-summary > p:last-child {
+  margin-bottom: 0;
+}
+
 /* ========================================================================== assistant */
 
 /*
