@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -105,7 +106,9 @@ public class RequestLimitFilter extends OncePerRequestFilter {
     }
 
     private static String endpointOf(HttpServletRequest request) {
-        String path = request.getRequestURI().substring(request.getContextPath().length());
+        // Decoded, with ;params removed: the path the controllers are matched on. The raw URI
+        // would let /api/auth/log%69n reach the login endpoint without being counted.
+        String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
         if (path.equals(ASSISTANT_PATH)) {
             return ASSISTANT_PATH;
         }

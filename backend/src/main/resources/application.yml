@@ -105,6 +105,14 @@ jmip:
       # container and the upload validation reject at the same size.
       max-file-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
       allowed-content-types: application/pdf
+    privacy:
+      # base64 of a 256-bit key (`openssl rand -base64 32`). Encrypts stored resume files and
+      # extracted text. Required in production; blank here stores them unencrypted.
+      encryption-key: ${JMIP_RESUME_ENCRYPTION_KEY:}
+      # Delete resumes this long after upload, e.g. 365d. 0s keeps them until the owner deletes
+      # them. Anything else must be at least 1d.
+      retention: ${JMIP_RESUME_RETENTION:0s}
+      retention-cron: ${JMIP_RESUME_RETENTION_CRON:0 30 3 * * *}
 
   analytics:
     snapshots:

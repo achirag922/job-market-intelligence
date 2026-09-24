@@ -69,6 +69,9 @@ services:
       # set smtp plus the JMIP_MAIL_* values (Gmail: an app password) for real delivery.
       JMIP_VERIFICATION_DELIVERY: ${JMIP_VERIFICATION_DELIVERY:-log}
       JMIP_OTP_SECRET: ${JMIP_OTP_SECRET:?Set JMIP_OTP_SECRET in .env (a long random string)}
+      # Resume files and extracted text are encrypted with this (base64, 32 bytes).
+      JMIP_RESUME_ENCRYPTION_KEY: ${JMIP_RESUME_ENCRYPTION_KEY:?Set JMIP_RESUME_ENCRYPTION_KEY in .env (openssl rand -base64 32)}
+      JMIP_RESUME_RETENTION: ${JMIP_RESUME_RETENTION:-0s}
       JMIP_MAIL_HOST: ${JMIP_MAIL_HOST:-smtp.gmail.com}
       JMIP_MAIL_PORT: ${JMIP_MAIL_PORT:-587}
       JMIP_MAIL_USERNAME: ${JMIP_MAIL_USERNAME:-}

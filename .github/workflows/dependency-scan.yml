@@ -1,0 +1,85 @@
+name: Dependency scan
+
+# Fails when a dependency has a known HIGH or CRITICAL vulnerability that already has a fixed
+# version. Kept apart from CI so a newly published advisory marks this check red without
+# blocking builds and tests; it also runs weekly, because advisories appear with no code change.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Trivy's official image, pinned by digest (0.67.2) rather than a movable tag.
+  TRIVY_IMAGE: aquasec/trivy:0.67.2@sha256:e2b22eac59c02003d8749f5b8d9bd073b62e30fefaef5b7c8371204e0a4b0c08
+
+jobs:
+  maven:
+    name: Maven dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      # Maven itself resolves the full dependency tree (Spring Boot's managed versions and every
+      # transitive dependency) into a CycloneDX SBOM. Scanning pom.xml directly would depend on
+      # the scanner re-resolving parents from Maven Central, and silently miss transitive
+      # dependencies when that fails. Test-scope dependencies are not shipped and not included.
+      # The plugin is run from the command line only; nothing is added to the poms.
+      - name: Resolve dependencies into an SBOM
+        run: >
+          mvn -B -ntp -DskipTests package
+          org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom
+          -DoutputFormat=json -DoutputName=bom
+
+      - name: Cache vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: .trivy-cache
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+
+      - name: Scan
+        run: >
+          docker run --rm -v "$PWD:/src:ro" -w /src -v "$PWD/.trivy-cache:/root/.cache/trivy"
+          "$TRIVY_IMAGE" sbom --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+          /src/target/bom.json
+
+  npm:
+    name: npm dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: .trivy-cache
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
+
+      # package-lock.json pins every installed package, so no install is needed. Development
+      # dependencies are included: Vite and friends build the bundle that is shipped.
+      - name: Scan
+        run: >
+          docker run --rm -v "$PWD:/src:ro" -w /src -v "$PWD/.trivy-cache:/root/.cache/trivy"
+          "$TRIVY_IMAGE" fs --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress
+          --include-dev-deps /src/frontend/package-lock.json

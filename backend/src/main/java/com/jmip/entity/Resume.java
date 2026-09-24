@@ -1,6 +1,7 @@
 package com.jmip.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -56,6 +57,8 @@ public class Resume {
     @Column(name = "processing_status", nullable = false)
     private ResumeProcessingStatus processingStatus;
 
+    /** Encrypted at rest when a resume encryption key is configured. */
+    @Convert(converter = EncryptedTextConverter.class)
     @Column(name = "extracted_text")
     private String extractedText;
 

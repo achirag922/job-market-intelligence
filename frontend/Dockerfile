@@ -15,5 +15,7 @@ RUN npm run build
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
+# Used only when docker-compose.https.yml swaps in nginx-https.conf.
+COPY hsts.conf /etc/nginx/snippets/hsts.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80

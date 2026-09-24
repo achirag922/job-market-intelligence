@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.util.UrlPathHelper;
 
 import java.io.IOException;
 
@@ -28,7 +29,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         if (request.isSecure()) {
             response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }
-        if (request.getRequestURI().startsWith("/api/resumes")) {
+        if (UrlPathHelper.defaultInstance.getPathWithinApplication(request).startsWith("/api/resumes")) {
             response.setHeader("Cache-Control", "no-store");
         }
         chain.doFilter(request, response);

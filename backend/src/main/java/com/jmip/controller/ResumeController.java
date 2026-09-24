@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,6 +64,18 @@ public class ResumeController {
         log.info("POST /api/resumes size={}", file.getSize());
         ResumeResponse response = resumeService.upload(file);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Deletes the caller's resume, its extracted text and skills, and the stored file. 404 for
+     * another account's, a missing or an already deleted resume. Needs the CSRF token, like
+     * every state change from a signed-in session.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        log.info("DELETE /api/resumes/{}", id);
+        resumeService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")

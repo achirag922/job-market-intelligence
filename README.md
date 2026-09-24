@@ -199,6 +199,10 @@ etl/data
 - [x] V6.10.3 — API authorization: every /api endpoint needs a signed-in USER (JSON 401 otherwise) except signup, login, logout and /me; frontend route guard
 - [x] Auth UI upgrade: dark Sign up / Login / Verify screens; full name on accounts; 6-digit email verification codes (Gmail SMTP, HMAC-stored, 10 min expiry, 5 attempts, 60 s resend cooldown)
 - [x] V6.10.4 — resume ownership: each resume belongs to the uploading account; other accounts get 404 on it and on its skills, matches, recommendations, career insights and assistant answers
+- [x] V6.10.5 — resume privacy: DELETE /api/resumes/{id} (owner only), configurable retention (off by default), AES-256-GCM encryption of stored files and extracted text
+- [x] V6.10.6 — HTTPS deployment: `docker-compose.https.yml` (nginx TLS termination, HTTP→HTTPS 301, HSTS on HTTPS only, backend/DB unpublished), forwarded-proto handling, prod refuses non-Secure/SameSite=None cookies and non-HTTPS CORS origins
+- [x] V6.10.7 — dependency scanning: Dependabot (Maven, npm, GitHub Actions) plus a `Dependency scan` workflow where Trivy fails on HIGH/CRITICAL vulnerabilities that have a fix, using a Maven-resolved CycloneDX SBOM and `package-lock.json`
+- [x] V6.10.8 — final security review: rate limit and header filters match the decoded path (no %-encoding bypass), nginx drops client X-Forwarded-Host/Prefix and Forwarded, prod refuses log-delivered sign-up codes for non-localhost origins, Spring Boot 3.5.16 plus Tomcat/PostgreSQL/httpcore5 patch overrides (0 fixable HIGH/CRITICAL)
 
 ## API
 
@@ -598,3 +602,51 @@ backend, so the browser talks to one origin. The API is also on http://localhost
 PostgreSQL on `127.0.0.1:5434`. All ports are configurable in `.env`. Data persists in the
 `postgres-data` and `resume-data` volumes; `docker compose down -v` deletes them.
 Flyway migrates on backend and ETL startup, as it does outside Docker.
+
+### HTTPS deployment (V6.10.6)
+
+Put `fullchain.pem` and `privkey.pem` (for example from certbot) in a directory on the host and set
+in `.env`: `JMIP_PUBLIC_URL=https://your-host`, `JMIP_CORS_ALLOWED_ORIGINS=https://your-host` and
+`JMIP_TLS_CERT_DIR=/path/to/that/directory`. Then:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.https.yml up -d --build
+```
+
+nginx listens on 80 and 443 only: port 80 answers ACME challenges from `/var/www/acme` and
+redirects everything else to HTTPS (to the standard port 443), and HTTPS responses carry
+`Strict-Transport-Security`. The backend and database are no longer published on the host.
+Certificates are mounted read-only, never baked into an image.
+
+Behind a load balancer that terminates TLS itself, use `docker-compose.yml` alone: nginx passes on
+the balancer's `X-Forwarded-Proto: https`, the backend (`forward-headers-strategy: framework`)
+then treats the request as secure, and the redirect and HSTS belong to the balancer.
+
+Under the `prod` profile the backend refuses to start when `JMIP_SESSION_COOKIE_SECURE=false`,
+`JMIP_SESSION_COOKIE_SAME_SITE=none`, or `JMIP_CORS_ALLOWED_ORIGINS` lists a plain-HTTP origin other
+than localhost. Local development (no `prod` profile, `npm run dev` on port 5173) is unchanged.
+
+### Dependency security scanning (V6.10.7)
+
+`.github/workflows/dependency-scan.yml` runs on pushes and pull requests to `main`, every Monday
+and on demand. It fails when a dependency has a **HIGH or CRITICAL** vulnerability for which a
+fixed version exists. Maven resolves the real dependency tree into a CycloneDX SBOM
+(`target/bom.json`, not committed; test scope excluded), and Trivy scans it along with
+`frontend/package-lock.json` (development dependencies included). It is separate from CI, so a
+newly published advisory does not stop builds and tests.
+
+To run the same scan locally (Docker required):
+
+```bash
+mvn -B -ntp -DskipTests package org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom -DoutputFormat=json -DoutputName=bom
+```
+
+```bash
+docker run --rm -v "$PWD:/src:ro" -w /src aquasec/trivy:0.67.2 sbom --severity HIGH,CRITICAL --ignore-unfixed /src/target/bom.json
+```
+
+`.github/dependabot.yml` opens weekly update PRs (minor and patch grouped, majors separately)
+that go through CI and are never merged automatically. For PRs that fix vulnerable versions as
+soon as an advisory appears, enable **Dependabot alerts** and **Dependabot security updates** in
+the repository's Settings → Code security. A finding that has been reviewed and does not apply
+can be listed, with a reason, in a `.trivyignore` file at the repository root.

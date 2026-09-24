@@ -38,9 +38,8 @@ public class WebCorsConfig implements WebMvcConfigurer {
         log.info("CORS enabled for origins {}", corsProperties.allowedOrigins());
         registry.addMapping("/api/**")
                 .allowedOrigins(corsProperties.allowedOrigins().toArray(String[]::new))
-                // POST is needed for resume upload, which is the only endpoint that
-                // writes. Everything else remains read-only.
-                .allowedMethods("GET", "POST", "OPTIONS")
+                // POST for uploads, questions and sign-in; DELETE for removing a resume.
+                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
                 // Only what the frontend sends, including the CSRF token header.
                 .allowedHeaders("Content-Type", "Accept", "X-CSRF-TOKEN")
                 // The session cookie must travel when the frontend runs on another origin (the Vite

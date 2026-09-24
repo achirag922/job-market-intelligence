@@ -107,6 +107,54 @@ public class ResumeService {
         return toResponse(resumeRepository.save(resume));
     }
 
+    /**
+     * Deletes the caller's resume and everything derived from it: the row, its extracted
+     * text, its skill links (cascaded by the schema), and the stored file. Matches,
+     * recommendations and career insights are computed on request and never stored, so
+     * nothing else remains.
+     *
+     * @throws ResourceNotFoundException for someone else's, a missing or an already deleted
+     *                                   resume — the same answer in every case
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Resume resume = requireResume(id);
+        remove(resume);
+        log.info("Resume {} deleted by its owner", id);
+    }
+
+    /**
+     * The retention sweep: deletes up to {@code batchSize} resumes uploaded before
+     * {@code cutoff}, oldest first.
+     *
+     * @return how many were deleted
+     */
+    @Transactional
+    public int deleteUploadedBefore(OffsetDateTime cutoff, int batchSize) {
+        List<Resume> expired = resumeRepository.findByUploadedAtBeforeOrderByUploadedAtAsc(cutoff,
+                org.springframework.data.domain.PageRequest.of(0, batchSize));
+        expired.forEach(this::remove);
+        return expired.size();
+    }
+
+    /** Row now; file once the delete has committed, so a rollback never loses a file it still needs. */
+    private void remove(Resume resume) {
+        String storedFileName = resume.getStoredFileName();
+        resumeRepository.delete(resume);
+        resumeRepository.flush();
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            storageService.deleteQuietly(storedFileName);
+                        }
+                    });
+        } else {
+            storageService.deleteQuietly(storedFileName);
+        }
+    }
+
     @Transactional(readOnly = true)
     public ResumeResponse findById(UUID id) {
         return toResponse(requireResume(id));
