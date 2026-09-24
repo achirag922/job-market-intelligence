@@ -272,6 +272,20 @@ export interface ResumeMatch {
   resumeOnlySkills: Skill[];
 }
 
+/** A job whose existing required skills overlap with a completed resume. */
+export interface ResumeRecommendation {
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  /** Absent for a remote or otherwise unspecified posting location. */
+  location?: Location;
+  jobCategory?: string;
+  /** V3's deterministic skills-overlap measure, not hiring likelihood. */
+  matchPercentage: number;
+  matchedSkills: Skill[];
+  missingSkills: Skill[];
+}
+
 // ---------------------------------------------------------------- V4: job intelligence
 
 export interface CategoryDemand {

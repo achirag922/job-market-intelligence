@@ -1296,6 +1296,111 @@ button.skill-tag:hover:not(:disabled) {
   flex-wrap: wrap;
 }
 
+/* ------------------------------------------------------- recommendations */
+
+/* Scrolled to from a recommendation; clears the sticky header so the heading shows. */
+.match-section {
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
+}
+
+.recommendation-list {
+  display: grid;
+  gap: 12px;
+}
+
+.recommendation-card {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
+.recommendation-score {
+  display: flex;
+  flex: 0 0 84px;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 78px;
+  border-radius: var(--radius-sm);
+  color: var(--brand-active);
+  background: var(--brand-subtle);
+}
+
+.recommendation-score strong {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.recommendation-score span,
+.recommendation-label {
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.recommendation-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.recommendation-heading,
+.recommendation-actions {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.recommendation-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.recommendation-heading p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.recommendation-skills {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.recommendation-skills .skill-list {
+  margin: 6px 0 0;
+}
+
+.recommendation-actions {
+  justify-content: flex-start;
+  margin-top: 14px;
+}
+
+@media (max-width: 640px) {
+  .recommendation-card {
+    align-items: flex-start;
+  }
+
+  .recommendation-score {
+    flex-basis: 66px;
+  }
+
+  .recommendation-skills {
+    grid-template-columns: 1fr;
+  }
+
+  .recommendation-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .match-figure {
   display: flex;
   flex-direction: column;

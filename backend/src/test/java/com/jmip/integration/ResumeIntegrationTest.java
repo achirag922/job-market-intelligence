@@ -217,6 +217,73 @@ class ResumeIntegrationTest {
     }
 
     @Test
+    @DisplayName("recommendations reuse the skill match score, are ranked, limited and distinct")
+    void recommendationsAreRankedAndLimited() throws Exception {
+        jdbcTemplate.update("INSERT INTO locations (id, city, state, country) VALUES (1, 'Austin', 'Texas', 'United States')");
+        jdbcTemplate.update("UPDATE jobs SET location_id = 1 WHERE id = 1");
+
+        insertJob(3, "Java Platform Engineer");
+        jdbcTemplate.update("UPDATE jobs SET location_id = 1 WHERE id = 3");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (3,1),(3,2)");
+
+        // Same 100% score as job 3: id is the documented stable tie breaker.
+        insertJob(4, "Docker Engineer");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (4,4)");
+
+        // No overlap with the resume, so it is deliberately not a recommendation.
+        insertJob(5, "Python Data Engineer");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (5,6)");
+
+        UUID resumeId = uploadAndGetId();
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].jobId").value(3))
+                .andExpect(jsonPath("$[0].matchPercentage").value(100.0))
+                .andExpect(jsonPath("$[0].location.displayName").value("Austin, Texas, United States"))
+                .andExpect(jsonPath("$[0].matchedSkills[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("Java", "Spring Boot")))
+                .andExpect(jsonPath("$[0].missingSkills").isEmpty())
+                .andExpect(jsonPath("$[1].jobId").value(4))
+                .andExpect(jsonPath("$[1].matchPercentage").value(100.0));
+
+        String response = mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        List<Long> ids = objectMapper.readTree(response).findValues("jobId").stream()
+                .map(JsonNode::asLong)
+                .toList();
+        assertThat(ids).containsExactly(3L, 4L, 1L);
+        assertThat(ids).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("recommendations are empty when no job shares a resume skill")
+    void recommendationsWithoutOverlapAreEmpty() throws Exception {
+        UUID resumeId = uploadAndGetId(resumePdfWith(List.of("Python")));
+
+        // Job 2 has no skills and job 1 has no Python, so neither can be recommended.
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("recommendation limit is validated at the API boundary")
+    void recommendationLimitIsValidated() throws Exception {
+        UUID resumeId = uploadAndGetId();
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "21"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
     @DisplayName("matching against an unknown job is a 404")
     void matchAgainstUnknownJob() throws Exception {
         UUID resumeId = uploadAndGetId();

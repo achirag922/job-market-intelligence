@@ -41,4 +41,35 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
             order by s.name asc
             """)
     List<JobSkillRow> findSkillsForJobs(@Param("jobIds") Collection<Long> jobIds);
+
+    /**
+     * The best candidates for a resume, ordered by the exact same skill-share score V3
+     * exposes for an individual comparison. The join means postings without skills are
+     * never candidates, and the HAVING clause excludes a zero-overlap recommendation.
+     *
+     * <p>This is an id-only query on purpose. The selected ids are then hydrated, with
+     * their company, location and skills, in one bounded query below. That avoids both
+     * collection-fetch pagination and one detail query per recommended posting.
+     */
+    @Query(value = """
+            select js.job_id
+            from job_skills js
+            group by js.job_id
+            having count(*) filter (where js.skill_id in (:resumeSkillIds)) > 0
+            order by round(
+                    count(*) filter (where js.skill_id in (:resumeSkillIds)) * 1000.0 / count(*)
+            ) / 10.0 desc, js.job_id asc
+            """, nativeQuery = true)
+    List<Long> findRecommendationJobIds(@Param("resumeSkillIds") Collection<Long> resumeSkillIds,
+                                        Pageable pageable);
+
+    /** Details for a small, already-ranked set of ids. The caller restores the ranking. */
+    @Query("""
+            select distinct j from Job j
+            left join fetch j.company
+            left join fetch j.location
+            left join fetch j.skills
+            where j.id in :jobIds
+            """)
+    List<Job> findRecommendationDetailsByIdIn(@Param("jobIds") Collection<Long> jobIds);
 }

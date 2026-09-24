@@ -1,10 +1,13 @@
 package com.jmip.controller;
 
 import com.jmip.dto.resume.ResumeMatchResponse;
+import com.jmip.dto.resume.ResumeRecommendationResponse;
 import com.jmip.dto.resume.ResumeResponse;
 import com.jmip.dto.resume.ResumeSkillsResponse;
 import com.jmip.service.resume.ResumeMatchService;
 import com.jmip.service.resume.ResumeService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Resume upload, extraction results, and comparison against a job posting.
@@ -76,5 +80,18 @@ public class ResumeController {
                                                      @PathVariable @Positive Long jobId) {
         log.info("GET /api/resumes/{}/match/{}", resumeId, jobId);
         return ResponseEntity.ok(resumeMatchService.match(resumeId, jobId));
+    }
+
+    /**
+     * The resume's highest matching postings, using the same deterministic V3 score as
+     * {@link #match(UUID, Long)}. No job with no skills or no overlap is returned.
+     */
+    @GetMapping("/{resumeId}/recommendations")
+    public ResponseEntity<List<ResumeRecommendationResponse>> recommendations(
+            @PathVariable UUID resumeId,
+            @RequestParam(defaultValue = "10") @Min(1)
+            @Max(20) int limit) {
+        log.info("GET /api/resumes/{}/recommendations limit={}", resumeId, limit);
+        return ResponseEntity.ok(resumeMatchService.recommend(resumeId, limit));
     }
 }

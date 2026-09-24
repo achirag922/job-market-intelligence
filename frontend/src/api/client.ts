@@ -17,6 +17,7 @@ import type {
   PagedResponse,
   Resume,
   ResumeMatch,
+  ResumeRecommendation,
   SalaryRange,
   Skill,
   SkillAnalytics,
@@ -206,6 +207,10 @@ export const api = {
 
   resumeMatch: (resumeId: string, jobId: number) =>
     request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),
+
+  /** Top deterministic skill-overlap matches for a completed resume. */
+  resumeRecommendations: (resumeId: string, limit = 10) =>
+    request<ResumeRecommendation[]>(`/api/resumes/${resumeId}/recommendations`, { limit }),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),

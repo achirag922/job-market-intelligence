@@ -3,6 +3,7 @@ package com.jmip.service.resume;
 import com.jmip.common.exception.ResourceNotFoundException;
 import com.jmip.dto.SkillResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
+import com.jmip.dto.resume.ResumeRecommendationResponse;
 import com.jmip.entity.Job;
 import com.jmip.entity.Resume;
 import com.jmip.entity.Skill;
@@ -12,10 +13,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -53,6 +56,42 @@ public class ResumeMatchService {
         Job job = jobRepository.findDetailById(jobId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", jobId));
 
+        return compare(resume, job);
+    }
+
+    /**
+     * Returns the highest-overlap postings for a completed resume. A candidate must list
+     * at least one skill and share at least one of those skills with the resume; a blank
+     * score is never represented as a recommendation.
+     */
+    @Transactional(readOnly = true)
+    public List<ResumeRecommendationResponse> recommend(UUID resumeId, int limit) {
+        Resume resume = resumeService.requireCompletedResume(resumeId);
+        Set<Long> resumeSkillIds = idsOf(resume.getSkills());
+        if (resumeSkillIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> rankedIds = jobRepository.findRecommendationJobIds(resumeSkillIds, PageRequest.of(0, limit));
+        if (rankedIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Job> jobsById = jobRepository.findRecommendationDetailsByIdIn(rankedIds).stream()
+                .collect(Collectors.toMap(Job::getId, job -> job));
+
+        // SQL establishes the rank. An IN clause is unordered, so retain that order here
+        // rather than accidentally turning equal scores into database-dependent results.
+        return rankedIds.stream()
+                .map(jobsById::get)
+                .filter(java.util.Objects::nonNull)
+                .map(job -> toRecommendation(job, compare(resume, job)))
+                .toList();
+    }
+
+    /** The one V3 comparison implementation shared by direct matches and recommendations. */
+    private ResumeMatchResponse compare(Resume resume, Job job) {
+
         Set<Long> resumeSkillIds = idsOf(resume.getSkills());
         Set<Long> jobSkillIds = idsOf(job.getSkills());
 
@@ -75,7 +114,7 @@ public class ResumeMatchService {
                 : null;
 
         log.debug("Resume {} against job {}: {} of {} job skills matched",
-                resumeId, jobId, matched.size(), totalJobSkills);
+                resume.getId(), job.getId(), matched.size(), totalJobSkills);
 
         return new ResumeMatchResponse(
                 resume.getId(),
@@ -92,6 +131,23 @@ public class ResumeMatchService {
                 toSortedResponses(matched),
                 toSortedResponses(missing),
                 toSortedResponses(resumeOnly));
+    }
+
+    private ResumeRecommendationResponse toRecommendation(Job job, ResumeMatchResponse match) {
+        // Candidates are constrained in SQL to have skills and a non-zero overlap, so this
+        // cannot be null. Keeping the guard makes the API robust if the query changes.
+        if (match.matchPercentage() == null) {
+            throw new IllegalStateException("A recommendation must have a skill-match percentage");
+        }
+        return new ResumeRecommendationResponse(
+                match.jobId(),
+                match.jobTitle(),
+                match.companyName(),
+                jobMapper.toLocation(job.getLocation()),
+                match.jobCategory(),
+                match.matchPercentage(),
+                match.matchedSkills(),
+                match.missingSkills());
     }
 
     private static Set<Long> idsOf(Set<Skill> skills) {

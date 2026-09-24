@@ -187,6 +187,7 @@ etl/data
 - [x] V5 — AI job market assistant: natural-language questions answered from the database, with validated intents, reused analytics services, grounded answers and chart metadata
 - [x] V6.1 — professional UI: design system with light and dark themes, application shell, shared cards, charts, tables and loading, empty and error states
 - [x] V6.2 — advanced job search: cross-field text search, experience and salary filters, named orderings including relevance, and searches kept in the URL
+- [x] V6.3 — job recommendations: completed resumes ranked against stored jobs by the existing deterministic skill-match percentage
 
 ## API
 
@@ -230,6 +231,7 @@ Upload a PDF resume, have its skills extracted, and compare them against a job p
 | `GET /api/resumes/{id}` | Metadata, processing status and extracted skills |
 | `GET /api/resumes/{id}/skills` | The extracted skills alone |
 | `GET /api/resumes/{resumeId}/match/{jobId}` | Matched skills, the skill gap, and resume-only skills |
+| `GET /api/resumes/{resumeId}/recommendations` | Top skill-overlap jobs for a completed resume. Optional `limit` 1–20, default 10; jobs with no listed skills or no overlapping skill are excluded |
 
 **Flow.** `PDF → text extraction (PDFBox) → normalisation → skill matching → stored against
 the resume`. Extraction runs inside the upload request, so one call returns a final status;
@@ -257,6 +259,15 @@ about experience, seniority or anything else.
 **Skill gap** is the job's skills minus the resume's: `missingSkills`, with
 `resumeOnlySkills` as the reverse. Both sides are rows from the same `skills` table, so the
 comparison is by id rather than by string.
+
+### Job recommendations (V6.3)
+
+`GET /api/resumes/{resumeId}/recommendations?limit=10` reuses that exact V3 comparison
+for each eligible posting. It returns only jobs that list skills and share at least one with
+the completed resume, ordered by `matchPercentage` descending (then job id for a stable
+tie). The response includes the job, company, location, category, matched skills and skill
+gap. It is a transparent skill-overlap ranking, not a recommendation based on AI, machine
+learning, experience, salary, or hiring likelihood.
 
 **Configuration.** Files are written to `jmip.resume.storage.directory`
 (`JMIP_RESUME_DIR`, default `./data/resumes` — relative, so nothing assumes a machine's

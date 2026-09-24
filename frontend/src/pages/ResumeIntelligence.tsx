@@ -1,7 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { JobSummary, PagedResponse, Resume, ResumeMatch } from '../api/types';
+import type {
+  JobSummary,
+  PagedResponse,
+  Resume,
+  ResumeMatch,
+  ResumeRecommendation,
+} from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { Badge, Card, EmptyState, PageHeader, SkillBadge, StatCard } from '../components/ui';
 import { IconCheck, IconFile } from '../components/icons';
@@ -43,6 +49,24 @@ export function ResumeIntelligence() {
   );
 
   const readyToMatch = resume?.status === 'COMPLETED';
+
+  // Bumped by "Try again" to re-request recommendations without re-uploading.
+  const [recommendationAttempt, setRecommendationAttempt] = useState(0);
+  const recommendations = useApi<ResumeRecommendation[]>(
+    () => (readyToMatch && resume ? api.resumeRecommendations(resume.id) : Promise.resolve([])),
+    [resume?.id, readyToMatch, recommendationAttempt],
+  );
+
+  // The comparison renders well below the recommendations. Without scrolling to it,
+  // "Compare resume" on a recommendation would look as though nothing had happened.
+  const matchSection = useRef<HTMLDivElement>(null);
+  const scrollToMatch = useRef(false);
+  useEffect(() => {
+    if (scrollToMatch.current && (matching || match || matchError)) {
+      scrollToMatch.current = false;
+      matchSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [matching, match, matchError]);
 
   const runMatch = async (jobId: number, job?: JobSummary) => {
     if (!resume) {
@@ -171,6 +195,80 @@ export function ResumeIntelligence() {
       )}
 
       {readyToMatch && (
+        <Card
+          title="Recommended jobs"
+          description="Ranked by the share of each job's listed skills that your resume covers. This is a skills-overlap measure, not a hiring prediction."
+          actions={<Badge tone="brand">Top matches</Badge>}
+        >
+          <AsyncPanel
+            state={recommendations}
+            onRetry={() => setRecommendationAttempt((count) => count + 1)}
+            skeleton="cards"
+            skeletonCount={3}
+            isEmpty={(data) => data.length === 0}
+            emptyTitle="No matching jobs yet"
+            empty="No stored job with listed skills overlaps with this resume. Try another resume after checking the extracted skills above."
+          >
+            {(data) => (
+              <div className="recommendation-list" aria-label="Recommended jobs">
+                {data.map((recommendation) => (
+                  <article className="recommendation-card" key={recommendation.jobId}>
+                    <div className="recommendation-score" aria-label={`${recommendation.matchPercentage.toFixed(0)} percent skill match`}>
+                      <strong>{recommendation.matchPercentage.toFixed(0)}%</strong>
+                      <span>Skill match</span>
+                    </div>
+                    <div className="recommendation-main">
+                      <div className="recommendation-heading">
+                        <div>
+                          <h3 id={`recommendation-${recommendation.jobId}-title`}>{recommendation.jobTitle}</h3>
+                          <p>{recommendation.companyName} · {recommendation.location?.displayName ?? 'Location not stated'}</p>
+                        </div>
+                        {recommendation.jobCategory && <Badge tone="brand">{recommendation.jobCategory}</Badge>}
+                      </div>
+                      <div className="recommendation-skills">
+                        <div>
+                          <span className="recommendation-label">Matched ({recommendation.matchedSkills.length})</span>
+                          <ul className="skill-list">
+                            {recommendation.matchedSkills.map((skill) => (
+                              <SkillBadge key={skill.id} name={skill.name} state="matched" />
+                            ))}
+                          </ul>
+                        </div>
+                        <div>
+                          <span className="recommendation-label">Missing ({recommendation.missingSkills.length})</span>
+                          <ul className="skill-list">
+                            {recommendation.missingSkills.length === 0 ? (
+                              <li className="muted">None</li>
+                            ) : recommendation.missingSkills.map((skill) => (
+                              <SkillBadge key={skill.id} name={skill.name} state="missing" />
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                      <div className="recommendation-actions">
+                        <Link className="button-link" to={`/jobs/${recommendation.jobId}`}>View job</Link>
+                        <button
+                          type="button"
+                          className="small"
+                          aria-describedby={`recommendation-${recommendation.jobId}-title`}
+                          onClick={() => {
+                            scrollToMatch.current = true;
+                            void runMatch(recommendation.jobId);
+                          }}
+                        >
+                          Compare resume
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </AsyncPanel>
+        </Card>
+      )}
+
+      {readyToMatch && (
         <Card title="3. Choose a job" description="Search by title, then compare.">
           <form
             className="search-row"
@@ -238,6 +336,9 @@ export function ResumeIntelligence() {
         </Card>
       )}
 
+      {/* One target for the comparison, whichever state it is in, so "Compare resume" on a
+          recommendation can bring it into view. */}
+      <div ref={matchSection} className="match-section">
       {matching && (
         <Card>
           <p className="status" role="status">
@@ -347,6 +448,7 @@ export function ResumeIntelligence() {
           </Card>
         </>
       )}
+      </div>
     </>
   );
 }
