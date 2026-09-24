@@ -15,3 +15,6 @@ target/
 
 # Uploaded resumes, written at runtime
 data/
+
+# Docker Compose settings, may hold secrets
+.env

@@ -190,6 +190,7 @@ etl/data
 - [x] V6.3 — job recommendations: completed resumes ranked against stored jobs by the existing deterministic skill-match percentage
 - [x] V6.4 — career insights: a resume against one category's skill demand and trends, with focus areas, related V6.3 jobs and an optional grounded AI summary
 - [x] V6.5 — ETL monitoring: run status, times, duration and counts from the Spring Batch job repository, on an ETL Monitoring page
+- [x] V6.6 — Docker Compose: PostgreSQL, backend, frontend (nginx) and ETL containers
 
 ## API
 
@@ -575,3 +576,17 @@ so the grouping can be checked rather than trusted.
 Errors return a consistent body — `timestamp`, `status`, `error`, `message`, `path`, and
 `fieldErrors` when validation failed. Unknown id gives 404; a bad filter, an unsortable
 field or an out-of-range page size gives 400.
+
+## Running with Docker (V6.6)
+
+```bash
+cp .env.example .env        # set JMIP_DB_PASSWORD (required, no default)
+docker compose up -d --build
+docker compose --profile etl run --rm etl    # load etl/data/raw/synthetic-job-postings-v1.json
+```
+
+Open http://localhost:3000. nginx serves the built frontend and forwards `/api` to the
+backend, so the browser talks to one origin. The API is also on http://localhost:8080 and
+PostgreSQL on `127.0.0.1:5434`. All ports are configurable in `.env`. Data persists in the
+`postgres-data` and `resume-data` volumes; `docker compose down -v` deletes them.
+Flyway migrates on backend and ETL startup, as it does outside Docker.

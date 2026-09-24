@@ -1,0 +1,12 @@
+# Build context is the repository root (the Maven modules share a parent POM).
+.git
+.idea
+.vscode
+**/target
+data
+*.log
+.env
+
+frontend/node_modules
+frontend/dist
+frontend/.env
