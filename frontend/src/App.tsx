@@ -2,6 +2,8 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
 import { EtlMonitoring } from './pages/EtlMonitoring';
+import { Login } from './pages/Login';
+import { Signup } from './pages/Signup';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
@@ -33,6 +35,8 @@ export default function App() {
         <Route path="/resume" element={<ResumeIntelligence />} />
         <Route path="/assistant" element={<AiAssistant />} />
         <Route path="/etl" element={<EtlMonitoring />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AppShell>

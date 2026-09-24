@@ -40,4 +40,11 @@ public record AiProperties(
     public boolean hasApiKey() {
         return apiKey != null && !apiKey.isBlank();
     }
+
+    /** The generated record toString would print the key; this one never does. */
+    @Override
+    public String toString() {
+        return "AiProperties[provider=%s, apiKey=%s, model=%s, temperature=%s, maxTokens=%d, timeout=%s]"
+                .formatted(provider, hasApiKey() ? "****" : "<unset>", model, temperature, maxTokens, timeout);
+    }
 }

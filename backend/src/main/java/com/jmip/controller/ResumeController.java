@@ -59,7 +59,8 @@ public class ResumeController {
      */
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<ResumeResponse> upload(@RequestParam("file") MultipartFile file) {
-        log.info("POST /api/resumes name={} size={}", file.getOriginalFilename(), file.getSize());
+        // The original file name is not logged: it is client-controlled and usually a person's name.
+        log.info("POST /api/resumes size={}", file.getSize());
         ResumeResponse response = resumeService.upload(file);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

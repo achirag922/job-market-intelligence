@@ -179,7 +179,9 @@ public class ResumeService {
         if (originalFilename == null || originalFilename.isBlank()) {
             return "resume.pdf";
         }
-        String name = originalFilename.replaceAll("[\\\\/\\u0000]", "_").strip();
+        // Path separators and control characters (NUL, CR, LF, ...) are replaced, so the
+        // display name can neither look like a path nor forge lines wherever it is shown.
+        String name = originalFilename.replaceAll("[\\\\/\\p{Cntrl}]", "_").strip();
         return name.length() > 255 ? name.substring(name.length() - 255) : name;
     }
 }

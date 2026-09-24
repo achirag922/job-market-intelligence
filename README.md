@@ -193,6 +193,9 @@ etl/data
 - [x] V6.6 — Docker Compose: PostgreSQL, backend, frontend (nginx) and ETL containers
 - [x] V6.7 — GitHub Actions CI: Maven build and tests, frontend tests and build, Docker image builds on every push and pull request to main
 - [x] V6.8 — production profile (`SPRING_PROFILES_ACTIVE=prod`): required settings checked at startup, health details hidden, graceful shutdown; env-only secrets
+- [x] V6.9 — security hardening: PDF signature check, rate limits and body caps on upload and assistant, security headers and CSP, strict CORS, no personal data or keys in logs
+- [x] V6.10.1 — authentication foundation: users table, bcrypt password hashing, USER role, stateless Spring Security chain (all endpoints still public)
+- [x] V6.10.2 — signup, login and logout: HttpOnly SameSite=Strict session cookie (Secure in prod), per-session CSRF token, Log in / Sign up pages and header user menu
 
 ## API
 

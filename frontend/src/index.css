@@ -718,6 +718,8 @@ a:hover {
 }
 
 input[type='text'],
+input[type='email'],
+input[type='password'],
 input[type='search'],
 input[type='date'],
 input[type='number'],
@@ -2272,6 +2274,44 @@ button.filter-chip-remove:hover:not(:disabled) {
 @media (max-width: 520px) {
   /* On a phone the search button squeezes the input; Enter and the pause both search. */
   .job-search .search-row button[type='submit'] {
+    display: none;
+  }
+}
+
+/* ========================================================================== accounts (V6.10.2) */
+
+.auth-card {
+  max-width: 440px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.auth-form > p {
+  margin: 0;
+}
+
+.header-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.header-user-email {
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 640px) {
+  .header-user-email {
     display: none;
   }
 }

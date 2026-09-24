@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import {
   IconBriefcase,
@@ -72,6 +73,8 @@ const PAGE_TITLES: [string, string][] = [
   ['/resume', 'Resume Intelligence'],
   ['/assistant', 'AI Assistant'],
   ['/etl', 'ETL Monitoring'],
+  ['/login', 'Log in'],
+  ['/signup', 'Sign up'],
   ['/', 'Dashboard'],
 ];
 
@@ -138,6 +141,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="header-actions">
+          <UserMenu />
           <button
             type="button"
             className="icon-button ghost"
@@ -201,5 +205,49 @@ function Brand() {
       </span>
       JMIP
     </p>
+  );
+}
+
+/** Signed-in email and Log out, or Log in and Sign up links. Nothing while it is still checking. */
+function UserMenu() {
+  const { status, user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [signingOut, setSigningOut] = useState(false);
+
+  if (status === 'loading') {
+    return null;
+  }
+  if (status === 'signedIn' && user) {
+    return (
+      <div className="header-user">
+        <span className="header-user-email" title={user.email}>
+          {user.email}
+        </span>
+        <button
+          type="button"
+          className="ghost small"
+          disabled={signingOut}
+          onClick={async () => {
+            setSigningOut(true);
+            try {
+              await logout();
+            } finally {
+              setSigningOut(false);
+              navigate('/login');
+            }
+          }}
+        >
+          {signingOut ? 'Logging out…' : 'Log out'}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="header-user">
+      <Link to="/login">Log in</Link>
+      <Link className="button-link" to="/signup">
+        Sign up
+      </Link>
+    </div>
   );
 }

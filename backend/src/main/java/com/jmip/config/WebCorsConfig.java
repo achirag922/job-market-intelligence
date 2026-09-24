@@ -41,7 +41,11 @@ public class WebCorsConfig implements WebMvcConfigurer {
                 // POST is needed for resume upload, which is the only endpoint that
                 // writes. Everything else remains read-only.
                 .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("*")
+                // Only what the frontend sends, including the CSRF token header.
+                .allowedHeaders("Content-Type", "Accept", "X-CSRF-TOKEN")
+                // The session cookie must travel when the frontend runs on another origin (the Vite
+                // dev server). Safe only because the origins are exact: wildcards are refused.
+                .allowCredentials(true)
                 .maxAge(3600);
     }
 }

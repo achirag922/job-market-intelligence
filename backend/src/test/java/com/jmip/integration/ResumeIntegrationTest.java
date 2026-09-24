@@ -298,7 +298,8 @@ class ResumeIntegrationTest {
     void unreadablePdfIsRecordedAsFailed() throws Exception {
         MockMultipartFile notAPdf = new MockMultipartFile(
                 "file", "broken.pdf", MediaType.APPLICATION_PDF_VALUE,
-                "this is not a PDF at all".getBytes(StandardCharsets.UTF_8));
+                // A PDF header over a corrupt body: accepted as a PDF, unreadable by the parser.
+                "%PDF-1.7\nthis is not a PDF at all".getBytes(StandardCharsets.UTF_8));
 
         String body = upload(notAPdf).getResponse().getContentAsString();
         JsonNode resume = objectMapper.readTree(body);
@@ -314,7 +315,7 @@ class ResumeIntegrationTest {
     void failedResumeCannotBeMatched() throws Exception {
         MockMultipartFile notAPdf = new MockMultipartFile(
                 "file", "broken.pdf", MediaType.APPLICATION_PDF_VALUE,
-                "not a PDF".getBytes(StandardCharsets.UTF_8));
+                "%PDF-1.7\nnot a PDF".getBytes(StandardCharsets.UTF_8));
         UUID resumeId = UUID.fromString(objectMapper.readTree(
                 upload(notAPdf).getResponse().getContentAsString()).get("id").asText());
 

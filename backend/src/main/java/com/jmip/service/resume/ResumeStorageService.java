@@ -29,6 +29,8 @@ public class ResumeStorageService {
     private static final Logger log = LoggerFactory.getLogger(ResumeStorageService.class);
 
     private static final String STORED_FILE_EXTENSION = ".pdf";
+    /** Every PDF begins with "%PDF-". */
+    private static final byte[] PDF_SIGNATURE = {'%', 'P', 'D', 'F', '-'};
 
     private final ResumeStorageProperties properties;
     private final Path storageDirectory;
@@ -58,6 +60,21 @@ public class ResumeStorageService {
                     "Only %s files are accepted, but the upload was '%s'"
                             .formatted(String.join(", ", properties.allowedContentTypes()),
                                     contentType.isEmpty() ? "unknown" : contentType));
+        }
+        // The declared type is whatever the client says. The first bytes are what the file
+        // is: anything that does not start like a PDF — an executable renamed to .pdf,
+        // an HTML page, a script — is refused before it is stored or parsed.
+        if (!startsWithPdfSignature(file)) {
+            throw new InvalidRequestException("The file is not a PDF document");
+        }
+    }
+
+    private static boolean startsWithPdfSignature(MultipartFile file) {
+        try (var in = file.getInputStream()) {
+            byte[] head = in.readNBytes(PDF_SIGNATURE.length);
+            return java.util.Arrays.equals(head, PDF_SIGNATURE);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not read the uploaded file", e);
         }
     }
 

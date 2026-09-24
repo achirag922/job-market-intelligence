@@ -55,10 +55,22 @@ services:
       AI_MODEL: ${AI_MODEL:-claude-opus-5}
       AI_TIMEOUT: ${AI_TIMEOUT:-30s}
       JMIP_DB_POOL_SIZE: ${JMIP_DB_POOL_SIZE:-10}
+      JMIP_RATE_LIMIT_ENABLED: ${JMIP_RATE_LIMIT_ENABLED:-true}
+      JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE: ${JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE:-20}
+      JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE: ${JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE:-10}
+      JMIP_ASSISTANT_MAX_BODY_BYTES: ${JMIP_ASSISTANT_MAX_BODY_BYTES:-16384}
+      JMIP_PASSWORD_BCRYPT_STRENGTH: ${JMIP_PASSWORD_BCRYPT_STRENGTH:-12}
+      JMIP_RATE_LIMIT_AUTH_PER_MINUTE: ${JMIP_RATE_LIMIT_AUTH_PER_MINUTE:-10}
+      # Session cookie: HttpOnly always; Secure defaults on under prod (browsers accept it on localhost).
+      JMIP_SESSION_COOKIE_SECURE: ${JMIP_SESSION_COOKIE_SECURE:-true}
+      JMIP_SESSION_COOKIE_SAME_SITE: ${JMIP_SESSION_COOKIE_SAME_SITE:-strict}
+      JMIP_SESSION_TIMEOUT: ${JMIP_SESSION_TIMEOUT:-8h}
     volumes:
       - resume-data:/app/data/resumes
     ports:
-      - "${JMIP_BACKEND_PORT:-8080}:8080"
+      # Localhost only: browsers use the nginx proxy on the frontend port. Exposing the API
+      # directly would also let a client set its own X-Forwarded-For and dodge the rate limit.
+      - "127.0.0.1:${JMIP_BACKEND_PORT:-8080}:8080"
     # Flyway runs on startup; if the database is still settling the process exits and is retried.
     restart: on-failure:5
 

@@ -27,6 +27,11 @@ server:
   shutdown: graceful
   # Behind nginx or a load balancer: honour X-Forwarded-* for scheme and client address.
   forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # HTTPS only in production. Browsers still accept it on http://localhost.
+        secure: ${JMIP_SESSION_COOKIE_SECURE:true}
 
 management:
   endpoint:

@@ -9,6 +9,7 @@ import com.jmip.service.resume.ResumeNotReadyException;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -86,6 +87,30 @@ public class GlobalExceptionHandler {
         String message = "Parameter '%s' has an invalid value: %s".formatted(exception.getName(), exception.getValue());
         log.debug("Type mismatch for {}: {}", request.getRequestURI(), message);
         return build(HttpStatus.BAD_REQUEST, message, request);
+    }
+
+    @ExceptionHandler(AuthenticationFailedException.class)
+    public ResponseEntity<ApiError> handleAuthenticationFailed(AuthenticationFailedException exception,
+                                                               HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(EmailAlreadyRegisteredException.class)
+    public ResponseEntity<ApiError> handleEmailTaken(EmailAlreadyRegisteredException exception,
+                                                     HttpServletRequest request) {
+        return build(HttpStatus.CONFLICT, exception.getMessage(), request);
+    }
+
+    /**
+     * Malformed or unreadable JSON. Not an ErrorResponse, so without this it would reach the
+     * catch-all as a 500. The parser's own message is not returned: it echoes the input and
+     * names internal classes.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleUnreadableBody(HttpMessageNotReadableException exception,
+                                                         HttpServletRequest request) {
+        log.debug("Unreadable request body for {}", request.getRequestURI());
+        return build(HttpStatus.BAD_REQUEST, "The request body is missing or is not valid JSON", request);
     }
 
     /**

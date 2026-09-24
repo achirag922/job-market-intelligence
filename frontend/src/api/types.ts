@@ -471,3 +471,19 @@ export interface EtlRun {
   duplicates?: number;
   rejected: number;
 }
+
+// ---------------------------------------------------------------- V6.10.2: accounts
+
+/** A user as the API shows it. There is no password field, and never will be. */
+export interface AuthUser {
+  id: string;
+  email: string;
+  role: 'USER';
+  createdAt: string;
+}
+
+/** Returned by login and /me. The session itself is an HttpOnly cookie, not in here. */
+export interface AuthSession {
+  user: AuthUser;
+  csrfToken: string;
+}

@@ -36,6 +36,11 @@ spring:
       max-file-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
       max-request-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
 
+  autoconfigure:
+    # Users come from the users table (AppUserDetailsService). Never create the default
+    # in-memory user, whose generated password Spring Boot would print to the log.
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -43,6 +48,19 @@ spring:
 
 server:
   port: ${JMIP_SERVER_PORT:8080}
+  servlet:
+    session:
+      # Browser sign-in (V6.10.2). The id is only ever in this cookie, never in a URL.
+      timeout: ${JMIP_SESSION_TIMEOUT:8h}
+      tracking-modes: cookie
+      cookie:
+        name: ${JMIP_SESSION_COOKIE_NAME:JMIP_SESSION}
+        http-only: true
+        # Off for plain-HTTP local development; the prod profile turns it on.
+        secure: ${JMIP_SESSION_COOKIE_SECURE:false}
+        # Strict: the cookie is never sent on a request started by another site.
+        same-site: ${JMIP_SESSION_COOKIE_SAME_SITE:strict}
+        path: /
   error:
     # Errors are rendered by GlobalExceptionHandler, not by the default error page.
     include-message: never
@@ -85,6 +103,18 @@ jmip:
   # environment, it is never logged, and it never reaches the browser — every model call is
   # made by the server. With no key set the application starts normally and the assistant
   # reports itself unavailable; nothing else is affected.
+  security:
+    # Per client address, per minute. Protects a single instance from a runaway client.
+    rate-limit-enabled: ${JMIP_RATE_LIMIT_ENABLED:true}
+    assistant-per-minute: ${JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE:20}
+    uploads-per-minute: ${JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE:10}
+    auth-per-minute: ${JMIP_RATE_LIMIT_AUTH_PER_MINUTE:10}
+    assistant-max-body-bytes: ${JMIP_ASSISTANT_MAX_BODY_BYTES:16384}
+    password:
+      # bcrypt work factor (log2). 12 is about a quarter of a second per hash; raise it as
+      # hardware gets faster. Existing hashes keep working at their original strength.
+      bcrypt-strength: ${JMIP_PASSWORD_BCRYPT_STRENGTH:12}
+
   ai:
     provider: ${AI_PROVIDER:anthropic}
     api-key: ${AI_API_KEY:}

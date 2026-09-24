@@ -1,5 +1,7 @@
 import type {
   AssistantRequest,
+  AuthSession,
+  AuthUser,
   CareerInsights,
   EtlRun,
   AssistantResponse,
@@ -60,7 +62,7 @@ async function request<T>(path: string, params?: Record<string, string | number 
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    response = await fetch(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' });
   } catch {
     // fetch only rejects on a network-level failure, which here almost always means the
     // backend is not running or CORS refused the request before it was sent.
@@ -84,6 +86,78 @@ async function request<T>(path: string, params?: Record<string, string | number 
 }
 
 /**
+ * The CSRF token of the signed-in session. Held in memory only — never localStorage or a
+ * cookie — so a page reload drops it and currentSession() fetches it again. The session
+ * itself is an HttpOnly cookie that scripts never see; `credentials: 'include'` is what
+ * sends it, including to the API on another port during local development.
+ */
+let csrfToken: string | null = null;
+
+function csrfHeader(): Record<string, string> {
+  return csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+}
+
+/** POST a JSON body (or none) and parse a JSON reply, for the auth endpoints. */
+async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeader() },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+  } catch {
+    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+  }
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      // Field errors are more useful than the generic "Request validation failed".
+      message = error.fieldErrors?.[0]?.message ?? error.message ?? message;
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    throw new ApiError(response.status, message);
+  }
+  return response.status === 204 ? null : ((await response.json()) as T);
+}
+
+async function signup(email: string, password: string): Promise<AuthUser> {
+  return (await postJson<AuthUser>('/api/auth/signup', { email, password }))!;
+}
+
+async function login(email: string, password: string): Promise<AuthSession> {
+  const session = (await postJson<AuthSession>('/api/auth/login', { email, password }))!;
+  csrfToken = session.csrfToken;
+  return session;
+}
+
+async function logout(): Promise<void> {
+  try {
+    await postJson<void>('/api/auth/logout');
+  } finally {
+    csrfToken = null;
+  }
+}
+
+/** The signed-in session, or null when nobody is signed in. */
+async function currentSession(): Promise<AuthSession | null> {
+  try {
+    const session = await request<AuthSession>('/api/auth/me');
+    csrfToken = session.csrfToken;
+    return session;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      csrfToken = null;
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
  * Uploads a resume. Multipart, so the body is FormData and the browser sets its own
  * Content-Type with the boundary — setting it by hand produces a request the server
  * cannot parse.
@@ -94,7 +168,12 @@ async function uploadResume(file: File): Promise<Resume> {
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}/api/resumes`, { method: 'POST', body });
+    response = await fetch(`${BASE_URL}/api/resumes`, {
+      method: 'POST',
+      body,
+      headers: csrfHeader(),
+      credentials: 'include',
+    });
   } catch {
     throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
   }
@@ -129,8 +208,9 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
   try {
     response = await fetch(`${BASE_URL}/api/assistant/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeader() },
       body: JSON.stringify(body),
+      credentials: 'include',
     });
   } catch {
     throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
@@ -204,6 +284,12 @@ export const api = {
     request<SkillTrends>('/api/analytics/skills/trends', { months, direction, limit }),
 
   uploadResume,
+
+  // V6.10.2: browser sign-in
+  signup,
+  login,
+  logout,
+  currentSession,
 
   resume: (id: string) => request<Resume>(`/api/resumes/${id}`),
 

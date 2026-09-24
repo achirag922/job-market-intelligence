@@ -18,6 +18,14 @@ import java.util.List;
 public record CorsProperties(List<String> allowedOrigins) {
 
     public CorsProperties {
-        allowedOrigins = allowedOrigins == null ? List.of() : List.copyOf(allowedOrigins);
+        allowedOrigins = allowedOrigins == null ? List.of() : allowedOrigins.stream()
+                .map(String::strip)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
+        // Refused at startup rather than trusted: "*" would admit every site.
+        if (allowedOrigins.stream().anyMatch(origin -> origin.contains("*"))) {
+            throw new IllegalArgumentException(
+                    "jmip.cors.allowed-origins must list exact origins; wildcards are not allowed");
+        }
     }
 }
