@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Card, PageHeader } from '../components/ui';
@@ -16,6 +16,8 @@ const MAX_PASSWORD = 72;
 export function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
+  // Where RequireAuth sent the user from, or the Dashboard.
+  const returnTo = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -42,7 +44,7 @@ export function Signup() {
     try {
       await signup(email, password);
       setCreated(true);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : 'Sign-up failed. Please try again.');
     } finally {

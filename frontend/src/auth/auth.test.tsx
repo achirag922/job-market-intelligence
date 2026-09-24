@@ -1,12 +1,13 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { ApiError } from '../api/client';
+import { ApiError, UNAUTHORIZED_EVENT } from '../api/client';
 import type { AuthSession } from '../api/types';
 import { AppShell } from '../components/AppShell';
 import { Login } from '../pages/Login';
 import { Signup } from '../pages/Signup';
 import { AuthProvider } from './AuthContext';
+import { RequireAuth } from './RequireAuth';
 
 const login = vi.fn();
 const signup = vi.fn();
@@ -42,6 +43,23 @@ function renderAt(path: string) {
             <Route path="/signup" element={<Signup />} />
           </Routes>
         </AppShell>
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+}
+
+/** The app's real arrangement: protected routes inside RequireAuth, Log in outside it. */
+function renderGuarded(path: string) {
+  render(
+    <MemoryRouter initialEntries={[path]}>
+      <AuthProvider>
+        <Routes>
+          <Route element={<RequireAuth />}>
+            <Route path="/jobs" element={<p>Jobs page</p>} />
+            <Route path="/" element={<p>Dashboard home</p>} />
+          </Route>
+          <Route path="/login" element={<Login />} />
+        </Routes>
       </AuthProvider>
     </MemoryRouter>,
   );
@@ -148,6 +166,48 @@ describe('authentication', () => {
     expect(screen.queryByText('jane@example.com')).not.toBeInTheDocument();
     // Logging out lands on the login page.
     expect(await screen.findByRole('button', { name: 'Log in' })).toBeInTheDocument();
+  });
+
+  it('sends a signed-out visitor from a protected page to Log in, and back after signing in', async () => {
+    renderGuarded('/jobs?q=java');
+
+    expect(await screen.findByRole('button', { name: 'Log in' })).toBeInTheDocument();
+    expect(screen.queryByText('Jobs page')).not.toBeInTheDocument();
+
+    type('Email', 'jane@example.com');
+    type('Password', 'correct horse battery');
+    fireEvent.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(await screen.findByText('Jobs page')).toBeInTheDocument();
+  });
+
+  it('shows a protected page to a signed-in user', async () => {
+    currentSession.mockResolvedValue(session);
+    renderGuarded('/jobs');
+
+    expect(await screen.findByText('Jobs page')).toBeInTheDocument();
+  });
+
+  it('returns to Log in when an API call reports the session has ended', async () => {
+    currentSession.mockResolvedValue(session);
+    renderGuarded('/jobs');
+    expect(await screen.findByText('Jobs page')).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+    });
+
+    expect(await screen.findByRole('button', { name: 'Log in' })).toBeInTheDocument();
+    expect(screen.queryByText('Jobs page')).not.toBeInTheDocument();
+  });
+
+  it('shows neither the page nor Log in while the session is still being checked', async () => {
+    currentSession.mockReturnValue(new Promise(() => {}));
+    renderGuarded('/jobs');
+
+    await waitFor(() => expect(currentSession).toHaveBeenCalled());
+    expect(screen.queryByText('Jobs page')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log in' })).not.toBeInTheDocument();
   });
 
   it('shows Log in and Sign up when nobody is signed in', async () => {

@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
 import { EtlMonitoring } from './pages/EtlMonitoring';
 import { Login } from './pages/Login';
+import { RequireAuth } from './auth/RequireAuth';
 import { Signup } from './pages/Signup';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
@@ -24,17 +25,20 @@ export default function App() {
   return (
     <AppShell>
       <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/jobs" element={<JobExplorer />} />
-        <Route path="/jobs/:id" element={<JobDetails />} />
-        <Route path="/analytics/categories" element={<JobIntelligence />} />
-        <Route path="/analytics/skills" element={<SkillAnalytics />} />
-        <Route path="/analytics/trends" element={<SkillTrends />} />
-        <Route path="/analytics/companies" element={<CompanyAnalytics />} />
-        <Route path="/analytics/locations" element={<LocationAnalytics />} />
-        <Route path="/resume" element={<ResumeIntelligence />} />
-        <Route path="/assistant" element={<AiAssistant />} />
-        <Route path="/etl" element={<EtlMonitoring />} />
+        {/* V6.10.3: everything except Log in and Sign up needs a signed-in user. */}
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/jobs" element={<JobExplorer />} />
+          <Route path="/jobs/:id" element={<JobDetails />} />
+          <Route path="/analytics/categories" element={<JobIntelligence />} />
+          <Route path="/analytics/skills" element={<SkillAnalytics />} />
+          <Route path="/analytics/trends" element={<SkillTrends />} />
+          <Route path="/analytics/companies" element={<CompanyAnalytics />} />
+          <Route path="/analytics/locations" element={<LocationAnalytics />} />
+          <Route path="/resume" element={<ResumeIntelligence />} />
+          <Route path="/assistant" element={<AiAssistant />} />
+          <Route path="/etl" element={<EtlMonitoring />} />
+        </Route>
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="*" element={<Navigate to="/" replace />} />

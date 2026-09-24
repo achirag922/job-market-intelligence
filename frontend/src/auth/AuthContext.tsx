@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { api } from '../api/client';
+import { api, UNAUTHORIZED_EVENT } from '../api/client';
 import type { AuthUser } from '../api/types';
 
 export type AuthStatus = 'loading' | 'signedIn' | 'signedOut';
@@ -45,6 +45,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
+  }, []);
+
+  // A 401 from any application API means the session ended (expired, or signed out in
+  // another tab). Show the signed-out state; RequireAuth then sends the user to Log in.
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      setStatus('signedOut');
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

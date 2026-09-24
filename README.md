@@ -196,6 +196,7 @@ etl/data
 - [x] V6.9 — security hardening: PDF signature check, rate limits and body caps on upload and assistant, security headers and CSP, strict CORS, no personal data or keys in logs
 - [x] V6.10.1 — authentication foundation: users table, bcrypt password hashing, USER role, stateless Spring Security chain (all endpoints still public)
 - [x] V6.10.2 — signup, login and logout: HttpOnly SameSite=Strict session cookie (Secure in prod), per-session CSRF token, Log in / Sign up pages and header user menu
+- [x] V6.10.3 — API authorization: every /api endpoint needs a signed-in USER (JSON 401 otherwise) except signup, login, logout and /me; frontend route guard
 
 ## API
 

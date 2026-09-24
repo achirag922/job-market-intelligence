@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -17,6 +18,8 @@ import org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactor
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -31,6 +34,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Signup, login and logout over real HTTP, so the session cookie is the one Tomcat actually
@@ -38,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"jmip.ai.provider=stub", "jmip.security.password.bcrypt-strength=4"})
+@AutoConfigureMockMvc
 @Testcontainers
 @ExtendWith(OutputCaptureExtension.class)
 class AuthIntegrationTest {
@@ -63,6 +70,9 @@ class AuthIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private MockMvc mockMvc;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -212,8 +222,93 @@ class AuthIntegrationTest {
         assertThat(post("/api/assistant/query", question, session.cookie(), "wrong-token").statusCode()).isEqualTo(403);
         assertThat(post("/api/assistant/query", question, session.cookie(), session.csrfToken()).statusCode())
                 .isEqualTo(200);
-        // Existing behaviour for callers without a session is unchanged.
-        assertThat(post("/api/assistant/query", question, null, null).statusCode()).isEqualTo(200);
+        // Without a session there is nothing to forge, and nothing to use: 401, not a CSRF 403.
+        assertThat(post("/api/assistant/query", question, null, null).statusCode()).isEqualTo(401);
+    }
+
+    // ------------------------------------------------------------------ API authorization (V6.10.3)
+
+    @Test
+    @DisplayName("unauthenticated calls to application APIs get a JSON 401 and no session")
+    void anonymousApiCallsAre401() throws Exception {
+        List<Resp> responses = List.of(
+                get("/api/jobs", null),
+                get("/api/analytics/overview", null),
+                get("/api/etl/runs", null),
+                get("/api/resumes/00000000-0000-0000-0000-000000000000", null),
+                post("/api/assistant/query", "{\"question\":\"top skills\"}", null, null),
+                post("/api/resumes", "{}", null, null));
+
+        for (Resp response : responses) {
+            assertThat(response.statusCode()).isEqualTo(401);
+            assertThat(message(response)).isEqualTo("Sign in to use this feature");
+            assertThat(response.setCookies()).isEmpty();
+        }
+    }
+
+    @Test
+    @DisplayName("a signed-in USER can use the application APIs")
+    void signedInUserIsAllowed() throws Exception {
+        signup();
+        Session session = login();
+
+        assertThat(get("/api/jobs", session.cookie()).statusCode()).isEqualTo(200);
+        assertThat(get("/api/analytics/overview", session.cookie()).statusCode()).isEqualTo(200);
+        assertThat(get("/api/etl/runs", session.cookie()).statusCode()).isEqualTo(200);
+        assertThat(post("/api/assistant/query", "{\"question\":\"top skills\"}", session.cookie(), session.csrfToken())
+                .statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("signup, login, logout, /me and health stay reachable without a session")
+    void publicEndpointsStayPublic() throws Exception {
+        assertThat(post("/api/auth/signup", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(201);
+        assertThat(post("/api/auth/login", credentials(EMAIL, PASSWORD), null, null).statusCode()).isEqualTo(200);
+        assertThat(post("/api/auth/logout", "", null, null).statusCode()).isEqualTo(204);
+        // Reachable: its own answer, not the generic "sign in" refusal.
+        Resp me = get("/api/auth/me", null);
+        assertThat(me.statusCode()).isEqualTo(401);
+        assertThat(message(me)).isEqualTo("You are not signed in");
+        assertThat(get("/actuator/health", null).statusCode()).isEqualTo(200);
+    }
+
+    @Test
+    @DisplayName("after logout the old session cookie no longer authenticates anything")
+    void logoutRevokesApiAccess() throws Exception {
+        signup();
+        Session session = login();
+        assertThat(get("/api/jobs", session.cookie()).statusCode()).isEqualTo(200);
+
+        assertThat(post("/api/auth/logout", "", session.cookie(), session.csrfToken()).statusCode()).isEqualTo(204);
+
+        assertThat(get("/api/jobs", session.cookie()).statusCode()).isEqualTo(401);
+        assertThat(post("/api/assistant/query", "{\"question\":\"x\"}", session.cookie(), session.csrfToken())
+                .statusCode()).isEqualTo(401);
+    }
+
+    @Test
+    @DisplayName("a CORS preflight is answered without a session, and unlisted paths are not open")
+    void preflightAndDefaultDeny() throws Exception {
+        // Through MockMvc, anonymously: HttpURLConnection silently drops the Origin header.
+        mockMvc.perform(MockMvcRequestBuilders.options("/api/jobs")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string("Access-Control-Allow-Origin", "http://localhost:5173"));
+
+        assertThat(get("/actuator/env", null).statusCode()).isIn(401, 403, 404);
+        assertThat(get("/not-an-api", null).statusCode()).isIn(401, 403, 404);
+    }
+
+    @Test
+    @DisplayName("an authenticated principal without the USER role is refused with 403")
+    void roleIsRequired() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/jobs").with(user("someone").roles("GUEST")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You do not have access to this resource"));
+        mockMvc.perform(MockMvcRequestBuilders.get("/api/jobs").with(user("someone").roles("USER")))
+                .andExpect(status().isOk());
     }
 
     // ------------------------------------------------------------------ logout

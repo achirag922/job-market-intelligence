@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { Card, PageHeader } from '../components/ui';
@@ -8,6 +8,8 @@ import { Card, PageHeader } from '../components/ui';
 export function Login() {
   const { login, status, user } = useAuth();
   const navigate = useNavigate();
+  // Where RequireAuth sent the user from, or the Dashboard.
+  const returnTo = (useLocation().state as { from?: string } | null)?.from ?? '/';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -19,7 +21,7 @@ export function Login() {
     setError(null);
     try {
       await login(email, password);
-      navigate('/', { replace: true });
+      navigate(returnTo, { replace: true });
     } catch (failure) {
       // The backend says the same for a wrong password and an unknown email; so does this.
       setError(failure instanceof ApiError ? failure.message : 'Sign-in failed. Please try again.');

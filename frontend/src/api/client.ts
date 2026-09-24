@@ -51,6 +51,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired when an application API says the session is gone, so the app can show Log in. */
+export const UNAUTHORIZED_EVENT = 'jmip:unauthorized';
+
+function reportIfUnauthorized(status: number, path: string): void {
+  // /api/auth/* answer 401 as part of their normal job (e.g. /me when signed out).
+  if (status === 401 && !path.startsWith('/api/auth/') && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+}
+
 async function request<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -79,6 +89,7 @@ async function request<T>(path: string, params?: Record<string, string | number 
     } catch {
       // A non-JSON error body is not worth failing over; the status line will do.
     }
+    reportIfUnauthorized(response.status, path);
     throw new ApiError(response.status, message);
   }
 
@@ -188,6 +199,7 @@ async function uploadResume(file: File): Promise<Resume> {
     } catch {
       // A non-JSON error body is not worth failing over.
     }
+    reportIfUnauthorized(response.status, '/api/resumes');
     throw new ApiError(response.status, message);
   }
 
@@ -226,6 +238,7 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
     } catch {
       // A non-JSON error body is not worth failing over.
     }
+    reportIfUnauthorized(response.status, '/api/assistant/query');
     throw new ApiError(response.status, message);
   }
 

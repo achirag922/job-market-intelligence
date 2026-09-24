@@ -196,16 +196,16 @@ class UserFoundationIntegrationTest {
     // ------------------------------------------------------------------ security chain
 
     @Test
-    @DisplayName("with Spring Security in place, existing endpoints stay public and stateless")
-    void existingEndpointsUnchanged(CapturedOutput output) throws Exception {
+    @DisplayName("anonymous API calls get a JSON 401 without a session or a login prompt; health stays public")
+    void anonymousCallsAreRefused(CapturedOutput output) throws Exception {
+        // V6.10.3: the application APIs require a signed-in user.
         mockMvc.perform(get("/api/jobs"))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(header().doesNotExist("Set-Cookie"))
                 .andExpect(header().doesNotExist("WWW-Authenticate"));
-        // No CSRF token needed: the API uses no cookies, so there is nothing to forge.
         mockMvc.perform(post("/api/assistant/query").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"top skills\"}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/actuator/health")).andExpect(status().isOk());
         // Spring Boot's default user, and the generated password it would log, never exist.
         assertThat(output.getAll()).doesNotContain("Using generated security password");
