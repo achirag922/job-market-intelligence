@@ -192,6 +192,7 @@ etl/data
 - [x] V6.5 — ETL monitoring: run status, times, duration and counts from the Spring Batch job repository, on an ETL Monitoring page
 - [x] V6.6 — Docker Compose: PostgreSQL, backend, frontend (nginx) and ETL containers
 - [x] V6.7 — GitHub Actions CI: Maven build and tests, frontend tests and build, Docker image builds on every push and pull request to main
+- [x] V6.8 — production profile (`SPRING_PROFILES_ACTIVE=prod`): required settings checked at startup, health details hidden, graceful shutdown; env-only secrets
 
 ## API
 

@@ -1,0 +1,15 @@
+# Production profile: SPRING_PROFILES_ACTIVE=prod (the Docker Compose default).
+# Database settings must come from the environment; there is no postgres/postgres fallback.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${JMIP_DB_HOST}:${JMIP_DB_PORT:5432}/${JMIP_DB_NAME}
+    username: ${JMIP_DB_USERNAME}
+    password: ${JMIP_DB_PASSWORD}
+
+  flyway:
+    clean-disabled: true
+
+logging:
+  level:
+    com.jmip.etl: ${JMIP_LOG_LEVEL:INFO}

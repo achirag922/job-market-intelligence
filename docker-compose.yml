@@ -14,6 +14,9 @@ x-database-env: &database-env
   JMIP_DB_NAME: ${JMIP_DB_NAME:-jmip}
   JMIP_DB_USERNAME: ${JMIP_DB_USERNAME:-jmip}
   JMIP_DB_PASSWORD: ${JMIP_DB_PASSWORD:?Set JMIP_DB_PASSWORD in .env}
+  # prod removes the local-development fallbacks (see application-prod.yml).
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  JMIP_LOG_LEVEL: ${JMIP_LOG_LEVEL:-INFO}
 
 services:
   postgres:
@@ -50,6 +53,8 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-anthropic}
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-opus-5}
+      AI_TIMEOUT: ${AI_TIMEOUT:-30s}
+      JMIP_DB_POOL_SIZE: ${JMIP_DB_POOL_SIZE:-10}
     volumes:
       - resume-data:/app/data/resumes
     ports:

@@ -1,0 +1,52 @@
+# Production profile: SPRING_PROFILES_ACTIVE=prod (the Docker Compose default).
+#
+# Layered over application.yml. It removes the local-development fallbacks that are unsafe
+# outside a developer machine: every value below without a default must come from the
+# environment, and the application refuses to start when one is missing rather than
+# silently connecting as postgres/postgres or accepting browser calls from localhost.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${JMIP_DB_HOST}:${JMIP_DB_PORT:5432}/${JMIP_DB_NAME}
+    username: ${JMIP_DB_USERNAME}
+    password: ${JMIP_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${JMIP_DB_POOL_SIZE:10}
+      # Fail a request after this long waiting for a connection instead of hanging.
+      connection-timeout: ${JMIP_DB_CONNECTION_TIMEOUT:10000}
+
+  flyway:
+    # Migrations only ever move forward in production.
+    clean-disabled: true
+
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+
+server:
+  # Finish in-flight requests on SIGTERM (docker stop) before exiting.
+  shutdown: graceful
+  # Behind nginx or a load balancer: honour X-Forwarded-* for scheme and client address.
+  forward-headers-strategy: framework
+
+management:
+  endpoint:
+    health:
+      # The status alone is enough for health checks; component details (database
+      # product, disk space) are not for anonymous callers.
+      show-details: never
+
+jmip:
+  resume:
+    storage:
+      # An explicit location, usually a mounted volume. The relative default is for local use.
+      directory: ${JMIP_RESUME_DIR}
+  cors:
+    allowed-origins: ${JMIP_CORS_ALLOWED_ORIGINS}
+
+logging:
+  level:
+    root: WARN
+    com.jmip: ${JMIP_LOG_LEVEL:INFO}
+    # Keep the lines that say which migrations ran and that the application is up.
+    org.flywaydb.core.internal.command: INFO
+    org.springframework.boot.web.embedded.tomcat.TomcatWebServer: INFO
