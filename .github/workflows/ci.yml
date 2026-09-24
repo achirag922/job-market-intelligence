@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [impl-V6]
+    branches: [main]
   pull_request:
-    branches: [impl-V6]
+    branches: [main]
 
 # Read-only token: the pipeline builds and tests, it never pushes or deploys.
 permissions:
