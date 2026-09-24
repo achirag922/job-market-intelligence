@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  JobAlert,
+  JobAlertInput,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -275,6 +277,43 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
   return (await response.json()) as AssistantResponse;
 }
 
+/**
+ * A JSON write (V7.1 job alerts): sends the CSRF token and, on a 400, the server's own field
+ * messages, so a form can say what to fix. Resolves to undefined for 204 No Content.
+ */
+async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...csrfHeader(),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+  } catch {
+    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+  }
+
+  if (!response.ok) {
+    let message = `${response.status} ${response.statusText}`;
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      const details = (error.fieldErrors ?? []).map((field) => field.message);
+      message = details.length > 0 ? details.join('; ') : error.message || message;
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    reportIfUnauthorized(response.status, path);
+    throw new ApiError(response.status, message);
+  }
+
+  return (response.status === 204 ? undefined : await response.json()) as T;
+}
+
 export const api = {
   /**
    * @param order a named ordering. Takes precedence over `sort`, which is kept only for
@@ -365,6 +404,18 @@ export const api = {
     request<PagedResponse<CompanyDemand>>('/api/analytics/companies', { page, size }),
 
   askAssistant,
+
+  /** V7.1: the signed-in user's job alerts, newest first. */
+  jobAlerts: () => request<JobAlert[]>('/api/job-alerts'),
+
+  createJobAlert: (input: JobAlertInput) => send<JobAlert>('POST', '/api/job-alerts', input),
+
+  updateJobAlert: (id: string, input: JobAlertInput) => send<JobAlert>('PUT', `/api/job-alerts/${id}`, input),
+
+  setJobAlertActive: (id: string, active: boolean) =>
+    send<JobAlert>('PATCH', `/api/job-alerts/${id}/status`, { active }),
+
+  deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
 };
 
 export { BASE_URL };

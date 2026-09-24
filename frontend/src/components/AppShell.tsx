@@ -4,6 +4,7 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import {
+  IconBell,
   IconBriefcase,
   IconBuilding,
   IconChat,
@@ -52,6 +53,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Career',
     items: [
       { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
+      { to: '/alerts', label: 'Job Alerts', icon: IconBell },
       { to: '/assistant', label: 'AI Assistant', icon: IconChat },
     ],
   },

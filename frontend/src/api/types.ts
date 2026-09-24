@@ -497,3 +497,24 @@ export interface VerificationStatus {
   resendAvailableInSeconds: number;
   codeValidForSeconds: number;
 }
+
+/** V7.1: how often an alert's owner wants to hear about new matches. Nothing is sent yet. */
+export type AlertFrequency = 'DAILY' | 'WEEKLY';
+
+/** What the user edits: the job search's own filters, plus a name and a frequency. */
+export interface JobAlertInput {
+  name: string;
+  keywords?: string;
+  category?: string;
+  location?: string;
+  experience?: string;
+  skill?: string;
+  frequency: AlertFrequency;
+}
+
+export interface JobAlert extends JobAlertInput {
+  id: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

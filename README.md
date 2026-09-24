@@ -203,6 +203,7 @@ etl/data
 - [x] V6.10.6 — HTTPS deployment: `docker-compose.https.yml` (nginx TLS termination, HTTP→HTTPS 301, HSTS on HTTPS only, backend/DB unpublished), forwarded-proto handling, prod refuses non-Secure/SameSite=None cookies and non-HTTPS CORS origins
 - [x] V6.10.7 — dependency scanning: Dependabot (Maven, npm, GitHub Actions) plus a `Dependency scan` workflow where Trivy fails on HIGH/CRITICAL vulnerabilities that have a fix, using a Maven-resolved CycloneDX SBOM and `package-lock.json`
 - [x] V6.10.8 — final security review: rate limit and header filters match the decoded path (no %-encoding bypass), nginx drops client X-Forwarded-Host/Prefix and Forwarded, prod refuses log-delivered sign-up codes for non-localhost origins, Spring Boot 3.5.16 plus Tomcat/PostgreSQL/httpcore5 patch overrides (0 fixable HIGH/CRITICAL)
+- [x] V7.1 — job alerts foundation: saved job-search alerts per account (keywords, category, location, experience, skill; DAILY/WEEKLY; active/paused), `/api/job-alerts` CRUD + status, owner-scoped 404s, Job Alerts page; no notifications sent yet
 
 ## API
 
@@ -588,6 +589,28 @@ so the grouping can be checked rather than trusted.
 Errors return a consistent body — `timestamp`, `status`, `error`, `message`, `path`, and
 `fieldErrors` when validation failed. Unknown id gives 404; a bad filter, an unsortable
 field or an out-of-range page size gives 400.
+
+### Job alerts (V7.1)
+
+Saved job searches for the signed-in account. The filters are the job search's own (`keywords`
+is the search's `q`); at least one is required, along with a `name` and a `frequency` of `DAILY`
+or `WEEKLY`. An account can keep up to 25 alerts. The owner always comes from the session: a
+`userId` in the body is ignored, and another account's alert answers 404 like a missing one.
+No notifications are sent yet; the frequency records the user's choice for a later phase.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/job-alerts` | 201, the new alert (active) |
+| `GET` | `/api/job-alerts` | 200, your alerts, newest first |
+| `GET` | `/api/job-alerts/{id}` | 200, one alert |
+| `PUT` | `/api/job-alerts/{id}` | 200, name, filters and frequency replaced |
+| `PATCH` | `/api/job-alerts/{id}/status` | 200, body `{"active": false}` pauses, `true` resumes |
+| `DELETE` | `/api/job-alerts/{id}` | 204 |
+
+```json
+{"name": "Java in Berlin", "keywords": "backend", "category": "Software Engineering",
+ "location": "Berlin", "experience": "2-5", "skill": "Java", "frequency": "WEEKLY"}
+```
 
 ## Running with Docker (V6.6)
 
