@@ -191,6 +191,7 @@ etl/data
 - [x] V6.4 — career insights: a resume against one category's skill demand and trends, with focus areas, related V6.3 jobs and an optional grounded AI summary
 - [x] V6.5 — ETL monitoring: run status, times, duration and counts from the Spring Batch job repository, on an ETL Monitoring page
 - [x] V6.6 — Docker Compose: PostgreSQL, backend, frontend (nginx) and ETL containers
+- [x] V6.7 — GitHub Actions CI: Maven build and tests, frontend tests and build, Docker image builds on every push and pull request to main
 
 ## API
 
