@@ -6,6 +6,17 @@ import { Badge, Card, EmptyState, PageHeader } from '../components/ui';
 import { IconChat, IconFile, IconSend } from '../components/icons';
 
 /** Starting points, so the first question does not have to be invented from nothing. */
+/** V7.6: questions about the signed-in user's own resume, goals and applications. */
+const CAREER_EXAMPLES = [
+  'What skills am I missing for my target role?',
+  'Which jobs match my resume?',
+  'What skills should I focus on next?',
+  'How is demand for my target role changing?',
+  'Show me my application progress.',
+  'Which saved jobs should I prioritize?',
+  'What should I improve in my resume?',
+];
+
 const EXAMPLES = [
   'What are the top skills for Backend Developer jobs?',
   'Which companies are hiring the most Data Engineers?',
@@ -39,6 +50,11 @@ export function AiAssistant() {
   const [context, setContext] = useState<ConversationContext | undefined>();
   const [resume, setResume] = useState<Resume | null>(null);
   const [resumeError, setResumeError] = useState<string | null>(null);
+  // V7.6: a job handed over from Job Details (?jobId=), for "how does my resume compare with this job?".
+  const [jobId, setJobId] = useState<number | undefined>(() => {
+    const value = Number(new URLSearchParams(window.location.search).get('jobId'));
+    return Number.isInteger(value) && value > 0 ? value : undefined;
+  });
   const nextId = useRef(1);
   const logEnd = useRef<HTMLDivElement>(null);
 
@@ -62,6 +78,7 @@ export function AiAssistant() {
       const response = await api.askAssistant({
         question: trimmed,
         resumeId: resume?.id,
+        jobId,
         context,
       });
       setTurns((previous) =>
@@ -95,7 +112,7 @@ export function AiAssistant() {
     <>
       <PageHeader
         title="AI Job Market Assistant"
-        description="Ask about skills, categories, companies, locations, salaries or trends. Every answer is generated from figures read out of the database, and the rows behind it are shown so you can check them."
+        description="Ask about your own resume, career goals and saved jobs, or about skills, companies, locations, salaries and trends. Every answer is built from your data or the dataset, and the rows behind it are shown so you can check them. It never predicts whether you will be hired."
         actions={
           (turns.length > 0 || context) && (
             <button
@@ -116,7 +133,7 @@ export function AiAssistant() {
           {turns.length === 0 ? (
             <EmptyState
               title="Ask a question to begin"
-              message="Try one of the suggestions below, or type your own question about the dataset."
+              message="Try one of the suggestions below, or ask about your own resume, goals and saved jobs, or about the job market."
             />
           ) : (
             turns.map((turn) => <TurnView key={turn.id} turn={turn} />)
@@ -128,7 +145,34 @@ export function AiAssistant() {
             conversation. Suggestions stay available throughout: they double as a reminder
             of what kinds of question this can answer. */}
         <div className="chat-composer-wrap">
-          <ul className="chat-suggestions">
+          {jobId !== undefined && (
+            <p className="status" style={{ margin: 0 }}>
+              <Badge tone="brand">Asking about job #{jobId}</Badge>{' '}
+              <button type="button" className="small ghost" onClick={() => setJobId(undefined)}>
+                Stop using this job
+              </button>
+            </p>
+          )}
+          <p className="chat-suggestions-label muted small">About you</p>
+          <ul className="chat-suggestions" aria-label="Questions about you">
+            {(jobId !== undefined
+              ? ['How does my resume compare with this job?', ...CAREER_EXAMPLES]
+              : CAREER_EXAMPLES
+            ).map((example) => (
+              <li key={example}>
+                <button
+                  type="button"
+                  className="skill-tag"
+                  disabled={pending}
+                  onClick={() => void submit(example)}
+                >
+                  {example}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="chat-suggestions-label muted small">About the job market</p>
+          <ul className="chat-suggestions" aria-label="Questions about the job market">
             {EXAMPLES.map((example) => (
               <li key={example}>
                 <button
@@ -172,7 +216,7 @@ export function AiAssistant() {
 
       <Card
         title="Ask about your resume"
-        description="Questions like “what skills am I missing for Data Engineer jobs?” need a resume. It is compared against job skills only, and nothing from it is sent anywhere except this application."
+        description="Questions about your resume use your default resume from Resume Intelligence, or the one you upload here. It is compared against job skills only, and nothing from it is sent anywhere except this application."
         actions={resume ? <Badge tone="success">{resume.skills.length} skills</Badge> : undefined}
       >
         <label className="field">

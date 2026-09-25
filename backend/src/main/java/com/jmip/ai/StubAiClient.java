@@ -31,6 +31,16 @@ public class StubAiClient implements AiClient {
      * tested first.
      */
     private static final List<Rule> RULES = List.of(
+            // V7.6 copilot, before the general rules: "my target role" questions also say "skills".
+            new Rule("APPLICATION_PROGRESS", "application progress", "my applications"),
+            new Rule("SAVED_JOB_PRIORITY", "saved jobs should", "prioritize", "prioritise"),
+            new Rule("RESUME_IMPROVEMENT", "improve in my resume", "improve my resume", "match score low"),
+            new Rule("MY_JOB_MATCHES", "jobs match my resume", "match my resume"),
+            new Rule("NEXT_SKILLS", "focus on next", "learn next"),
+            new Rule("MY_SKILL_GAP", "missing for my target"),
+            new Rule("TARGET_ROLE_DEMAND", "demand for my target"),
+            new Rule("TARGET_ROLE_SKILLS", "requested for my target", "skills for my target"),
+            new Rule("RESUME_MATCH", "my resume compare"),
             new Rule("CATEGORY_COMPARISON", "compare", "category"),
             new Rule("SKILL_COMPARISON", "compare"),
             new Rule("SKILL_TREND", "trend", "changing", "changed", "over time", "rising", "falling"),

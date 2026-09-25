@@ -3261,3 +3261,8 @@ button.filter-chip-remove:hover:not(:disabled) {
     grid-template-columns: 1fr;
   }
 }
+
+/* V7.6 Career copilot suggestion groups */
+.chat-suggestions-label {
+  margin: var(--space-2) 0 var(--space-1);
+}

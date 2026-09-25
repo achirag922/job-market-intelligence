@@ -70,6 +70,7 @@ public class AnalyticsQueryRouter {
     private final ResumeMatchService resumeMatchService;
     private final AnalyticsRepository analyticsRepository;
     private final AssistantProperties properties;
+    private final CareerCopilotRouter careerCopilotRouter;
 
     public AnalyticsQueryRouter(SkillAnalyticsService skillAnalyticsService,
                                 SkillTrendService skillTrendService,
@@ -80,7 +81,8 @@ public class AnalyticsQueryRouter {
                                 ResumeService resumeService,
                                 ResumeMatchService resumeMatchService,
                                 AnalyticsRepository analyticsRepository,
-                                AssistantProperties properties) {
+                                AssistantProperties properties,
+                                CareerCopilotRouter careerCopilotRouter) {
         this.skillAnalyticsService = skillAnalyticsService;
         this.skillTrendService = skillTrendService;
         this.categoryAnalyticsService = categoryAnalyticsService;
@@ -91,6 +93,7 @@ public class AnalyticsQueryRouter {
         this.resumeMatchService = resumeMatchService;
         this.analyticsRepository = analyticsRepository;
         this.properties = properties;
+        this.careerCopilotRouter = careerCopilotRouter;
     }
 
     /**
@@ -104,6 +107,11 @@ public class AnalyticsQueryRouter {
         log.info("Assistant intent {} returned {} rows in {}ms",
                 intent.intent(), data.rows().size(), (System.nanoTime() - startedAt) / 1_000_000);
         return data;
+    }
+
+    /** V7.6: the signed-in user's default processed resume, for questions asked without one selected. */
+    public java.util.Optional<UUID> defaultResumeId() {
+        return careerCopilotRouter.defaultResumeId();
     }
 
     private AssistantData dispatch(ResolvedIntent intent, UUID resumeId, Long jobId) {
@@ -121,6 +129,10 @@ public class AnalyticsQueryRouter {
             case SKILL_COMPARISON -> skillComparison(entities);
             case CATEGORY_COMPARISON -> categoryComparison(entities);
             case GENERAL_JOB_MARKET -> overview();
+            // V7.6 copilot: the signed-in user's own data, through their owner-scoped services.
+            case MY_SKILL_GAP, NEXT_SKILLS, TARGET_ROLE_SKILLS, TARGET_ROLE_DEMAND, MY_JOB_MATCHES,
+                 RESUME_IMPROVEMENT, APPLICATION_PROGRESS, SAVED_JOB_PRIORITY ->
+                    careerCopilotRouter.route(intent, resumeId, jobId);
             // Rejected during validation and never reaches here; the branch exists so
             // adding an intent to the enum is a compile error until it is routed.
             case UNSUPPORTED -> AssistantData.empty(null);

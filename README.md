@@ -208,6 +208,7 @@ etl/data
 - [x] V7.3 — advanced resume intelligence: multiple resume versions per account (title, version label, one default), job-specific analysis on the V3 match with data-based suggestions, and version comparison from stored skills
 - [x] V7.4 — career goals & skill roadmap: goals per account (role, job category, optional location/experience/skills; ACTIVE/COMPLETED/ARCHIVED), a deterministic roadmap from the default resume, category demand and rising trends (the V6.4 focus-area order), and per-skill progress
 - [x] V7.5 — market intelligence: `/api/market/{salary,locations,remote,companies,skills}` with shared category/location/experience/period filters, per-currency salaries, work mode read from posting wording, posting-month series, skill trends from the stored snapshot; Market Intelligence page
+- [x] V7.6 — AI career copilot: eight personal intents (missing skills, next skills, target-role skills and demand, job matches, resume improvement, application progress, saved-job priority) routed to existing owner-scoped services, default-resume fallback, v2 prompts, career suggestions and job context in the assistant
 
 ## API
 
@@ -698,6 +699,31 @@ date in the data, plus `notes` wherever data is missing or thin.
 
 Monthly series group postings by `posted_date`, like the skill snapshot; undated postings count in
 totals only. Nothing is forecast.
+
+### AI career copilot (V7.6)
+
+`POST /api/assistant/query` also answers questions about the signed-in user's own data, through
+the same closed pipeline: question → intent (a fixed list) → validated call to an existing service
+→ rows → prose that may only repeat those rows.
+
+| Intent | Example | Service |
+| --- | --- | --- |
+| `MY_SKILL_GAP` | What skills am I missing for my target role? | V7.4 roadmap of the active goal |
+| `NEXT_SKILLS` | What skills should I focus on next? | roadmap, or V6.4 focus areas without a goal |
+| `TARGET_ROLE_SKILLS` | Which skills are most requested for my target role? | V7.5 market skills for the goal's category |
+| `TARGET_ROLE_DEMAND` | How is demand for my target role changing? | V7.5 postings per posting month |
+| `MY_JOB_MATCHES` | Which jobs match my resume? | V6.3 recommendations |
+| `RESUME_IMPROVEMENT` | What should I improve in my resume? | V7.3 job analysis (with a job) or V6.4 gaps |
+| `APPLICATION_PROGRESS` | Show me my application progress. | V7.2 saved jobs per status |
+| `SAVED_JOB_PRIORITY` | Which saved jobs should I prioritize? | open saved jobs by V3 resume match |
+
+"How does my resume compare with this job?" is the existing `RESUME_MATCH` with a `jobId` (Job
+Details → Ask the copilot). When no `resumeId` is sent, resume questions use the account's default
+resume. None of these intents takes a user from the question or the model: every service reads
+the account from the session, and a `resumeId` from the request is ownership-checked as elsewhere.
+Rows exclude application notes and posting descriptions, so stored free text never reaches the
+model. Prompts are `intent-extraction-v2.txt` and `answer-generation-v2.txt`; the offline `stub`
+provider routes the example questions by keyword.
 
 ## Running with Docker (V6.6)
 

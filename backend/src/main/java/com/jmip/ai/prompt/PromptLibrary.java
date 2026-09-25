@@ -26,8 +26,8 @@ public class PromptLibrary {
 
     private static final Logger log = LoggerFactory.getLogger(PromptLibrary.class);
 
-    private static final String INTENT_EXTRACTION = "prompts/intent-extraction-v1.txt";
-    private static final String ANSWER_GENERATION = "prompts/answer-generation-v1.txt";
+    private static final String INTENT_EXTRACTION = "prompts/intent-extraction-v2.txt";
+    private static final String ANSWER_GENERATION = "prompts/answer-generation-v2.txt";
 
     private final String intentExtraction;
     private final String answerGeneration;

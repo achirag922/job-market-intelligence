@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import type { JobDetail } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { Badge, Card } from '../components/ui';
-import { IconFile } from '../components/icons';
+import { IconChat, IconFile } from '../components/icons';
 import {
   formatDate,
   formatEmploymentType,
@@ -60,6 +60,11 @@ export function JobDetails() {
                   Compare with resume
                 </Link>
                 <SaveJobButton jobId={data.id} />
+                {/* V7.6: carries the posting into the copilot, for "how does my resume compare with this job?". */}
+                <Link className="button-link" to={`/assistant?jobId=${data.id}`}>
+                  <IconChat size={16} />
+                  Ask the copilot
+                </Link>
               </div>
             </div>
 

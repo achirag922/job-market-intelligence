@@ -48,6 +48,26 @@ public enum AssistantIntent {
     /** A summary of the dataset as a whole. */
     GENERAL_JOB_MARKET,
 
+    // V7.6 career copilot: the signed-in user's own data. None of these take a user from the
+    // question; the account always comes from the session.
+
+    /** Skills missing for the user's active career goal (the V7.4 roadmap). */
+    MY_SKILL_GAP,
+    /** The next roadmap skills not yet completed, or the resume's focus areas without a goal. */
+    NEXT_SKILLS,
+    /** The most requested skills for the user's target role category (V7.5). */
+    TARGET_ROLE_SKILLS,
+    /** Postings per posting month for the user's target role category (V7.5). */
+    TARGET_ROLE_DEMAND,
+    /** Postings that best match the user's resume (V6.3 recommendations). */
+    MY_JOB_MATCHES,
+    /** What the data says the resume could add, for one job (V7.3) or the target role (V6.4). */
+    RESUME_IMPROVEMENT,
+    /** The user's saved jobs per application status (V7.2). */
+    APPLICATION_PROGRESS,
+    /** The user's open saved jobs, ordered by how much of each posting the resume covers. */
+    SAVED_JOB_PRIORITY,
+
     /**
      * The question is not one of the above. Not a failure — a question can be perfectly
      * reasonable and still be outside what this dataset can answer, and saying so is a
@@ -73,8 +93,8 @@ public enum AssistantIntent {
         }
     }
 
-    /** Whether answering needs a resume to have been selected. */
+    /** Whether answering needs a resume: the one selected, or else the user's default (V7.6). */
     public boolean requiresResume() {
-        return this == SKILL_GAP || this == RESUME_MATCH;
+        return this == SKILL_GAP || this == RESUME_MATCH || this == MY_JOB_MATCHES || this == RESUME_IMPROVEMENT;
     }
 }
