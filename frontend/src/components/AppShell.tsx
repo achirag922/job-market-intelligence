@@ -10,6 +10,7 @@ import {
   IconBuilding,
   IconChat,
   IconDatabase,
+  IconFlag,
   IconClose,
   IconDashboard,
   IconFile,
@@ -55,6 +56,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
       { to: '/saved-jobs', label: 'Saved Jobs', icon: IconBookmark },
+      { to: '/career-goals', label: 'Career Goals', icon: IconFlag },
       { to: '/alerts', label: 'Job Alerts', icon: IconBell },
       { to: '/assistant', label: 'AI Assistant', icon: IconChat },
     ],

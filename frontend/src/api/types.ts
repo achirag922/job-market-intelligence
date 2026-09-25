@@ -581,3 +581,67 @@ export interface ResumeComparison {
   commonSkills: Skill[];
   differentFields: string[];
 }
+
+/** V7.4 career goals. */
+export type CareerGoalStatus = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+export type SkillProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface CareerGoalInput {
+  targetRole: string;
+  /** A job category (V4); the roadmap reads skill demand from its postings. */
+  targetCategory: string;
+  targetLocation?: string;
+  targetExperience?: string;
+  /** Skill names the user wants to develop, on top of market demand. */
+  targetSkills: string[];
+}
+
+export interface CareerGoal extends Omit<CareerGoalInput, 'targetSkills'> {
+  id: string;
+  targetSkills: Skill[];
+  status: CareerGoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoadmapSkill {
+  priority: number;
+  skillId: number;
+  skill: string;
+  category?: string;
+  source: 'MARKET_DEMAND' | 'YOUR_CHOICE';
+  percentageOfJobs?: number;
+  demandRank?: number;
+  trendChangeInPercentagePoints?: number;
+  reason: string;
+  status: SkillProgressStatus;
+}
+
+export interface Roadmap {
+  goalId: string;
+  targetRole: string;
+  targetCategory: string;
+  basedOnResume?: { id: string; title: string };
+  currentSkills: Skill[];
+  marketSkills: {
+    skillId: number;
+    skill: string;
+    jobCount: number;
+    percentageOfJobs: number;
+    demandRank: number;
+    trendChangeInPercentagePoints?: number;
+    onResume: boolean;
+  }[];
+  coveredSkills: Skill[];
+  roadmap: RoadmapSkill[];
+  progress: {
+    totalSkills: number;
+    onResume: number;
+    completed: number;
+    inProgress: number;
+    notStarted: number;
+    percentComplete?: number;
+  };
+  staged: boolean;
+  note?: string;
+}

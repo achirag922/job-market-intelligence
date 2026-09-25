@@ -206,6 +206,7 @@ etl/data
 - [x] V7.1 — job alerts foundation: saved job-search alerts per account (keywords, category, location, experience, skill; DAILY/WEEKLY; active/paused), `/api/job-alerts` CRUD + status, owner-scoped 404s, Job Alerts page; no notifications sent yet
 - [x] V7.2 — saved jobs & application tracking: bookmark jobs from results and details, SAVED → APPLIED → INTERVIEW → OFFER (plus REJECTED/WITHDRAWN) with application date and private notes, owner-scoped `/api/saved-jobs`, one row per user and job
 - [x] V7.3 — advanced resume intelligence: multiple resume versions per account (title, version label, one default), job-specific analysis on the V3 match with data-based suggestions, and version comparison from stored skills
+- [x] V7.4 — career goals & skill roadmap: goals per account (role, job category, optional location/experience/skills; ACTIVE/COMPLETED/ARCHIVED), a deterministic roadmap from the default resume, category demand and rising trends (the V6.4 focus-area order), and per-skill progress
 
 ## API
 
@@ -649,6 +650,28 @@ The analysis uses the same deterministic match as `/match/{jobId}`; its suggesti
 from the matched and missing skills and the posting's stated experience, and it makes no claim
 about the chance of being hired. The comparison reads the skills extracted at upload. Every
 resume id must belong to the signed-in account; anything else is a 404.
+
+### Career goals and skill roadmap (V7.4)
+
+A goal names a `targetRole`, a `targetCategory` (an existing V4 job category), and optionally a
+`targetLocation`, a `targetExperience` (`0-2`, `2-5`, `5-8`, `8+`) and up to 20 `targetSkills`
+(existing skill names). Up to 20 goals per account; another account's goal is a 404.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/career-goals` | 201, the new goal (`ACTIVE`) |
+| `GET` | `/api/career-goals?status=ACTIVE` | 200, your goals (status optional) |
+| `GET` / `PUT` / `DELETE` | `/api/career-goals/{id}` | 200 / 200 / 204 |
+| `PATCH` | `/api/career-goals/{id}/status` | 200, body `{"status": "ARCHIVED"}` |
+| `GET` | `/api/career-goals/{id}/roadmap?resumeId=` | 200, the roadmap (default resume unless `resumeId` names another of yours) |
+| `PUT` | `/api/career-goals/{id}/roadmap/skills/{skillId}` | 200, body `{"status": "IN_PROGRESS"}` |
+
+The roadmap is computed on request. Market skills are the category's top 10 skills from the
+category analytics (the same figures as Job Categories); current skills are the resume's. Skills
+not yet on the resume are ordered by the career-insights focus-area rule: rising in recent
+postings first (biggest rise first), then by demand rank, then skills the user chose. Progress is
+the share of roadmap skills on the resume or marked `COMPLETED`. Skills are not split into
+difficulty stages because no data says how advanced a skill is.
 
 ## Running with Docker (V6.6)
 

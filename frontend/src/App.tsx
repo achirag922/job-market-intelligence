@@ -9,6 +9,7 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
+import { CareerGoals } from './pages/CareerGoals';
 import { JobAlerts } from './pages/JobAlerts';
 import { SavedJobs } from './pages/SavedJobs';
 import { SavedJobsProvider } from './saved/SavedJobs';
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
           <Route path="/resume" element={<ResumeIntelligence />} />
           <Route path="/alerts" element={<JobAlerts />} />
+          <Route path="/career-goals" element={<CareerGoals />} />
           <Route path="/saved-jobs" element={<SavedJobs />} />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/etl" element={<EtlMonitoring />} />

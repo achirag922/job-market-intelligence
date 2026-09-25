@@ -188,6 +188,12 @@ export const IconBell = (p: IconProps) => (
   </Svg>
 );
 
+export const IconFlag = (p: IconProps) => (
+  <Svg {...p}>
+    <path d="M4 22V4a1 1 0 0 1 1-1h13l-2 5 2 5H5" />
+  </Svg>
+);
+
 export const IconDatabase = (p: IconProps) => (
   <Svg {...p}>
     <ellipse cx="12" cy="5" rx="8" ry="3" />

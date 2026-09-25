@@ -10,6 +10,11 @@ import type {
   ApplicationStatus,
   SavedJob,
   ResumeComparison,
+  CareerGoal,
+  CareerGoalInput,
+  CareerGoalStatus,
+  Roadmap,
+  SkillProgressStatus,
   ResumeJobAnalysis,
   AssistantResponse,
   ApiErrorBody,
@@ -452,6 +457,23 @@ export const api = {
 
   compareResumes: (resumeId1: string, resumeId2: string) =>
     request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),
+
+  /** V7.4: the signed-in user's career goals, most recently changed first. */
+  careerGoals: (status?: CareerGoalStatus) => request<CareerGoal[]>('/api/career-goals', { status }),
+
+  createCareerGoal: (input: CareerGoalInput) => send<CareerGoal>('POST', '/api/career-goals', input),
+
+  updateCareerGoal: (id: string, input: CareerGoalInput) => send<CareerGoal>('PUT', `/api/career-goals/${id}`, input),
+
+  setCareerGoalStatus: (id: string, status: CareerGoalStatus) =>
+    send<CareerGoal>('PATCH', `/api/career-goals/${id}/status`, { status }),
+
+  deleteCareerGoal: (id: string) => send<void>('DELETE', `/api/career-goals/${id}`),
+
+  careerGoalRoadmap: (goalId: string) => request<Roadmap>(`/api/career-goals/${goalId}/roadmap`),
+
+  setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
+    send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
 };
 
 export { BASE_URL };
