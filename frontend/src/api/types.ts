@@ -645,3 +645,77 @@ export interface Roadmap {
   staged: boolean;
   note?: string;
 }
+
+/** V7.5 market intelligence. Every figure is counted from postings; nothing is estimated. */
+export interface MarketFilters {
+  category?: string;
+  location?: string;
+  experience?: string;
+  /** The last N posting months of the data (the period ends at the newest posting, not today). */
+  months?: number;
+}
+
+export interface MarketScope {
+  category?: string;
+  location?: string;
+  experience?: string;
+  from?: string;
+  latestPostingInData?: string;
+  postings: number;
+  datedPostings: number;
+  earliestMonth?: string;
+  latestMonth?: string;
+}
+
+export interface SalaryFigure {
+  currency: string;
+  category?: string;
+  postings: number;
+  averageMin?: number;
+  averageMax?: number;
+  lowestMin?: number;
+  highestMax?: number;
+  reliable: boolean;
+}
+
+export interface MarketSalary {
+  scope: MarketScope;
+  postingsWithSalary: number;
+  byCurrency: SalaryFigure[];
+  byCategory: SalaryFigure[];
+  trend: { month: string; currency: string; postings: number; averageMin?: number; averageMax?: number; reliable: boolean }[];
+  notes: string[];
+}
+
+export interface MarketLocations {
+  scope: MarketScope;
+  locationStated: number;
+  locationNotStated: number;
+  topLocations: { locationId: number; location: string; country: string; postings: number; percentageOfPostings: number }[];
+  notes: string[];
+}
+
+export type WorkMode = 'REMOTE' | 'HYBRID' | 'ON_SITE' | 'NOT_STATED';
+
+export interface MarketRemote {
+  scope: MarketScope;
+  distribution: { mode: WorkMode; postings: number; percentageOfPostings: number }[];
+  trend: { month: string; total: number; remote: number; hybrid: number; onSite: number; notStated: number }[];
+  method: string;
+  notes: string[];
+}
+
+export interface MarketCompanies {
+  scope: MarketScope;
+  topCompanies: { companyId: number; company: string; industry?: string; postings: number; percentageOfPostings: number }[];
+  trend: { companyId: number; company: string; points: { month: string; postings: number }[] }[];
+  notes: string[];
+}
+
+export interface MarketSkills {
+  scope: MarketScope;
+  topSkills: { skillId: number; skill: string; category?: string; postings: number; percentageOfPostings: number; rank: number }[];
+  /** From the stored monthly skill history; absent when a filter narrows the view. */
+  trend?: SkillTrends;
+  notes: string[];
+}

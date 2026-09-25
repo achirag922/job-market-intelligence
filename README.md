@@ -207,6 +207,7 @@ etl/data
 - [x] V7.2 — saved jobs & application tracking: bookmark jobs from results and details, SAVED → APPLIED → INTERVIEW → OFFER (plus REJECTED/WITHDRAWN) with application date and private notes, owner-scoped `/api/saved-jobs`, one row per user and job
 - [x] V7.3 — advanced resume intelligence: multiple resume versions per account (title, version label, one default), job-specific analysis on the V3 match with data-based suggestions, and version comparison from stored skills
 - [x] V7.4 — career goals & skill roadmap: goals per account (role, job category, optional location/experience/skills; ACTIVE/COMPLETED/ARCHIVED), a deterministic roadmap from the default resume, category demand and rising trends (the V6.4 focus-area order), and per-skill progress
+- [x] V7.5 — market intelligence: `/api/market/{salary,locations,remote,companies,skills}` with shared category/location/experience/period filters, per-currency salaries, work mode read from posting wording, posting-month series, skill trends from the stored snapshot; Market Intelligence page
 
 ## API
 
@@ -672,6 +673,31 @@ not yet on the resume are ordered by the career-insights focus-area rule: rising
 postings first (biggest rise first), then by demand rank, then skills the user chose. Progress is
 the share of roadmap skills on the resume or marked `COMPLETED`. Skills are not split into
 difficulty stages because no data says how advanced a skill is.
+
+### Market intelligence (V7.5)
+
+`GET /api/market/salary`, `/locations`, `/remote`, `/companies` and `/skills` all take the same
+optional filters: `category` (exact job category), `location` (city, state or country text, as in
+the job search), `experience` (`0-2`, `2-5`, `5-8`, `8+`, `unspecified`) and `months` (the last N
+posting months of the data, counted back from the newest posting, not from today). Every
+response has a `scope`: how many postings it covers, their posting months and the newest posting
+date in the data, plus `notes` wherever data is missing or thin.
+
+- **Salary**: averages of the stated minimum and maximum, the lowest and highest, per currency and
+  per category and currency; never converted or combined. Figures from fewer than 3 postings are
+  marked `reliable: false`. Postings without a salary are left out, not counted as zero.
+- **Locations**: postings per location, and how many state no location.
+- **Remote**: postings carry no work-mode field, so it is read from the description: "hybrid" means
+  HYBRID, otherwise "remote" means REMOTE, otherwise "on-site"/"onsite"/"in office" means ON_SITE,
+  and anything else is NOT_STATED.
+- **Companies**: postings per company in JMIP's dataset (not a company's total hiring), with a
+  monthly series for the top five.
+- **Skills**: the most requested skills among the filtered postings. The earlier-vs-recent trend is
+  the V6.1 stored skill history (`skill_demand_snapshot`), which covers all postings, so it is
+  omitted, with a note, when a category, location or experience filter is set.
+
+Monthly series group postings by `posted_date`, like the skill snapshot; undated postings count in
+totals only. Nothing is forecast.
 
 ## Running with Docker (V6.6)
 

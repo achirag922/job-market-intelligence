@@ -11,6 +11,12 @@ import type {
   SavedJob,
   ResumeComparison,
   CareerGoal,
+  MarketCompanies,
+  MarketFilters,
+  MarketLocations,
+  MarketRemote,
+  MarketSalary,
+  MarketSkills,
   CareerGoalInput,
   CareerGoalStatus,
   Roadmap,
@@ -474,6 +480,13 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V7.5 market intelligence; every endpoint takes the same filters. */
+  marketSalary: (filters: MarketFilters) => request<MarketSalary>('/api/market/salary', { ...filters }),
+  marketLocations: (filters: MarketFilters) => request<MarketLocations>('/api/market/locations', { ...filters }),
+  marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),
+  marketCompanies: (filters: MarketFilters) => request<MarketCompanies>('/api/market/companies', { ...filters }),
+  marketSkills: (filters: MarketFilters) => request<MarketSkills>('/api/market/skills', { ...filters }),
 };
 
 export { BASE_URL };

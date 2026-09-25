@@ -44,6 +44,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Job market',
     items: [
       { to: '/jobs', label: 'Job Explorer', icon: IconBriefcase },
+      { to: '/market', label: 'Market Intelligence', icon: IconTrend },
       { to: '/analytics/skills', label: 'Skills', icon: IconSpark },
       { to: '/analytics/trends', label: 'Skill Trends', icon: IconTrend },
       { to: '/analytics/companies', label: 'Companies', icon: IconBuilding },

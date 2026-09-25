@@ -11,6 +11,7 @@ import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
 import { CareerGoals } from './pages/CareerGoals';
 import { JobAlerts } from './pages/JobAlerts';
+import { MarketIntelligence } from './pages/MarketIntelligence';
 import { SavedJobs } from './pages/SavedJobs';
 import { SavedJobsProvider } from './saved/SavedJobs';
 import { JobExplorer } from './pages/JobExplorer';
@@ -45,6 +46,7 @@ export default function App() {
           <Route path="/analytics/trends" element={<SkillTrends />} />
           <Route path="/analytics/companies" element={<CompanyAnalytics />} />
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
+          <Route path="/market" element={<MarketIntelligence />} />
           <Route path="/resume" element={<ResumeIntelligence />} />
           <Route path="/alerts" element={<JobAlerts />} />
           <Route path="/career-goals" element={<CareerGoals />} />
