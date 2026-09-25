@@ -9,6 +9,8 @@ import type {
   JobAlertInput,
   ApplicationStatus,
   SavedJob,
+  ResumeComparison,
+  ResumeJobAnalysis,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -433,6 +435,23 @@ export const api = {
   setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
 
   deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
+
+  /** V7.3: the signed-in user's resumes, newest first. */
+  resumes: () => request<Resume[]>('/api/resumes'),
+
+  updateResume: (id: string, title: string, versionLabel: string) =>
+    send<Resume>('PATCH', `/api/resumes/${id}`, { title, versionLabel }),
+
+  setDefaultResume: (id: string) => send<Resume>('PUT', `/api/resumes/${id}/default`),
+
+  /** The V6.10.5 delete: the file, its text and its skills. */
+  deleteResume: (id: string) => send<void>('DELETE', `/api/resumes/${id}`),
+
+  analyzeResumeJob: (resumeId: string, jobId: number) =>
+    request<ResumeJobAnalysis>(`/api/resumes/${resumeId}/analyze-job/${jobId}`),
+
+  compareResumes: (resumeId1: string, resumeId2: string) =>
+    request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),
 };
 
 export { BASE_URL };

@@ -250,6 +250,12 @@ export interface Resume {
   errorMessage?: string;
   uploadedAt: string;
   processedAt?: string;
+  /** V7.3: the owner's name for this version; starts as the file name. */
+  title?: string;
+  versionLabel?: string | null;
+  /** V7.3: the account's default resume. */
+  isDefault?: boolean;
+  updatedAt?: string;
 }
 
 export interface ResumeMatch {
@@ -531,4 +537,47 @@ export interface SavedJob {
   savedAt: string;
   appliedAt?: string | null;
   updatedAt: string;
+}
+
+/** V7.3: one resume against one job: the V3 match plus experience and data-based suggestions. */
+export interface ResumeJobAnalysis {
+  resumeId: string;
+  resumeTitle: string;
+  resumeVersionLabel?: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  jobCategory?: string;
+  matchPercentage?: number;
+  matchNote?: string;
+  totalJobSkills: number;
+  matchedSkillCount: number;
+  missingSkillCount: number;
+  matchedSkills: Skill[];
+  missingSkills: Skill[];
+  otherResumeSkills: Skill[];
+  experience: { required?: { min?: number; max?: number }; note: string };
+  suggestions: string[];
+  disclaimer: string;
+}
+
+export interface ResumeVersionSummary {
+  id: string;
+  title: string;
+  versionLabel?: string;
+  fileName: string;
+  isDefault: boolean;
+  skillCount: number;
+  uploadedAt: string;
+  updatedAt: string;
+}
+
+/** V7.3: two resume versions; "added" and "removed" read from the first to the second. */
+export interface ResumeComparison {
+  first: ResumeVersionSummary;
+  second: ResumeVersionSummary;
+  skillsAdded: Skill[];
+  skillsRemoved: Skill[];
+  commonSkills: Skill[];
+  differentFields: string[];
 }

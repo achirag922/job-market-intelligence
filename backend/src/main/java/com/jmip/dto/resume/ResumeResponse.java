@@ -21,6 +21,10 @@ import java.util.UUID;
  * @param status         UPLOADED, PROCESSING, COMPLETED or FAILED
  * @param skills         skills found in the document; empty until processing completes
  * @param errorMessage   why processing failed, present only when the status is FAILED
+ * @param title          V7.3: the owner's name for this version; starts as the file name
+ * @param versionLabel   V7.3: optional short label, e.g. "v2"
+ * @param isDefault      V7.3: whether this is the account's default resume
+ * @param updatedAt      V7.3: when the resume or its metadata last changed
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ResumeResponse(
@@ -31,5 +35,9 @@ public record ResumeResponse(
         List<SkillResponse> skills,
         String errorMessage,
         OffsetDateTime uploadedAt,
-        OffsetDateTime processedAt) {
+        OffsetDateTime processedAt,
+        String title,
+        String versionLabel,
+        boolean isDefault,
+        OffsetDateTime updatedAt) {
 }

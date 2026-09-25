@@ -205,6 +205,7 @@ etl/data
 - [x] V6.10.8 — final security review: rate limit and header filters match the decoded path (no %-encoding bypass), nginx drops client X-Forwarded-Host/Prefix and Forwarded, prod refuses log-delivered sign-up codes for non-localhost origins, Spring Boot 3.5.16 plus Tomcat/PostgreSQL/httpcore5 patch overrides (0 fixable HIGH/CRITICAL)
 - [x] V7.1 — job alerts foundation: saved job-search alerts per account (keywords, category, location, experience, skill; DAILY/WEEKLY; active/paused), `/api/job-alerts` CRUD + status, owner-scoped 404s, Job Alerts page; no notifications sent yet
 - [x] V7.2 — saved jobs & application tracking: bookmark jobs from results and details, SAVED → APPLIED → INTERVIEW → OFFER (plus REJECTED/WITHDRAWN) with application date and private notes, owner-scoped `/api/saved-jobs`, one row per user and job
+- [x] V7.3 — advanced resume intelligence: multiple resume versions per account (title, version label, one default), job-specific analysis on the V3 match with data-based suggestions, and version comparison from stored skills
 
 ## API
 
@@ -629,6 +630,25 @@ Records, statuses and notes are private: another account's record answers 404.
 | `PATCH` | `/api/saved-jobs/{id}/status` | 200, body `{"status": "INTERVIEW"}` |
 | `PATCH` | `/api/saved-jobs/{id}/notes` | 200, body `{"notes": "..."}` (up to 2000 characters; blank clears) |
 | `DELETE` | `/api/saved-jobs/{id}` | 204 |
+
+### Resume versions and job analysis (V7.3)
+
+An account can keep up to 20 resumes. Each has a `title` (initially the file name), an optional
+`versionLabel` and an `isDefault` flag; the first upload is the default, and deleting the default
+(through the existing `DELETE /api/resumes/{id}`) passes it to the newest remaining resume.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `GET` | `/api/resumes` | 200, your resumes, newest first |
+| `PATCH` | `/api/resumes/{id}` | 200, body `{"title": "Backend CV", "versionLabel": "v2"}` |
+| `PUT` | `/api/resumes/{id}/default` | 200, this resume becomes the default |
+| `GET` | `/api/resumes/{resumeId}/analyze-job/{jobId}` | 200, the V3 match plus experience and suggestions |
+| `GET` | `/api/resumes/compare?resumeId1=&resumeId2=` | 200, skills added, removed and common, and differing metadata |
+
+The analysis uses the same deterministic match as `/match/{jobId}`; its suggestions come only
+from the matched and missing skills and the posting's stated experience, and it makes no claim
+about the chance of being hired. The comparison reads the skills extracted at upload. Every
+resume id must belong to the signed-in account; anything else is a 404.
 
 ## Running with Docker (V6.6)
 

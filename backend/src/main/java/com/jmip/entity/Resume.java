@@ -76,6 +76,21 @@ public class Resume {
     @Column(name = "processed_at")
     private OffsetDateTime processedAt;
 
+    /** V7.3: what the owner calls this version, e.g. "Backend CV". Starts as the file name. */
+    @Column(nullable = false)
+    private String title;
+
+    /** V7.3: optional short label, e.g. "v2" or "2026 Spring". */
+    @Column(name = "version_label")
+    private String versionLabel;
+
+    /** V7.3: the owner's current resume; at most one per account (enforced by the schema). */
+    @Column(name = "is_default", nullable = false)
+    private boolean defaultResume;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "resume_skills",
@@ -92,6 +107,8 @@ public class Resume {
         this.fileSizeBytes = fileSizeBytes;
         this.uploadedAt = uploadedAt;
         this.processingStatus = ResumeProcessingStatus.UPLOADED;
+        this.title = titleFrom(originalFileName);
+        this.updatedAt = uploadedAt;
     }
 
     /** A resume owned by {@code userId}, the account that is uploading it. */
@@ -122,6 +139,7 @@ public class Resume {
         this.skills.addAll(skills);
         this.errorMessage = null;
         this.processedAt = processedAt;
+        this.updatedAt = processedAt;
     }
 
     public void markFailed(String errorMessage, OffsetDateTime processedAt) {
@@ -130,9 +148,31 @@ public class Resume {
         this.errorMessage = errorMessage == null || errorMessage.isBlank()
                 ? "Resume processing failed" : errorMessage;
         this.processedAt = processedAt;
+        this.updatedAt = processedAt;
     }
 
     public boolean isCompleted() {
         return processingStatus == ResumeProcessingStatus.COMPLETED;
+    }
+
+    /** V7.3: rename, or relabel, this version. The caller has validated both values. */
+    public void describe(String title, String versionLabel, OffsetDateTime now) {
+        this.title = title;
+        this.versionLabel = versionLabel;
+        this.updatedAt = now;
+    }
+
+    public void setDefault(boolean isDefault, OffsetDateTime now) {
+        this.defaultResume = isDefault;
+        this.updatedAt = now;
+    }
+
+    /** The file name without ".pdf", bounded to the column; "Resume" when nothing is left. */
+    static String titleFrom(String fileName) {
+        String base = fileName == null ? "" : fileName.replaceFirst("(?i)\\.pdf$", "").strip();
+        if (base.isEmpty()) {
+            return "Resume";
+        }
+        return base.length() > 100 ? base.substring(0, 100).strip() : base;
     }
 }

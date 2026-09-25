@@ -1,5 +1,6 @@
 package com.jmip.service.resume;
 
+import com.jmip.common.exception.InvalidRequestException;
 import com.jmip.common.exception.ResourceNotFoundException;
 import com.jmip.dto.SkillResponse;
 import com.jmip.dto.resume.ResumeResponse;
@@ -35,6 +36,9 @@ import java.util.UUID;
  */
 @Service
 public class ResumeService {
+
+    /** V7.3: enough versions for real use, and a bound on what one account can store. */
+    static final int MAX_RESUMES_PER_ACCOUNT = 20;
 
     private static final Logger log = LoggerFactory.getLogger(ResumeService.class);
 
@@ -76,6 +80,10 @@ public class ResumeService {
     public ResumeResponse upload(MultipartFile file) {
         // The owner comes from the session, before anything is stored.
         UUID ownerId = currentUser.requireId();
+        if (resumeRepository.countByUserId(ownerId) >= MAX_RESUMES_PER_ACCOUNT) {
+            throw new InvalidRequestException("You can keep at most " + MAX_RESUMES_PER_ACCOUNT
+                    + " resumes; delete one to upload another");
+        }
         storageService.validate(file);
 
         UUID resumeId = UUID.randomUUID();
@@ -91,6 +99,10 @@ public class ResumeService {
                 content.length,
                 OffsetDateTime.now(clock));
         resume.markProcessing();
+        // V7.3: an account's first resume is its default until the owner picks another.
+        if (!resumeRepository.existsByUserIdAndDefaultResumeTrue(ownerId)) {
+            resume.setDefault(true, resume.getUploadedAt());
+        }
 
         try {
             String text = textNormalizer.normalize(textExtractor.extractText(content));
@@ -142,6 +154,11 @@ public class ResumeService {
         String storedFileName = resume.getStoredFileName();
         resumeRepository.delete(resume);
         resumeRepository.flush();
+        // V7.3: deleting the default hands it to the newest remaining resume, if any.
+        if (resume.isDefaultResume() && resume.getUserId() != null) {
+            resumeRepository.findFirstByUserIdOrderByUploadedAtDesc(resume.getUserId())
+                    .ifPresent(next -> next.setDefault(true, OffsetDateTime.now(clock)));
+        }
         if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
             org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
                     new org.springframework.transaction.support.TransactionSynchronization() {
@@ -153,6 +170,33 @@ public class ResumeService {
         } else {
             storageService.deleteQuietly(storedFileName);
         }
+    }
+
+    // ------------------------------------------------------------------ V7.3 versions
+
+    /** The caller's resumes, newest first. */
+    @Transactional(readOnly = true)
+    public List<ResumeResponse> list() {
+        return resumeRepository.findByUserIdOrderByUploadedAtDesc(currentUser.requireId()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /** Renames or relabels one of the caller's resumes. */
+    @Transactional
+    public ResumeResponse describe(UUID id, String title, String versionLabel) {
+        Resume resume = requireResume(id);
+        resume.describe(title, versionLabel, OffsetDateTime.now(clock));
+        return toResponse(resume);
+    }
+
+    /** Makes one of the caller's resumes the default; the previous default stops being one. */
+    @Transactional
+    public ResumeResponse makeDefault(UUID id) {
+        Resume resume = requireResume(id);
+        resumeRepository.clearDefault(resume.getUserId());
+        resume.setDefault(true, OffsetDateTime.now(clock));
+        return toResponse(resume);
     }
 
     @Transactional(readOnly = true)
@@ -216,7 +260,11 @@ public class ResumeService {
                 sortedSkills(resume.getSkills()),
                 resume.getErrorMessage(),
                 resume.getUploadedAt(),
-                resume.getProcessedAt());
+                resume.getProcessedAt(),
+                resume.getTitle(),
+                resume.getVersionLabel(),
+                resume.isDefaultResume(),
+                resume.getUpdatedAt());
     }
 
     private List<SkillResponse> sortedSkills(Set<Skill> skills) {

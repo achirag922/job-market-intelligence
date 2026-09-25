@@ -14,6 +14,7 @@ import { IconCheck, IconFile } from '../components/icons';
 import { CareerInsights } from '../components/CareerInsights';
 import { formatLocation } from '../components/format';
 import { useApi } from '../hooks/useApi';
+import { JobAnalysisPanel, ResumeVersions } from '../components/ResumeVersions';
 
 const JOB_RESULTS = 8;
 
@@ -35,6 +36,8 @@ export function ResumeIntelligence() {
   const [resume, setResume] = useState<Resume | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // V7.3: bumped after an upload so the version list shows the new resume.
+  const [versionsKey, setVersionsKey] = useState(0);
 
   const [jobQuery, setJobQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -104,11 +107,20 @@ export function ResumeIntelligence() {
     setSelectedJob(null);
     try {
       setResume(await api.uploadResume(file));
+      setVersionsKey((key) => key + 1);
     } catch (error) {
       setUploadError(error instanceof ApiError ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
+  };
+
+  // V7.3: switching version starts the comparison afresh with that resume.
+  const selectVersion = (next: Resume | null) => {
+    setResume(next);
+    setMatch(null);
+    setMatchError(null);
+    setSelectedJob(null);
   };
 
   const currentStep = match ? 3 : readyToMatch ? 2 : resume ? 1 : 0;
@@ -175,6 +187,23 @@ export function ResumeIntelligence() {
           </div>
         )}
       </Card>
+
+      <ResumeVersions
+        selectedId={resume?.id}
+        refreshKey={versionsKey}
+        onSelect={selectVersion}
+        // Coming back to the page picks up the default version instead of asking for an upload.
+        onLoaded={(list) => {
+          if (!resume && !uploading && list.length > 0) {
+            selectVersion(list.find((item) => item.isDefault) ?? list[0]);
+          }
+        }}
+        onDeleted={(id) => {
+          if (resume?.id === id) {
+            selectVersion(null);
+          }
+        }}
+      />
 
       {resume?.status === 'COMPLETED' && (
         <Card
@@ -461,6 +490,8 @@ export function ResumeIntelligence() {
             <hr className="divider" />
             <Link to={`/jobs/${match.jobId}`}>View the full job posting</Link>
           </Card>
+
+          <JobAnalysisPanel key={`${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
         </>
       )}
       </div>
