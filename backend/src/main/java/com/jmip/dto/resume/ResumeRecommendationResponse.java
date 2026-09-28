@@ -22,5 +22,15 @@ public record ResumeRecommendationResponse(
         String jobCategory,
         double matchPercentage,
         List<SkillResponse> matchedSkills,
-        List<SkillResponse> missingSkills) {
+        List<SkillResponse> missingSkills,
+        /** V8.3: what recommendations are ranked by; equals matchPercentage when no preferences are set. */
+        Double overallMatchPercentage,
+        MatchBreakdown breakdown) {
+
+    /** The V6.3 shape, without a breakdown. */
+    public ResumeRecommendationResponse(Long jobId, String jobTitle, String companyName, LocationResponse location,
+                                        String jobCategory, double matchPercentage, List<SkillResponse> matchedSkills,
+                                        List<SkillResponse> missingSkills) {
+        this(jobId, jobTitle, companyName, location, jobCategory, matchPercentage, matchedSkills, missingSkills, null, null);
+    }
 }

@@ -6,6 +6,7 @@ import type {
   CareerInsights,
   EtlRun,
   JobSource,
+  MatchPreferences,
   JobAlert,
   JobAlertInput,
   ApplicationStatus,
@@ -433,6 +434,12 @@ export const api = {
 
   /** 404 when the ETL has never run. */
   latestEtlRun: () => request<EtlRun>('/api/etl/runs/latest'),
+
+  /** V8.3: the signed-in user's match preferences; an empty object when none are saved. */
+  matchPreferences: () => request<MatchPreferences>('/api/match-preferences'),
+
+  saveMatchPreferences: (preferences: MatchPreferences) =>
+    send<MatchPreferences>('PUT', '/api/match-preferences', preferences),
 
   /** V8.1: the sources postings are ingested from, by code. */
   jobSources: () => request<JobSource[]>('/api/job-sources'),

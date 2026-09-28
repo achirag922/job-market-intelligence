@@ -276,6 +276,41 @@ export interface ResumeMatch {
   /** The skill gap: what this job wants that the resume does not show. */
   missingSkills: Skill[];
   resumeOnlySkills: Skill[];
+  /** V8.3: overall score and per-dimension breakdown. */
+  breakdown?: MatchBreakdown;
+}
+
+// ---------------------------------------------------------------- V8.3: match breakdown
+
+export type MatchStatus = 'MATCH' | 'PARTIAL' | 'NO_MATCH' | 'UNAVAILABLE';
+
+export interface MatchDimension {
+  status: MatchStatus;
+  /** 0 to 100; absent when unavailable. */
+  score?: number;
+  /** Share of the overall score when available. */
+  weight: number;
+  detail: string;
+}
+
+/** Deterministic compatibility, not a hiring prediction. */
+export interface MatchBreakdown {
+  /** Absent when the posting lists no skills. */
+  overallPercentage?: number;
+  skills: MatchDimension;
+  experience: MatchDimension;
+  location: MatchDimension;
+  workMode: MatchDimension;
+  salary: MatchDimension;
+}
+
+/** The signed-in user's own match preferences; every field optional. */
+export interface MatchPreferences {
+  yearsExperience?: number;
+  preferredLocation?: string;
+  workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  minSalary?: number;
+  salaryCurrency?: string;
 }
 
 /** A job whose existing required skills overlap with a completed resume. */
@@ -290,6 +325,9 @@ export interface ResumeRecommendation {
   matchPercentage: number;
   matchedSkills: Skill[];
   missingSkills: Skill[];
+  /** V8.3: what the list is ranked by; equals matchPercentage without preferences. */
+  overallMatchPercentage?: number;
+  breakdown?: MatchBreakdown;
 }
 
 /** A category skill, with its V4 demand figures and whether the resume shows it. */

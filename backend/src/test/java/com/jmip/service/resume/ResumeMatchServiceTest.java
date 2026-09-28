@@ -44,6 +44,12 @@ class ResumeMatchServiceTest {
     @Mock
     private JobMapper jobMapper;
 
+    @org.mockito.Spy
+    private JobMatchScorer scorer = new JobMatchScorer();
+
+    @Mock
+    private com.jmip.repository.MatchPreferencesRepository preferencesRepository;
+
     @InjectMocks
     private ResumeMatchService matchService;
 
@@ -78,7 +84,9 @@ class ResumeMatchServiceTest {
 
         ArgumentCaptor<Pageable> page = ArgumentCaptor.forClass(Pageable.class);
         verify(jobRepository).findRecommendationJobIds(anyCollection(), page.capture());
-        assertThat(page.getValue().getPageSize()).isEqualTo(2);
+        // V8.3: a wider candidate pool, re-ranked by the full score; without preferences the order is unchanged.
+        assertThat(page.getValue().getPageSize()).isEqualTo(2 * ResumeMatchService.CANDIDATE_POOL_FACTOR);
+        assertThat(result).extracting(ResumeRecommendationResponse::overallMatchPercentage).containsExactly(100.0, 50.0);
         verify(jobRepository).findRecommendationDetailsByIdIn(List.of(4L, 3L));
         verify(jobRepository, never()).findDetailById(any());
     }
@@ -92,6 +100,57 @@ class ResumeMatchServiceTest {
         assertThat(matchService.recommend(id, 10)).isEmpty();
         verify(jobRepository, never()).findRecommendationJobIds(anyCollection(), any(Pageable.class));
         verify(jobRepository, never()).findRecommendationDetailsByIdIn(anyCollection());
+    }
+
+    @Test
+    @DisplayName("V8.3: the owner's preferences can lift a lower skill match above a higher one, and the limit applies after ranking")
+    void ranksByOverallScore() throws ReflectiveOperationException {
+        Skill java = skill(1L, "Java");
+        Skill spring = skill(2L, "Spring Boot");
+        Skill docker = skill(3L, "Docker");
+        UUID id = UUID.randomUUID();
+        UUID owner = UUID.randomUUID();
+        Resume resume = resume(id, java, spring);
+        set(resume, "userId", owner);
+        Job onSiteFullSkills = job(4L, "Java Developer", java, spring);
+        set(onSiteFullSkills, "description", "Work on-site with us.");
+        set(onSiteFullSkills, "experienceMin", (short) 6);
+        set(onSiteFullSkills, "location", location("Berlin", "Germany"));
+        Job remoteHalfSkills = job(3L, "Backend Engineer", java, docker);
+        set(remoteHalfSkills, "description", "A fully remote team.");
+        set(remoteHalfSkills, "experienceMin", (short) 0);
+        set(remoteHalfSkills, "experienceMax", (short) 2);
+        set(remoteHalfSkills, "location", location("Austin", "United States"));
+        Job unrelated = job(5L, "Other", java, docker, spring);
+
+        when(resumeService.requireCompletedResume(id)).thenReturn(resume);
+        when(preferencesRepository.find(owner))
+                .thenReturn(new com.jmip.dto.resume.MatchPreferences(1, "Austin", "REMOTE", null, null));
+        when(jobRepository.findRecommendationJobIds(anyCollection(), any(Pageable.class))).thenReturn(List.of(4L, 5L, 3L));
+        when(jobRepository.findRecommendationDetailsByIdIn(List.of(4L, 5L, 3L)))
+                .thenReturn(List.of(onSiteFullSkills, remoteHalfSkills, unrelated));
+        when(jobMapper.toSkill(any(Skill.class))).thenAnswer(invocation -> {
+            Skill skill = invocation.getArgument(0);
+            return new SkillResponse(skill.getId(), skill.getName(), null);
+        });
+
+        List<ResumeRecommendationResponse> result = matchService.recommend(id, 2);
+
+        // job 3, 50% skills: (50*60 + 100*15 + 100*10 + 100*10) / 95 = 68.4
+        // job 5, 66.7% skills, nothing else stated: 66.7
+        // job 4, 100% skills, 5 years short, on-site, Berlin: (100*60 + 0 + 0 + 0) / 95 = 63.2, cut by the limit
+        assertThat(result).extracting(ResumeRecommendationResponse::jobId).containsExactly(3L, 5L);
+        assertThat(result).extracting(ResumeRecommendationResponse::overallMatchPercentage).containsExactly(68.4, 66.7);
+        verify(preferencesRepository).find(owner);
+    }
+
+    private static com.jmip.entity.Location location(String city, String country) throws ReflectiveOperationException {
+        var constructor = com.jmip.entity.Location.class.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        com.jmip.entity.Location location = constructor.newInstance();
+        set(location, "city", city);
+        set(location, "country", country);
+        return location;
     }
 
     private static Resume resume(UUID id, Skill... skills) {

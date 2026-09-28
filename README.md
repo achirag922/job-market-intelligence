@@ -215,6 +215,7 @@ etl/data
 - [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
 - [x] V8.1 — job sources: `job_sources` registry, per-posting source/first seen/last seen/run id/source job id, inactive sources rejected, per-run source counts in ETL monitoring, read-only `/api/job-sources`
 - [x] V8.2 — deduplication and data quality: match by source job id, then source URL, then content fingerprint (updating last seen); expiry dates and source status (`expires_at`, `active`, never deleted); expired count in ETL monitoring
+- [x] V8.3 — advanced job matching: overall match from skills plus experience, location, work mode and salary (match preferences, `/api/match-preferences`), per-dimension breakdown, recommendations ranked by it
 
 ## API
 
@@ -814,6 +815,30 @@ filled, inactive, false). At the end of every run, jobs past their expiry date a
 again if the source lists it as open later. Only these source-given signals count: a posting
 missing from one feed is not treated as closed. Jobs are never deleted, and job search is unchanged.
 ETL runs report the count as `expired` next to read, valid (processed), loaded, duplicates and rejected.
+
+### Advanced job matching (V8.3)
+
+`GET /api/resumes/{id}/match/{jobId}` and `GET /api/resumes/{id}/recommendations` now include a
+`breakdown`: an `overallPercentage` and, per dimension, a `status` (MATCH, PARTIAL, NO_MATCH,
+UNAVAILABLE), a `score`, its `weight` and a `detail` saying why. Recommendations carry
+`overallMatchPercentage` and are ranked by it (the best skill matches form the candidate pool).
+
+| Dimension | Weight | Rule |
+|---|---|---|
+| Skills | 60 | Share of the job's listed skills on the resume (the V3 score) |
+| Experience | 15 | In range 100; 25 points off per year short of the minimum; above the maximum 75 |
+| Location | 10 | Preferred city, or a whole state/country, 100; same country, other city, 50 |
+| Work mode | 10 | From the posting's words, with the V7.5 market rule; same 100; hybrid vs other 50 |
+| Salary | 5 | Top of the stated range at or above your minimum, same currency only (never converted) |
+
+The overall score is the weighted average of the dimensions that are available. A dimension
+is unavailable when you have not set that preference or the posting does not state it, so with
+no preferences the overall score is exactly the skill match and the ranking is unchanged. It is a
+compatibility measure, not an interview or hiring probability.
+
+Preferences are the signed-in user's own (`GET`/`PUT /api/match-preferences`: `yearsExperience`,
+`preferredLocation`, `workMode` REMOTE/HYBRID/ON_SITE, `minSalary` with `salaryCurrency`), set on
+the Resume Intelligence page.
 
 ### Backup and recovery
 
