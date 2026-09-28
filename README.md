@@ -211,6 +211,7 @@ etl/data
 - [x] V7.6 — AI career copilot: eight personal intents (missing skills, next skills, target-role skills and demand, job matches, resume improvement, application progress, saved-job priority) routed to existing owner-scoped services, default-resume fallback, v2 prompts, career suggestions and job context in the assistant
 - [x] V7.7 — personal career dashboard: `GET /api/dashboard` aggregates resume, skills, recommendations, applications, career goal and target-role market data from the existing owner-scoped services; My Career page
 - [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
+- [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
 
 ## API
 

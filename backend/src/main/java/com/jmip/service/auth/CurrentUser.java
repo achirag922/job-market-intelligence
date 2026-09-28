@@ -1,5 +1,6 @@
 package com.jmip.service.auth;
 
+import com.jmip.common.RequestMemo;
 import com.jmip.common.exception.AuthenticationFailedException;
 import com.jmip.entity.User;
 import com.jmip.repository.UserRepository;
@@ -31,8 +32,12 @@ public class CurrentUser {
                 || authentication instanceof AnonymousAuthenticationToken) {
             throw new AuthenticationFailedException(AuthenticationFailedException.NOT_SIGNED_IN);
         }
-        return userRepository.findByEmail(authentication.getName().strip().toLowerCase(Locale.ROOT))
-                .map(User::getId)
-                .orElseThrow(() -> new AuthenticationFailedException(AuthenticationFailedException.NOT_SIGNED_IN));
+        String email = authentication.getName().strip().toLowerCase(Locale.ROOT);
+        // V7.9: one lookup per request, keyed by the signed-in email, however many services ask.
+        UUID id = RequestMemo.get("currentUserId:" + email, () -> userRepository.findByEmail(email).map(User::getId).orElse(null));
+        if (id == null) {
+            throw new AuthenticationFailedException(AuthenticationFailedException.NOT_SIGNED_IN);
+        }
+        return id;
     }
 }

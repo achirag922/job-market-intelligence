@@ -1,5 +1,6 @@
 package com.jmip.service.market;
 
+import com.jmip.common.RequestMemo;
 import com.jmip.dto.analytics.SkillTrendResponse;
 import com.jmip.dto.market.MarketResponses.CompanyFigure;
 import com.jmip.dto.market.MarketResponses.CompanyResponse;
@@ -72,7 +73,7 @@ public class MarketIntelligenceService {
     public MarketFilter filter(String category, String location, String experience, Integer months) {
         LocalDate from = null;
         if (months != null) {
-            LocalDate latest = repository.latestPostedDate();
+            LocalDate latest = latestPostedDate();
             from = latest == null ? null : latest.withDayOfMonth(1).minusMonths(months - 1L);
         }
         return new MarketFilter(blankToNull(category), blankToNull(location),
@@ -211,10 +212,16 @@ public class MarketIntelligenceService {
     // ------------------------------------------------------------------ helpers
 
     private Scope scope(MarketFilter filter) {
-        Window window = repository.window(filter);
+        // V7.9: the dashboard asks for five views of the same postings; count them once per request.
+        Window window = RequestMemo.get("marketWindow:" + filter, () -> repository.window(filter));
         return new Scope(filter.category(), filter.location(),
                 filter.experience() == null ? null : filter.experience().label(), filter.from(),
-                repository.latestPostedDate(), window.postings(), window.datedPostings(), window.earliest(), window.latest());
+                latestPostedDate(), window.postings(), window.datedPostings(), window.earliest(), window.latest());
+    }
+
+    /** The newest posting date in the data, read once per request. */
+    private LocalDate latestPostedDate() {
+        return RequestMemo.get("marketLatestPosting", repository::latestPostedDate);
     }
 
     /** Every posting month from the first to the last covered, so a quiet month shows as zero. */
