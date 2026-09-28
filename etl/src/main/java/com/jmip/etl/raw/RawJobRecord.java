@@ -24,5 +24,15 @@ public record RawJobRecord(
         String salary,
         String postedDate,
         String source,
-        String sourceUrl) {
+        String sourceUrl,
+        // V8.1: the source's own id for the posting, when it gives one.
+        String sourceJobId) {
+
+    /** Records from sources that give no posting id. */
+    public RawJobRecord(String title, String company, String companyIndustry, String companyWebsite, String location,
+                        String description, String employmentType, String experience, String salary, String postedDate,
+                        String source, String sourceUrl) {
+        this(title, company, companyIndustry, companyWebsite, location, description, employmentType, experience,
+                salary, postedDate, source, sourceUrl, null);
+    }
 }

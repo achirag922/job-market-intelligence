@@ -51,8 +51,9 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             INSERT INTO jobs (title, company_id, location_id, description, employment_type,
                               experience_min, experience_max, salary_min, salary_max, currency,
                               posted_date, source, source_url, content_fingerprint,
-                              job_category, classification_confidence, classified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              job_category, classification_confidence, classified_at,
+                              source_job_id, last_seen_run_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """;
 
@@ -68,11 +69,14 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
     private final JdbcTemplate jdbcTemplate;
     private final ReferenceDataCache referenceData;
     private final EtlMetrics metrics;
+    private final JobSourceRegistry sources;
 
-    public JobItemWriter(JdbcTemplate jdbcTemplate, ReferenceDataCache referenceData, EtlMetrics metrics) {
+    public JobItemWriter(JdbcTemplate jdbcTemplate, ReferenceDataCache referenceData, EtlMetrics metrics,
+                         JobSourceRegistry sources) {
         this.jdbcTemplate = jdbcTemplate;
         this.referenceData = referenceData;
         this.metrics = metrics;
+        this.sources = sources;
     }
 
     @Override
@@ -108,6 +112,7 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
         long duplicates = items.size() - loaded;
         metrics.recordJobsLoaded(loaded);
         metrics.recordDuplicates(duplicates);
+        recordSeen(byFingerprint.values(), existing, jobIds);
 
         int blockedBySourceUrl = toInsert.size() - (int) loaded;
         if (blockedBySourceUrl > 0) {
@@ -120,6 +125,34 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
 
         linkSkills(byFingerprint.values(), jobIds);
         linkClassificationSignals(byFingerprint.values(), jobIds);
+    }
+
+    /**
+     * V8.1: postings that were already loaded are marked as seen by this run, and each source's
+     * new and repeated postings are counted.
+     */
+    private void recordSeen(java.util.Collection<TransformedJob> jobs, Map<String, Long> existing,
+                            Map<String, Long> jobIds) {
+        Map<String, Long> newRows = new HashMap<>();
+        Map<String, Long> again = new HashMap<>();
+        for (TransformedJob job : jobs) {
+            String fingerprint = job.contentFingerprint();
+            if (existing.containsKey(fingerprint)) {
+                again.merge(job.source(), 1L, Long::sum);
+            } else if (jobIds.containsKey(fingerprint)) {
+                newRows.merge(job.source(), 1L, Long::sum);
+            }
+        }
+        newRows.forEach(sources::recordLoaded);
+        again.forEach(sources::recordSeenAgain);
+        if (existing.isEmpty()) {
+            return;
+        }
+        List<Object> args = new ArrayList<>();
+        args.add(sources.runId());
+        args.addAll(existing.values());
+        jdbcTemplate.update("UPDATE jobs SET last_seen_at = now(), last_seen_run_id = ? WHERE id IN ("
+                + String.join(", ", Collections.nCopies(existing.size(), "?")) + ")", args.toArray());
     }
 
     private Map<String, Long> findExistingJobIds(java.util.Collection<String> fingerprints) {
@@ -166,6 +199,8 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
                 ps.setBigDecimal(16, BigDecimal.valueOf(job.classification().confidence()));
                 ps.setTimestamp(17, java.sql.Timestamp.from(java.time.Instant.now()));
             }
+            ps.setString(18, job.sourceJobId());
+            setLong(ps, 19, sources.runId());
         });
     }
 

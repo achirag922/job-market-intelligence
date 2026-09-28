@@ -6,6 +6,7 @@ import { EtlMonitoring, formatDuration } from './EtlMonitoring';
 
 const latestEtlRun = vi.fn();
 const etlRuns = vi.fn();
+const jobSources = vi.fn();
 
 vi.mock('../api/client', async () => {
   const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
@@ -14,6 +15,7 @@ vi.mock('../api/client', async () => {
     api: {
       latestEtlRun: (...args: unknown[]) => latestEtlRun(...args),
       etlRuns: (...args: unknown[]) => etlRuns(...args),
+      jobSources: (...args: unknown[]) => jobSources(...args),
     },
   };
 });
@@ -33,6 +35,9 @@ function run(overrides: Partial<EtlRun> = {}): EtlRun {
     recordsLoaded: 1200,
     duplicates: 47,
     rejected: 3,
+    feedName: 'sample-jobs.json',
+    feedType: 'FILE_JSON',
+    sources: [{ sourceId: 1, code: 'board-a', name: 'board-a', recordsLoaded: 1200, recordsSeenAgain: 47 }],
     ...overrides,
   };
 }
@@ -45,6 +50,11 @@ describe('EtlMonitoring', () => {
   beforeEach(() => {
     latestEtlRun.mockReset();
     etlRuns.mockReset();
+    jobSources.mockReset();
+    jobSources.mockResolvedValue([
+      { id: 1, code: 'board-a', name: 'board-a', sourceType: 'FILE_CSV', active: true, createdAt: '2026-09-20T10:00:00Z', lastIngestedAt: '2026-09-24T10:00:12Z', lastRunExecutionId: 7, jobCount: 1200 },
+      { id: 2, code: 'board-off', name: 'board-off', sourceType: 'OTHER', active: false, createdAt: '2026-09-20T10:00:00Z', jobCount: 0 },
+    ]);
     latestEtlRun.mockResolvedValue(run());
     etlRuns.mockResolvedValue(
       page([
@@ -115,6 +125,37 @@ describe('EtlMonitoring', () => {
     expect(await screen.findByText('Execution #7')).toBeInTheDocument();
     expect(latestEtlRun).toHaveBeenCalledTimes(2);
     expect(etlRuns).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('EtlMonitoring sources (V8.1)', () => {
+  beforeEach(() => {
+    latestEtlRun.mockReset().mockResolvedValue(run());
+    etlRuns.mockReset().mockResolvedValue(page([run()]));
+    jobSources.mockReset().mockResolvedValue([
+      { id: 1, code: 'board-a', name: 'board-a', sourceType: 'FILE_CSV', active: true, createdAt: '2026-09-20T10:00:00Z', jobCount: 1200 },
+      { id: 2, code: 'board-off', name: 'board-off', sourceType: 'OTHER', active: false, createdAt: '2026-09-20T10:00:00Z', jobCount: 0 },
+    ]);
+  });
+
+  afterEach(cleanup);
+
+  it('shows the feed and per-source counts of the latest run', async () => {
+    render(<EtlMonitoring />);
+
+    expect(await screen.findByText('Feed sample-jobs.json')).toBeInTheDocument();
+    expect(screen.getByText(/board-a: 1\D?200 new, 47 seen again/)).toBeInTheDocument();
+  });
+
+  it('lists job sources with their type and status', async () => {
+    render(<EtlMonitoring />);
+
+    const table = await screen.findByRole('table', { name: 'Job sources' });
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(within(rows[0]).getByText('CSV file')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Active')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Inactive')).toBeInTheDocument();
+    expect(jobSources).toHaveBeenCalledTimes(1);
   });
 });
 

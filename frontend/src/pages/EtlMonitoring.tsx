@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ApiError, api } from '../api/client';
-import type { EtlRun, EtlRunOutcome, PagedResponse } from '../api/types';
+import type { EtlRun, EtlRunOutcome, JobSource, PagedResponse } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { Pagination } from '../components/Pagination';
 import { Badge, Card, PageHeader, StatCard } from '../components/ui';
@@ -41,6 +41,7 @@ export function EtlMonitoring() {
     [refresh],
   );
   const runs = useApi<PagedResponse<EtlRun>>(() => api.etlRuns(page, PAGE_SIZE), [page, refresh]);
+  const sources = useApi<JobSource[]>(() => api.jobSources(), [refresh]);
 
   const reload = () => setRefresh((count) => count + 1);
 
@@ -90,6 +91,7 @@ export function EtlMonitoring() {
                       <th scope="col" className="rank-cell">#</th>
                       <th scope="col">Job</th>
                       <th scope="col">Status</th>
+                      <th scope="col">Feed</th>
                       <th scope="col">Started</th>
                       <th scope="col">Duration</th>
                       <th scope="col" className="tabular">Read</th>
@@ -107,6 +109,7 @@ export function EtlMonitoring() {
                         <td>
                           <OutcomeBadge outcome={run.outcome} />
                         </td>
+                        <td>{run.feedName ?? '—'}</td>
                         <td>{formatDateTime(run.startTime)}</td>
                         <td className="tabular">{formatDuration(run.durationMillis)}</td>
                         <td className="tabular">{formatCount(run.recordsRead)}</td>
@@ -131,9 +134,58 @@ export function EtlMonitoring() {
           )}
         </AsyncPanel>
       </Card>
+
+      <Card title="Job sources" description="Where postings come from. Sources are registered by the ETL.">
+        <AsyncPanel
+          state={sources}
+          onRetry={reload}
+          skeleton="table"
+          skeletonCount={3}
+          isEmpty={(data) => data.length === 0}
+          emptyTitle="No job sources"
+          empty="Sources appear here once the ETL has loaded postings."
+        >
+          {(data) => (
+            <div className="table-wrap">
+              <table>
+                <caption className="visually-hidden">Job sources</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Source</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" className="tabular">Postings</th>
+                    <th scope="col">Last ingested</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((source) => (
+                    <tr key={source.id}>
+                      <td>{source.name}</td>
+                      <td>{SOURCE_TYPE[source.sourceType] ?? source.sourceType}</td>
+                      <td>
+                        <Badge tone={source.active ? 'success' : 'warning'}>{source.active ? 'Active' : 'Inactive'}</Badge>
+                      </td>
+                      <td className="tabular">{formatCount(source.jobCount)}</td>
+                      <td>{formatDateTime(source.lastIngestedAt)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </AsyncPanel>
+      </Card>
     </>
   );
 }
+
+const SOURCE_TYPE: Record<string, string> = {
+  FILE_JSON: 'JSON file',
+  FILE_CSV: 'CSV file',
+  API: 'API',
+  OTHER: 'Other',
+};
 
 function LatestRun({ run }: { run: EtlRun }) {
   return (
@@ -142,6 +194,7 @@ function LatestRun({ run }: { run: EtlRun }) {
         <OutcomeBadge outcome={run.outcome} />
         <strong>{run.jobName}</strong>
         <span className="muted">Execution #{run.executionId}</span>
+        {run.feedName && <span className="muted">Feed {run.feedName}</span>}
         <span className="muted">Started {formatDateTime(run.startTime)}</span>
         <span className="muted">
           {run.endTime ? `Ended ${formatDateTime(run.endTime)}` : run.outcome === 'RUNNING' ? 'Still running' : 'No end time recorded'}
@@ -162,6 +215,15 @@ function LatestRun({ run }: { run: EtlRun }) {
         <StatCard label="Duplicates" value={run.duplicates ?? null} hint="Already loaded, skipped" />
         <StatCard label="Rejected" value={run.rejected} hint="Failed validation" />
       </div>
+
+      {run.sources && run.sources.length > 0 && (
+        <p className="muted" style={{ margin: 0 }}>
+          By source:{' '}
+          {run.sources
+            .map((source) => `${source.name}: ${formatCount(source.recordsLoaded)} new, ${formatCount(source.recordsSeenAgain)} seen again`)
+            .join(' · ')}
+        </p>
+      )}
     </div>
   );
 }

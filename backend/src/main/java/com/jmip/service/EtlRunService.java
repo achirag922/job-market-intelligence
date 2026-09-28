@@ -43,19 +43,32 @@ public class EtlRunService {
         long total = etlRunRepository.countRuns(job);
         List<EtlRunResponse> content = total == 0
                 ? List.of()
-                : etlRunRepository.findRuns(job, size, (long) page * size).stream().map(this::toResponse).toList();
+                : withSources(etlRunRepository.findRuns(job, size, (long) page * size));
         return PagedResponse.of(new PageImpl<>(content, PageRequest.of(page, size), total));
     }
 
     /** @throws ResourceNotFoundException when no ETL run has ever been recorded */
     public EtlRunResponse latest(String jobName) {
-        return etlRunRepository.findRuns(normalise(jobName), 1, 0).stream()
+        return withSources(etlRunRepository.findRuns(normalise(jobName), 1, 0)).stream()
                 .findFirst()
-                .map(this::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("No ETL run has been recorded yet"));
     }
 
+    /** V8.1: each run with the sources it met, read in one query for the whole list. */
+    private List<EtlRunResponse> withSources(List<EtlRunRow> rows) {
+        java.util.Map<Long, List<EtlRunResponse.Source>> byRun = new java.util.HashMap<>();
+        for (EtlRunRow.SourceCount count : etlRunRepository.findSources(rows.stream().map(EtlRunRow::executionId).toList())) {
+            byRun.computeIfAbsent(count.executionId(), id -> new java.util.ArrayList<>()).add(new EtlRunResponse.Source(
+                    count.sourceId(), count.code(), count.name(), count.recordsLoaded(), count.recordsSeenAgain()));
+        }
+        return rows.stream().map(row -> toResponse(row, byRun.getOrDefault(row.executionId(), List.of()))).toList();
+    }
+
     EtlRunResponse toResponse(EtlRunRow row) {
+        return toResponse(row, List.of());
+    }
+
+    EtlRunResponse toResponse(EtlRunRow row, List<EtlRunResponse.Source> sources) {
         EtlRunOutcome outcome = EtlRunOutcome.fromBatchStatus(row.status());
         return new EtlRunResponse(
                 row.executionId(),
@@ -73,7 +86,10 @@ public class EtlRunService {
                 row.writeCount(),
                 row.recordsLoaded(),
                 row.duplicates(),
-                row.skipCount());
+                row.skipCount(),
+                row.feedName(),
+                row.feedType(),
+                sources);
     }
 
     /**

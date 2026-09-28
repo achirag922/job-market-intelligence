@@ -32,7 +32,7 @@ public class EtlRunRepository {
                    coalesce(sum(s.read_count), 0) AS read_count,
                    coalesce(sum(s.write_count), 0) AS write_count,
                    coalesce(sum(s.read_skip_count + s.process_skip_count + s.write_skip_count), 0) AS skip_count,
-                   m.records_loaded, m.duplicates_skipped
+                   m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type
               FROM batch_job_execution e
               JOIN batch_job_instance i ON i.job_instance_id = e.job_instance_id
               LEFT JOIN batch_step_execution s ON s.job_execution_id = e.job_execution_id
@@ -40,7 +40,7 @@ public class EtlRunRepository {
             """.formatted(EXIT_MESSAGE_LIMIT);
 
     private static final String GROUP_AND_ORDER = """
-             GROUP BY e.job_execution_id, i.job_name, m.records_loaded, m.duplicates_skipped
+             GROUP BY e.job_execution_id, i.job_name, m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type
              ORDER BY e.job_execution_id DESC
              LIMIT ? OFFSET ?
             """;
@@ -93,10 +93,27 @@ public class EtlRunRepository {
                 rs.getLong("write_count"),
                 rs.getLong("skip_count"),
                 rs.getObject("records_loaded", Long.class),
-                rs.getObject("duplicates_skipped", Long.class));
+                rs.getObject("duplicates_skipped", Long.class),
+                rs.getString("feed_name"),
+                rs.getString("feed_type"));
     }
 
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toLocalDateTime();
+    }
+
+    /** V8.1: the sources each of these runs met, in one query for the whole page. */
+    public java.util.List<EtlRunRow.SourceCount> findSources(java.util.Collection<Long> executionIds) {
+        if (executionIds.isEmpty()) {
+            return java.util.List.of();
+        }
+        String placeholders = String.join(", ", java.util.Collections.nCopies(executionIds.size(), "?"));
+        return jdbcTemplate.query("""
+                SELECT rs.job_execution_id, s.id, s.code, s.name, rs.records_loaded, rs.records_seen_again
+                  FROM etl_run_sources rs JOIN job_sources s ON s.id = rs.source_id
+                 WHERE rs.job_execution_id IN (%s)
+                 ORDER BY rs.job_execution_id DESC, s.code
+                """.formatted(placeholders), (rs, row) -> new EtlRunRow.SourceCount(rs.getLong(1), rs.getLong(2),
+                rs.getString(3), rs.getString(4), rs.getLong(5), rs.getLong(6)), executionIds.toArray());
     }
 }

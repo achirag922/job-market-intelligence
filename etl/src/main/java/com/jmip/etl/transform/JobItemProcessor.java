@@ -1,6 +1,7 @@
 package com.jmip.etl.transform;
 
 import com.jmip.etl.model.JobClassification;
+import com.jmip.etl.load.JobSourceStatus;
 import com.jmip.etl.model.TransformedJob;
 import com.jmip.etl.raw.RawJobRecord;
 import com.jmip.etl.transform.ExperienceParser.ExperienceRange;
@@ -46,6 +47,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
     private final ExperienceParser experienceParser;
     private final SalaryParser salaryParser;
     private final EmploymentTypeNormalizer employmentTypeNormalizer;
+    /** V8.1: an inactive source's records are rejected, like any record that cannot be loaded. */
+    private final JobSourceStatus sourceStatus;
     private final SkillExtractor skillExtractor;
     private final JobDescriptionProcessor jobDescriptionProcessor;
     private final JobClassifier jobClassifier;
@@ -62,6 +65,23 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                             JobClassifier jobClassifier,
                             ContentFingerprint contentFingerprint,
                             JobValidator jobValidator) {
+        this(textNormalizer, locationParser, experienceParser, salaryParser, employmentTypeNormalizer, skillExtractor,
+                jobDescriptionProcessor, jobClassifier, contentFingerprint, jobValidator, JobSourceStatus.ALL_ACTIVE);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JobItemProcessor(TextNormalizer textNormalizer,
+                            LocationParser locationParser,
+                            ExperienceParser experienceParser,
+                            SalaryParser salaryParser,
+                            EmploymentTypeNormalizer employmentTypeNormalizer,
+                            SkillExtractor skillExtractor,
+                            JobDescriptionProcessor jobDescriptionProcessor,
+                            JobClassifier jobClassifier,
+                            ContentFingerprint contentFingerprint,
+                            JobValidator jobValidator,
+                            JobSourceStatus sourceStatus) {
+        this.sourceStatus = sourceStatus;
         this.textNormalizer = textNormalizer;
         this.locationParser = locationParser;
         this.experienceParser = experienceParser;
@@ -117,6 +137,9 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
 
         List<String> reasons = new ArrayList<>(parseFailures);
         reasons.addAll(jobValidator.validate(job));
+        if (job.source() != null && !sourceStatus.isActive(job.source())) {
+            reasons.add("source '" + job.source() + "' is inactive");
+        }
         if (!reasons.isEmpty()) {
             log.debug("Rejecting record '{}': {}", raw.title(), reasons);
             throw new RecordRejectedException(reasons);
@@ -136,7 +159,7 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                 job.city(), job.state(), job.country(), job.description(), job.employmentType(),
                 job.experienceMin(), job.experienceMax(), job.salaryMin(), job.salaryMax(),
                 job.currency(), job.postedDate(), job.source(), job.sourceUrl(),
-                fingerprint, job.skills(), classification);
+                fingerprint, job.skills(), classification, textNormalizer.normalize(raw.sourceJobId()));
     }
 
     private ParsedLocation parseLocation(RawJobRecord raw, List<String> failures) {

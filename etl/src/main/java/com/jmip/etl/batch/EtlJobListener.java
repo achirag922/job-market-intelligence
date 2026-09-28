@@ -2,6 +2,7 @@ package com.jmip.etl.batch;
 
 import com.jmip.etl.load.EtlMetrics;
 import com.jmip.etl.load.EtlRunMetricsRepository;
+import com.jmip.etl.load.JobSourceRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -25,10 +26,12 @@ public class EtlJobListener implements JobExecutionListener {
 
     private final EtlMetrics metrics;
     private final EtlRunMetricsRepository runMetricsRepository;
+    private final JobSourceRegistry sources;
 
-    public EtlJobListener(EtlMetrics metrics, EtlRunMetricsRepository runMetricsRepository) {
+    public EtlJobListener(EtlMetrics metrics, EtlRunMetricsRepository runMetricsRepository, JobSourceRegistry sources) {
         this.metrics = metrics;
         this.runMetricsRepository = runMetricsRepository;
+        this.sources = sources;
     }
 
     @Override
@@ -36,6 +39,8 @@ public class EtlJobListener implements JobExecutionListener {
         metrics.reset();
         // V7.8: every log line of this run carries its execution id (structured logs in prod).
         MDC.put(MDC_JOB_EXECUTION_ID, String.valueOf(jobExecution.getId()));
+        // V8.1: which feed this run reads; its sources are registered as their records arrive.
+        sources.beginRun(jobExecution.getId(), jobExecution.getJobParameters().getString("inputFile"));
         log.info("ETL job '{}' started (execution {}), parameters: {}",
                 jobExecution.getJobInstance().getJobName(),
                 jobExecution.getId(),
@@ -100,7 +105,8 @@ public class EtlJobListener implements JobExecutionListener {
      */
     private void persistRunMetrics(JobExecution jobExecution) {
         try {
-            runMetricsRepository.save(jobExecution.getId(), metrics);
+            runMetricsRepository.save(jobExecution.getId(), metrics, sources.feedName(), sources.feedType());
+            sources.finishRun();
         } catch (RuntimeException exception) {
             log.warn("Could not record run metrics for execution {}", jobExecution.getId(), exception);
         }

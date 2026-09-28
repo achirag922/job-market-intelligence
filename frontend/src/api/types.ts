@@ -476,6 +476,48 @@ export interface EtlRun {
   recordsLoaded?: number;
   duplicates?: number;
   rejected: number;
+  /** V8.1: the feed's file name (never its path) and format; absent for older runs. */
+  feedName?: string;
+  feedType?: string;
+  /** V8.1: what the run did with each source it met. */
+  sources?: EtlRunSource[];
+}
+
+export interface EtlRunSource {
+  sourceId: number;
+  code: string;
+  name: string;
+  recordsLoaded: number;
+  recordsSeenAgain: number;
+}
+
+// ---------------------------------------------------------------- V8.1: job sources
+
+export type JobSourceType = 'FILE_JSON' | 'FILE_CSV' | 'API' | 'OTHER';
+
+/** Where postings come from. Read-only: the ETL registers sources. */
+export interface JobSource {
+  id: number;
+  code: string;
+  name: string;
+  sourceType: JobSourceType;
+  active: boolean;
+  createdAt: string;
+  lastIngestedAt?: string;
+  lastRunExecutionId?: number;
+  jobCount: number;
+  /** Only on the detail view. */
+  recentRuns?: JobSourceRun[];
+}
+
+export interface JobSourceRun {
+  executionId: number;
+  batchStatus: string;
+  startTime?: string;
+  endTime?: string;
+  feedName?: string;
+  recordsLoaded: number;
+  recordsSeenAgain: number;
 }
 
 // ---------------------------------------------------------------- V6.10.2: accounts

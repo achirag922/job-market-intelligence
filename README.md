@@ -213,6 +213,7 @@ etl/data
 - [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
 - [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
 - [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
+- [x] V8.1 — job sources: `job_sources` registry, per-posting source/first seen/last seen/run id/source job id, inactive sources rejected, per-run source counts in ETL monitoring, read-only `/api/job-sources`
 
 ## API
 
@@ -768,6 +769,30 @@ a 404.
 ```bash
 curl -u "metrics:$JMIP_METRICS_PASSWORD" "http://localhost:8080/actuator/metrics/http.server.requests?tag=outcome:SERVER_ERROR"
 ```
+
+### Job sources (V8.1)
+
+Every posting belongs to a **job source**, keyed by the `source` label its record carries
+(`jobs.source`). The ETL registers a source the first time it meets it, typed by the feed
+(`FILE_JSON`, `FILE_CSV`; `API` is reserved for future connectors). A database trigger links
+postings inserted by any other path, so `jobs.source_id` is never empty.
+
+Each posting records `source_job_id` (the feed's own id: JSON `source_job_id`, CSV
+`sourceJobId`/`jobId`/`externalId`/`postingId`, unique per source), `first_seen_at`,
+`last_seen_at` and `last_seen_run_id`. A posting met again by a later run keeps its first-seen time
+and has its last-seen time and run updated. Records from a source set inactive
+(`UPDATE job_sources SET active = false WHERE code = '...'`) are rejected with the reason
+`source '...' is inactive`.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/job-sources` | All sources: code, name, type, active, created, last ingested, last run, posting count |
+| GET | `/api/job-sources/{id}` | One source with its 10 latest runs (Spring Batch status, times, feed name, loaded, seen again) |
+
+Both are read-only and signed-in only; nothing in the API changes what is ingested. ETL runs
+(`/api/etl/runs`, `/api/etl/runs/latest`) now also show `feedName` (file name only, never the path),
+`feedType` and `sources` (new and seen-again postings per source). The ETL logs one
+`etl.sources` line per run.
 
 ### Backup and recovery
 

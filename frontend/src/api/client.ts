@@ -5,6 +5,7 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  JobSource,
   JobAlert,
   JobAlertInput,
   ApplicationStatus,
@@ -432,6 +433,12 @@ export const api = {
 
   /** 404 when the ETL has never run. */
   latestEtlRun: () => request<EtlRun>('/api/etl/runs/latest'),
+
+  /** V8.1: the sources postings are ingested from, by code. */
+  jobSources: () => request<JobSource[]>('/api/job-sources'),
+
+  /** One source with the latest runs that met it. */
+  jobSource: (id: number) => request<JobSource>(`/api/job-sources/${id}`),
 
   resumeMatch: (resumeId: string, jobId: number) =>
     request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),
