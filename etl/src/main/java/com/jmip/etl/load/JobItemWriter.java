@@ -14,12 +14,16 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Types;
+import java.time.Clock;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Writes one chunk of postings, together with the reference rows and skill links they
@@ -29,9 +33,11 @@ import java.util.Map;
  * place that can answer the question correctly under concurrency. Three layers apply:
  *
  * <ol>
- *   <li>Records repeated <em>within</em> the chunk are collapsed by fingerprint in memory.</li>
- *   <li>Records already present from an earlier chunk or an earlier run are found by a
- *       single lookup on {@code content_fingerprint}.</li>
+ *   <li>Records repeated <em>within</em> the chunk are collapsed in memory.</li>
+ *   <li>Records already present from an earlier chunk or an earlier run are found by their
+ *       identity keys (V8.2): the source's own job id first, then the source URL, then
+ *       {@code content_fingerprint}. A match updates the existing job's last-seen metadata
+ *       instead of creating a row.</li>
  *   <li>Anything that still races through is stopped by {@code ON CONFLICT DO NOTHING},
  *       which also covers the separate {@code (source, source_url)} unique index.</li>
  * </ol>
@@ -52,8 +58,8 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
                               experience_min, experience_max, salary_min, salary_max, currency,
                               posted_date, source, source_url, content_fingerprint,
                               job_category, classification_confidence, classified_at,
-                              source_job_id, last_seen_run_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              source_job_id, last_seen_run_id, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT DO NOTHING
             """;
 
@@ -66,13 +72,17 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             INSERT INTO job_skills (job_id, skill_id) VALUES (?, ?) ON CONFLICT DO NOTHING
             """;
 
+    private static final String FINGERPRINT_KEY = "fp\u0000";
+
     private final JdbcTemplate jdbcTemplate;
     private final ReferenceDataCache referenceData;
     private final EtlMetrics metrics;
     private final JobSourceRegistry sources;
+    private final Clock clock;
 
     public JobItemWriter(JdbcTemplate jdbcTemplate, ReferenceDataCache referenceData, EtlMetrics metrics,
-                         JobSourceRegistry sources) {
+                         JobSourceRegistry sources, Clock clock) {
+        this.clock = clock;
         this.jdbcTemplate = jdbcTemplate;
         this.referenceData = referenceData;
         this.metrics = metrics;
@@ -86,86 +96,192 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             return;
         }
 
-        // Layer 1: collapse repeats inside this chunk, keeping the first occurrence.
-        Map<String, TransformedJob> byFingerprint = new LinkedHashMap<>();
+        // Layer 1: collapse repeats inside this chunk, keeping the first occurrence. V8.2: a
+        // record repeats another when it shares any of its identity keys.
+        List<TransformedJob> unique = new ArrayList<>();
+        Set<String> keysSeen = new HashSet<>();
         for (TransformedJob job : items) {
-            byFingerprint.putIfAbsent(job.contentFingerprint(), job);
+            List<String> keys = identityKeys(job);
+            if (keys.stream().noneMatch(keysSeen::contains)) {
+                unique.add(job);
+            }
+            keysSeen.addAll(keys);
         }
-        int repeatsWithinChunk = items.size() - byFingerprint.size();
+        int repeatsWithinChunk = items.size() - unique.size();
 
-        referenceData.ensureFor(byFingerprint.values());
+        referenceData.ensureFor(unique);
 
         // Layer 2: which of these already exist?
-        Map<String, Long> existing = findExistingJobIds(byFingerprint.keySet());
-        List<TransformedJob> toInsert = byFingerprint.values().stream()
-                .filter(job -> !existing.containsKey(job.contentFingerprint()))
-                .toList();
+        Map<String, Long> before = findExistingJobIds(unique);
+        List<TransformedJob> toInsert = unique.stream().filter(job -> resolve(job, before) == null).toList();
 
         if (!toInsert.isEmpty()) {
             insertJobs(toInsert);
         }
 
         // Re-read so that rows just written, and any stopped by layer 3, are accounted for.
-        Map<String, Long> jobIds = findExistingJobIds(byFingerprint.keySet());
+        Map<String, Long> after = toInsert.isEmpty() ? before : findExistingJobIds(unique);
+        Set<Long> existingIds = new HashSet<>(before.values());
+        Map<String, Long> jobIds = new HashMap<>();
+        List<TransformedJob> seenAgain = new ArrayList<>();
+        List<TransformedJob> inserted = new ArrayList<>();
+        for (TransformedJob job : unique) {
+            Long id = resolve(job, after);
+            if (id == null) {
+                continue;
+            }
+            jobIds.put(job.contentFingerprint(), id);
+            if (resolve(job, before) != null) {
+                seenAgain.add(job);
+            } else if (!existingIds.contains(id)) {
+                inserted.add(job);
+            }
+        }
 
-        long loaded = jobIds.size() - existing.size();
+        long loaded = inserted.size();
         long duplicates = items.size() - loaded;
         metrics.recordJobsLoaded(loaded);
         metrics.recordDuplicates(duplicates);
-        recordSeen(byFingerprint.values(), existing, jobIds);
+        recordSeen(inserted, seenAgain, jobIds);
+        updateStatus(unique, seenAgain, jobIds);
 
-        int blockedBySourceUrl = toInsert.size() - (int) loaded;
-        if (blockedBySourceUrl > 0) {
-            log.debug("{} records in this chunk were rejected by the (source, source_url) unique index",
-                    blockedBySourceUrl);
+        int blockedByUniqueIndex = toInsert.size() - (int) loaded;
+        if (blockedByUniqueIndex > 0) {
+            log.debug("{} records in this chunk were stopped by a unique index", blockedByUniqueIndex);
         }
         if (repeatsWithinChunk > 0) {
             log.debug("{} records in this chunk repeated another record in the same chunk", repeatsWithinChunk);
         }
 
-        linkSkills(byFingerprint.values(), jobIds);
-        linkClassificationSignals(byFingerprint.values(), jobIds);
+        linkSkills(unique, jobIds);
+        linkClassificationSignals(unique, jobIds);
+    }
+
+    /**
+     * V8.2: the keys that identify a posting, strongest first: the source's own job id, then
+     * the source's URL, then the content fingerprint (normalised title, company, location and
+     * posted date, so a shared title alone never makes two postings the same).
+     */
+    private static List<String> identityKeys(TransformedJob job) {
+        List<String> keys = new ArrayList<>(3);
+        if (job.sourceJobId() != null) {
+            keys.add(sourceJobKey(job.source(), job.sourceJobId()));
+        }
+        if (job.sourceUrl() != null) {
+            keys.add(sourceUrlKey(job.source(), job.sourceUrl()));
+        }
+        keys.add(FINGERPRINT_KEY + job.contentFingerprint());
+        return keys;
+    }
+
+    /** The existing job this posting is, by its strongest key that matches; null when new. */
+    private static Long resolve(TransformedJob job, Map<String, Long> idsByKey) {
+        for (String key : identityKeys(job)) {
+            Long id = idsByKey.get(key);
+            if (id != null) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    private static String sourceJobKey(String source, String sourceJobId) {
+        return "id\u0000" + source + "\u0000" + sourceJobId;
+    }
+
+    private static String sourceUrlKey(String source, String sourceUrl) {
+        return "url\u0000" + source + "\u0000" + sourceUrl;
     }
 
     /**
      * V8.1: postings that were already loaded are marked as seen by this run, and each source's
-     * new and repeated postings are counted.
+     * new and repeated postings are counted. V8.2: a later expiry date from the source is kept.
      */
-    private void recordSeen(java.util.Collection<TransformedJob> jobs, Map<String, Long> existing,
-                            Map<String, Long> jobIds) {
+    private void recordSeen(List<TransformedJob> inserted, List<TransformedJob> seenAgain, Map<String, Long> jobIds) {
         Map<String, Long> newRows = new HashMap<>();
         Map<String, Long> again = new HashMap<>();
-        for (TransformedJob job : jobs) {
-            String fingerprint = job.contentFingerprint();
-            if (existing.containsKey(fingerprint)) {
-                again.merge(job.source(), 1L, Long::sum);
-            } else if (jobIds.containsKey(fingerprint)) {
-                newRows.merge(job.source(), 1L, Long::sum);
-            }
-        }
+        inserted.forEach(job -> newRows.merge(job.source(), 1L, Long::sum));
+        seenAgain.forEach(job -> again.merge(job.source(), 1L, Long::sum));
         newRows.forEach(sources::recordLoaded);
         again.forEach(sources::recordSeenAgain);
-        if (existing.isEmpty()) {
+        if (seenAgain.isEmpty()) {
             return;
         }
-        List<Object> args = new ArrayList<>();
-        args.add(sources.runId());
-        args.addAll(existing.values());
-        jdbcTemplate.update("UPDATE jobs SET last_seen_at = now(), last_seen_run_id = ? WHERE id IN ("
-                + String.join(", ", Collections.nCopies(existing.size(), "?")) + ")", args.toArray());
+        Long runId = sources.runId();
+        jdbcTemplate.batchUpdate("""
+                UPDATE jobs SET last_seen_at = now(), last_seen_run_id = ?, expires_at = COALESCE(?, expires_at)
+                 WHERE id = ?
+                """, seenAgain, seenAgain.size(), (PreparedStatement ps, TransformedJob job) -> {
+            setLong(ps, 1, runId);
+            setDate(ps, 2, job.expiresAt());
+            ps.setLong(3, jobIds.get(job.contentFingerprint()));
+        });
     }
 
-    private Map<String, Long> findExistingJobIds(java.util.Collection<String> fingerprints) {
-        if (fingerprints.isEmpty()) {
-            return Map.of();
+    /**
+     * V8.2: a posting its source marks closed becomes inactive (counted as expired); one the
+     * source lists as open again is reactivated, unless its expiry date has passed.
+     */
+    private void updateStatus(List<TransformedJob> jobs, List<TransformedJob> seenAgain, Map<String, Long> jobIds) {
+        List<Long> closed = jobs.stream().filter(TransformedJob::closed)
+                .map(job -> jobIds.get(job.contentFingerprint())).filter(java.util.Objects::nonNull).toList();
+        if (!closed.isEmpty()) {
+            metrics.recordExpired(jdbcTemplate.update("UPDATE jobs SET active = FALSE, deactivated_at = now() "
+                    + "WHERE active AND id IN (" + placeholders(closed.size()) + ")", closed.toArray()));
         }
-        String sql = "SELECT id, content_fingerprint FROM jobs WHERE content_fingerprint IN ("
-                + String.join(", ", Collections.nCopies(fingerprints.size(), "?")) + ")";
+        List<Object> reopened = new ArrayList<>();
+        reopened.add(Date.valueOf(LocalDate.now(clock)));
+        seenAgain.stream().filter(job -> !job.closed()).forEach(job -> reopened.add(jobIds.get(job.contentFingerprint())));
+        if (reopened.size() > 1) {
+            jdbcTemplate.update("UPDATE jobs SET active = TRUE, deactivated_at = NULL "
+                    + "WHERE NOT active AND (expires_at IS NULL OR expires_at >= ?) AND id IN ("
+                    + placeholders(reopened.size() - 1) + ")", reopened.toArray());
+        }
+    }
+
+    /** Existing job ids by identity key, one indexed query per kind of key. */
+    private Map<String, Long> findExistingJobIds(List<TransformedJob> jobs) {
         Map<String, Long> found = new HashMap<>();
-        jdbcTemplate.query(sql,
-                (RowCallbackHandler) rs -> found.put(rs.getString("content_fingerprint"), rs.getLong("id")),
+        List<Object> fingerprints = new ArrayList<>();
+        List<Object> byJobId = new ArrayList<>();
+        List<Object> byUrl = new ArrayList<>();
+        for (TransformedJob job : jobs) {
+            fingerprints.add(job.contentFingerprint());
+            if (job.sourceJobId() != null) {
+                byJobId.add(job.source());
+                byJobId.add(job.sourceJobId());
+            }
+            if (job.sourceUrl() != null) {
+                byUrl.add(job.source());
+                byUrl.add(job.sourceUrl());
+            }
+        }
+        if (!byJobId.isEmpty()) {
+            jdbcTemplate.query("SELECT j.id, v.code, v.key FROM (VALUES " + pairs(byJobId.size() / 2) + ") AS v(code, key) "
+                            + "JOIN job_sources s ON s.code = v.code "
+                            + "JOIN jobs j ON j.source_id = s.id AND j.source_job_id = v.key WHERE j.source_job_id IS NOT NULL",
+                    (RowCallbackHandler) rs -> found.put(sourceJobKey(rs.getString(2), rs.getString(3)), rs.getLong(1)),
+                    byJobId.toArray());
+        }
+        if (!byUrl.isEmpty()) {
+            jdbcTemplate.query("SELECT j.id, v.code, v.key FROM (VALUES " + pairs(byUrl.size() / 2) + ") AS v(code, key) "
+                            + "JOIN jobs j ON j.source = v.code AND j.source_url = v.key WHERE j.source_url IS NOT NULL",
+                    (RowCallbackHandler) rs -> found.put(sourceUrlKey(rs.getString(2), rs.getString(3)), rs.getLong(1)),
+                    byUrl.toArray());
+        }
+        jdbcTemplate.query("SELECT id, content_fingerprint FROM jobs WHERE content_fingerprint IN ("
+                        + placeholders(fingerprints.size()) + ")",
+                (RowCallbackHandler) rs -> found.put(FINGERPRINT_KEY + rs.getString(2), rs.getLong(1)),
                 fingerprints.toArray());
         return found;
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", Collections.nCopies(count, "?"));
+    }
+
+    private static String pairs(int count) {
+        return String.join(", ", Collections.nCopies(count, "(?, ?)"));
     }
 
     private void insertJobs(List<TransformedJob> jobs) {
@@ -201,6 +317,7 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             }
             ps.setString(18, job.sourceJobId());
             setLong(ps, 19, sources.runId());
+            setDate(ps, 20, job.expiresAt());
         });
     }
 
@@ -273,6 +390,14 @@ public class JobItemWriter implements ItemWriter<TransformedJob> {
             ps.setNull(index, Types.BIGINT);
         } else {
             ps.setLong(index, value);
+        }
+    }
+
+    private static void setDate(PreparedStatement ps, int index, LocalDate value) throws java.sql.SQLException {
+        if (value == null) {
+            ps.setNull(index, Types.DATE);
+        } else {
+            ps.setDate(index, Date.valueOf(value));
         }
     }
 

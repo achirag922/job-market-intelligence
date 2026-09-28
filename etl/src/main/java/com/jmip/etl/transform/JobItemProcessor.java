@@ -42,6 +42,10 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
             DateTimeFormatter.ofPattern("dd-MM-yyyy"),
             DateTimeFormatter.ofPattern("yyyy/MM/dd"));
 
+    /** V8.2: the status words sources use. Anything else is unreadable, and rejected. */
+    private static final Set<String> CLOSED_STATUSES = Set.of("closed", "expired", "filled", "inactive", "false");
+    private static final Set<String> OPEN_STATUSES = Set.of("open", "active", "live", "true");
+
     private final TextNormalizer textNormalizer;
     private final LocationParser locationParser;
     private final ExperienceParser experienceParser;
@@ -109,7 +113,9 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
         ParsedLocation location = parseLocation(raw, parseFailures);
         ExperienceRange experience = parseExperience(raw, parseFailures);
         SalaryRange salary = parseSalary(raw, parseFailures);
-        LocalDate postedDate = parsePostedDate(raw, parseFailures);
+        LocalDate postedDate = parseDate(raw.postedDate(), "posted date", parseFailures);
+        LocalDate expiresAt = parseDate(raw.expiresAt(), "expiry date", parseFailures);
+        boolean closed = parseClosed(raw.status(), parseFailures);
 
         Set<String> skills = skillExtractor.extract(title, processedDescription);
 
@@ -133,7 +139,10 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                 textNormalizer.normalize(raw.sourceUrl()),
                 null,
                 skills,
-                null);
+                null,
+                null,
+                expiresAt,
+                closed);
 
         List<String> reasons = new ArrayList<>(parseFailures);
         reasons.addAll(jobValidator.validate(job));
@@ -159,7 +168,8 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                 job.city(), job.state(), job.country(), job.description(), job.employmentType(),
                 job.experienceMin(), job.experienceMax(), job.salaryMin(), job.salaryMax(),
                 job.currency(), job.postedDate(), job.source(), job.sourceUrl(),
-                fingerprint, job.skills(), classification, textNormalizer.normalize(raw.sourceJobId()));
+                fingerprint, job.skills(), classification, textNormalizer.normalize(raw.sourceJobId()),
+                job.expiresAt(), job.closed());
     }
 
     private ParsedLocation parseLocation(RawJobRecord raw, List<String> failures) {
@@ -189,8 +199,24 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
         }
     }
 
-    private LocalDate parsePostedDate(RawJobRecord raw, List<String> failures) {
-        String value = textNormalizer.normalize(raw.postedDate());
+    /** Whether the source marked the posting closed; no status means open. */
+    private boolean parseClosed(String rawStatus, List<String> failures) {
+        String value = textNormalizer.normalize(rawStatus);
+        if (value == null) {
+            return false;
+        }
+        String status = value.toLowerCase(java.util.Locale.ROOT);
+        if (CLOSED_STATUSES.contains(status)) {
+            return true;
+        }
+        if (!OPEN_STATUSES.contains(status)) {
+            failures.add("invalid status: '" + value + "'");
+        }
+        return false;
+    }
+
+    private LocalDate parseDate(String rawValue, String label, List<String> failures) {
+        String value = textNormalizer.normalize(rawValue);
         if (value == null) {
             return null;
         }
@@ -201,7 +227,7 @@ public class JobItemProcessor implements ItemProcessor<RawJobRecord, Transformed
                 // Try the next format.
             }
         }
-        failures.add("invalid date: unrecognised posted date '" + value + "'");
+        failures.add("invalid date: unrecognised " + label + " '" + value + "'");
         return null;
     }
 }

@@ -89,7 +89,8 @@ public class EtlRunService {
                 row.skipCount(),
                 row.feedName(),
                 row.feedType(),
-                sources);
+                sources,
+                row.expired());
     }
 
     /**

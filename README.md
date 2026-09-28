@@ -214,6 +214,7 @@ etl/data
 - [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
 - [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
 - [x] V8.1 — job sources: `job_sources` registry, per-posting source/first seen/last seen/run id/source job id, inactive sources rejected, per-run source counts in ETL monitoring, read-only `/api/job-sources`
+- [x] V8.2 — deduplication and data quality: match by source job id, then source URL, then content fingerprint (updating last seen); expiry dates and source status (`expires_at`, `active`, never deleted); expired count in ETL monitoring
 
 ## API
 
@@ -793,6 +794,26 @@ Both are read-only and signed-in only; nothing in the API changes what is ingest
 (`/api/etl/runs`, `/api/etl/runs/latest`) now also show `feedName` (file name only, never the path),
 `feedType` and `sources` (new and seen-again postings per source). The ETL logs one
 `etl.sources` line per run.
+
+### Deduplication and job status (V8.2)
+
+A record is the same posting as an existing job when, in this order, it has the same
+**source job id** in the same source, the same **source URL** in the same source, or the same
+**content fingerprint** (normalised title, company, location and posted date; a shared title
+alone is never a duplicate). A match creates no row: it updates the job's `last_seen_at`,
+`last_seen_run_id` and, when the source gives one, `expires_at`, and counts as a duplicate.
+
+Required fields are title, company, description and source; missing optional fields are
+fine. A present but unreadable value (date, salary, status) or an expiry date before the
+posted date rejects the record with that reason in `etl_rejected_record`.
+
+Feeds may give an expiry date (JSON `expires_at`; CSV `expiresAt`/`expiryDate`/`validThrough`/`closingDate`)
+and a status (JSON `status`; CSV `status`/`jobStatus`: open, active, live, true / closed, expired,
+filled, inactive, false). At the end of every run, jobs past their expiry date are marked
+`active = false`. A posting its source marks closed is marked inactive at once, and becomes active
+again if the source lists it as open later. Only these source-given signals count: a posting
+missing from one feed is not treated as closed. Jobs are never deleted, and job search is unchanged.
+ETL runs report the count as `expired` next to read, valid (processed), loaded, duplicates and rejected.
 
 ### Backup and recovery
 

@@ -129,6 +129,7 @@ class JobSourceIntegrationTest {
         mockMvc.perform(get("/api/etl/runs"))
                 .andExpect(jsonPath("$.content[0].feedName").value("two-boards.csv"))
                 .andExpect(jsonPath("$.content[0].feedType").value("FILE_CSV"))
+                .andExpect(jsonPath("$.content[0].expired").value(0))
                 .andExpect(jsonPath("$.content[0].sources[*].code", contains("board-a", "board-b")))
                 .andExpect(jsonPath("$.content[0].sources[0].recordsLoaded").value(2));
         mockMvc.perform(get("/api/etl/runs/latest"))

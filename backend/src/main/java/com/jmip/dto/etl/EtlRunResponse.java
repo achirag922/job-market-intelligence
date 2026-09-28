@@ -48,7 +48,9 @@ public record EtlRunResponse(
         // V8.1: which feed the run read and which sources it met.
         String feedName,
         String feedType,
-        java.util.List<Source> sources) {
+        java.util.List<Source> sources,
+        // V8.2: jobs the run marked inactive because they expired or their source closed them.
+        Long expired) {
 
     /** What the run did with one source. */
     public record Source(long sourceId, String code, String name, long recordsLoaded, long recordsSeenAgain) {

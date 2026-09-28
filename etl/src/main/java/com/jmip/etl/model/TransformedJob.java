@@ -36,7 +36,10 @@ public record TransformedJob(
         Set<String> skills,
         JobClassification classification,
         // V8.1: the source's own id for the posting, when it gives one.
-        String sourceJobId) {
+        String sourceJobId,
+        // V8.2: when the source says it closes, and whether the source marked it closed.
+        LocalDate expiresAt,
+        boolean closed) {
 
     /** A posting whose source gives no id of its own. */
     public TransformedJob(String title, String companyName, String companyIndustry, String companyWebsite, String city,
@@ -46,7 +49,7 @@ public record TransformedJob(
                           Set<String> skills, JobClassification classification) {
         this(title, companyName, companyIndustry, companyWebsite, city, state, country, description, employmentType,
                 experienceMin, experienceMax, salaryMin, salaryMax, currency, postedDate, source, sourceUrl,
-                contentFingerprint, skills, classification, null);
+                contentFingerprint, skills, classification, null, null, false);
     }
 
     public boolean hasLocation() {

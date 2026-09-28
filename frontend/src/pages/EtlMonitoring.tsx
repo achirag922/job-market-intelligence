@@ -99,6 +99,7 @@ export function EtlMonitoring() {
                       <th scope="col" className="tabular">Loaded</th>
                       <th scope="col" className="tabular">Duplicates</th>
                       <th scope="col" className="tabular">Rejected</th>
+                      <th scope="col" className="tabular">Expired</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -117,6 +118,7 @@ export function EtlMonitoring() {
                         <td className="tabular">{formatCount(run.recordsLoaded)}</td>
                         <td className="tabular">{formatCount(run.duplicates)}</td>
                         <td className="tabular">{formatCount(run.rejected)}</td>
+                        <td className="tabular">{formatCount(run.expired)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -210,10 +212,11 @@ function LatestRun({ run }: { run: EtlRun }) {
       <div className="stat-grid">
         <StatCard label="Duration" value={formatDuration(run.durationMillis)} hint={run.outcome === 'RUNNING' ? 'So far' : undefined} />
         <StatCard label="Records read" value={run.recordsRead} hint="From the input file" />
-        <StatCard label="Records processed" value={run.recordsProcessed} hint="Read minus rejected" />
+        <StatCard label="Records processed" value={run.recordsProcessed} hint="Valid: read minus rejected" />
         <StatCard label="Records loaded" value={run.recordsLoaded ?? null} hint={run.recordsLoaded === undefined ? 'Recorded when the run ends' : 'Written to the database'} />
         <StatCard label="Duplicates" value={run.duplicates ?? null} hint="Already loaded, skipped" />
         <StatCard label="Rejected" value={run.rejected} hint="Failed validation" />
+        <StatCard label="Expired" value={run.expired ?? null} hint="Marked inactive, kept for history" />
       </div>
 
       {run.sources && run.sources.length > 0 && (

@@ -40,6 +40,8 @@ public class CsvJobRecordReader implements ItemStreamReader<RawJobRecord> {
             Map.entry("postedDate", List.of("posteddate", "datePosted", "publicationdate", "date")),
             Map.entry("source", List.of("source", "site", "board")),
             Map.entry("sourceJobId", List.of("sourcejobid", "jobid", "externalid", "postingid")),
+            Map.entry("expiresAt", List.of("expiresat", "expirydate", "expires", "validthrough", "closingdate")),
+            Map.entry("status", List.of("status", "jobstatus", "postingstatus")),
             Map.entry("sourceUrl", List.of("sourceurl", "url", "link", "joburl")));
 
     private final Path file;
@@ -97,7 +99,9 @@ public class CsvJobRecordReader implements ItemStreamReader<RawJobRecord> {
                 value(row, "postedDate"),
                 source == null ? defaultSource : source,
                 value(row, "sourceUrl"),
-                value(row, "sourceJobId"));
+                value(row, "sourceJobId"),
+                value(row, "expiresAt"),
+                value(row, "status"));
     }
 
     @Override

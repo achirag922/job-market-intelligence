@@ -21,13 +21,15 @@ public record EtlRunRow(
         Long duplicates,
         // V8.1: the feed the run read (file name only) and its format.
         String feedName,
-        String feedType) {
+        String feedType,
+        // V8.2: jobs the run marked expired or closed; null for runs recorded before V8.2 metrics.
+        Long expired) {
 
     public EtlRunRow(long executionId, String jobName, String status, String exitCode, String exitMessage,
                      LocalDateTime startTime, LocalDateTime endTime, long readCount, long writeCount, long skipCount,
                      Long recordsLoaded, Long duplicates) {
         this(executionId, jobName, status, exitCode, exitMessage, startTime, endTime, readCount, writeCount, skipCount,
-                recordsLoaded, duplicates, null, null);
+                recordsLoaded, duplicates, null, null, null);
     }
 
     /** What one run did with one source (V8.1). */

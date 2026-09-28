@@ -481,6 +481,8 @@ export interface EtlRun {
   feedType?: string;
   /** V8.1: what the run did with each source it met. */
   sources?: EtlRunSource[];
+  /** V8.2: jobs the run marked inactive (expired, or closed by their source). */
+  expired?: number;
 }
 
 export interface EtlRunSource {

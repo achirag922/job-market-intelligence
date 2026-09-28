@@ -35,6 +35,7 @@ function run(overrides: Partial<EtlRun> = {}): EtlRun {
     recordsLoaded: 1200,
     duplicates: 47,
     rejected: 3,
+    expired: 2,
     feedName: 'sample-jobs.json',
     feedType: 'FILE_JSON',
     sources: [{ sourceId: 1, code: 'board-a', name: 'board-a', recordsLoaded: 1200, recordsSeenAgain: 47 }],
@@ -145,6 +146,7 @@ describe('EtlMonitoring sources (V8.1)', () => {
 
     expect(await screen.findByText('Feed sample-jobs.json')).toBeInTheDocument();
     expect(screen.getByText(/board-a: 1\D?200 new, 47 seen again/)).toBeInTheDocument();
+    expect(screen.getByText('Marked inactive, kept for history')).toBeInTheDocument();
   });
 
   it('lists job sources with their type and status', async () => {
