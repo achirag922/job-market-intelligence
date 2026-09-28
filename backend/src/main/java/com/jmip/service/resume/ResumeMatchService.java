@@ -115,6 +115,21 @@ public class ResumeMatchService {
                 .toList();
     }
 
+    /**
+     * V8.5: the same comparison of one of the signed-in user's resumes against several jobs at
+     * once, by job id, in one detail query. Used by application intelligence.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, ResumeMatchResponse> matchJobs(UUID resumeId, java.util.Collection<Long> jobIds) {
+        if (jobIds.isEmpty()) {
+            return Map.of();
+        }
+        Resume resume = resumeService.requireCompletedResume(resumeId);
+        MatchPreferences preferences = preferencesOf(resume);
+        return jobRepository.findRecommendationDetailsByIdIn(jobIds).stream()
+                .collect(Collectors.toMap(Job::getId, job -> compare(resume, job, preferences)));
+    }
+
     /** The one V3 comparison implementation shared by direct matches and recommendations. */
     private ResumeMatchResponse compare(Resume resume, Job job, MatchPreferences preferences) {
 

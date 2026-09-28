@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  ApplicationAnalysis,
+  ApplicationInsights,
   JobSource,
   MatchPreferences,
   JobAlert,
@@ -497,6 +499,15 @@ export const api = {
     send<SavedJob>('PATCH', `/api/saved-jobs/${id}/status`, { status }),
 
   setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
+
+  /** V8.5: sets the follow-up date (YYYY-MM-DD) and reminder; null clears both. */
+  setSavedJobFollowUp: (id: string, followUpOn: string | null, note: string) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/follow-up`, { followUpOn, note }),
+
+  /** V8.5: every tracked job with its V8.3 match against the current resume. */
+  applications: () => request<ApplicationAnalysis[]>('/api/applications'),
+
+  applicationInsights: () => request<ApplicationInsights>('/api/applications/insights'),
 
   deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
 

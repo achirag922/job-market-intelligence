@@ -38,9 +38,12 @@ public class SavedJobService {
     private final JobMapper jobMapper;
     private final CurrentUser currentUser;
     private final Clock clock;
+    /** V8.5: every status a saved job reaches, for the application funnel. */
+    private final com.jmip.repository.ApplicationEventRepository events;
 
     public SavedJobService(SavedJobRepository repository, JobRepository jobRepository, JobMapper jobMapper,
-                           CurrentUser currentUser, Clock clock) {
+                           CurrentUser currentUser, Clock clock, com.jmip.repository.ApplicationEventRepository events) {
+        this.events = events;
         this.repository = repository;
         this.jobRepository = jobRepository;
         this.jobMapper = jobMapper;
@@ -71,6 +74,7 @@ public class SavedJobService {
         SavedJob saved = repository.findByUserIdAndJobId(ownerId, jobId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", jobId));
         if (created) {
+            events.record(saved.getId(), ownerId, ApplicationStatus.SAVED, saved.getSavedAt());
             log.info("Job {} saved as {}", jobId, saved.getId());
         }
         return new SaveResult(toResponse(saved), created);
@@ -94,7 +98,11 @@ public class SavedJobService {
     @Transactional
     public SavedJobResponse changeStatus(UUID id, ApplicationStatus status) {
         SavedJob saved = requireOwn(id);
-        saved.changeStatus(status, now());
+        if (saved.getStatus() != status) {
+            OffsetDateTime at = now();
+            saved.changeStatus(status, at);
+            events.record(saved.getId(), saved.getUserId(), status, at);
+        }
         return toResponse(saved);
     }
 
@@ -102,6 +110,14 @@ public class SavedJobService {
     public SavedJobResponse changeNotes(UUID id, String notes) {
         SavedJob saved = requireOwn(id);
         saved.changeNotes(notes, now());
+        return toResponse(saved);
+    }
+
+    /** V8.5: sets or clears the follow-up date and reminder. */
+    @Transactional
+    public SavedJobResponse changeFollowUp(UUID id, java.time.LocalDate on, String note) {
+        SavedJob saved = requireOwn(id);
+        saved.changeFollowUp(on, note, now());
         return toResponse(saved);
     }
 
@@ -118,7 +134,7 @@ public class SavedJobService {
     private SavedJobResponse toResponse(SavedJob saved) {
         // Skills are left out: the list shows the posting's identity, and the details page has the rest.
         return new SavedJobResponse(saved.getId(), jobMapper.toSummary(saved.getJob(), List.of()), saved.getStatus(),
-                saved.getNotes(), saved.getSavedAt(), saved.getAppliedAt(), saved.getUpdatedAt());
+                saved.getNotes(), saved.getSavedAt(), saved.getAppliedAt(), saved.getUpdatedAt(), saved.getFollowUpOn(), saved.getFollowUpNote());
     }
 
     private OffsetDateTime now() {

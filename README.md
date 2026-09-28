@@ -217,6 +217,7 @@ etl/data
 - [x] V8.2 — deduplication and data quality: match by source job id, then source URL, then content fingerprint (updating last seen); expiry dates and source status (`expires_at`, `active`, never deleted); expired count in ETL monitoring
 - [x] V8.3 — advanced job matching: overall match from skills plus experience, location, work mode and salary (match preferences, `/api/match-preferences`), per-dimension breakdown, recommendations ranked by it
 - [x] V8.4 — job alert digests: scheduled daily/weekly emails of new matching active jobs with match score and link, one record per alert and job (no repeats), delivery status with retries, emailed-jobs view on Job Alerts
+- [x] V8.5 — application intelligence: status history and follow-up dates (V20), per-application V8.3 match with matched/missing skills, funnel, monthly activity, averages and rankings, upcoming/overdue follow-ups on Saved Jobs
 
 ## API
 
@@ -859,6 +860,23 @@ alert stops its digests; resuming it starts from that moment. `GET /api/job-aler
 Delivery is `JMIP_ALERTS_DELIVERY=log` by default: nothing is emailed, a line is logged without
 the recipient. `smtp` uses the `JMIP_MAIL_*` server and credentials; `JMIP_APP_URL` sets the
 link base. The email carries no ids, tokens or account data beyond the user's name.
+
+### Application intelligence (V8.5)
+
+From the signed-in user's own tracked jobs only (the account comes from the session; no user id is
+accepted). "Applications" are tracked jobs that left Saved.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/applications` | Every tracked job: status, saved/applied dates, notes, follow-up, and the V8.3 match of the current resume (overall %, skill %, matched and missing skills) |
+| GET | `/api/applications/insights` | Totals, status counts, funnel (applied, ever interviewed, ever offered; rates from 3 applications), activity by month, average match, top missing skills, companies and roles, upcoming and overdue follow-ups |
+| PATCH | `/api/saved-jobs/{id}/follow-up` | Sets `followUpOn` (a date) and an optional `note` (200 characters); no date clears both |
+
+Every status change is recorded in `saved_job_status_events`, so a job rejected after an interview
+still counts as interviewed. Existing rows were backfilled from what they recorded: saved and applied
+times exactly, a later stage at the row's last update, flagged and left out of the monthly activity.
+A figure without enough data is absent with a note saying what it needs. Follow-ups are shown on the
+Saved Jobs page; no reminder emails are sent.
 
 ### Backup and recovery
 

@@ -633,6 +633,69 @@ export interface SavedJob {
   savedAt: string;
   appliedAt?: string | null;
   updatedAt: string;
+  /** V8.5: follow-up date (YYYY-MM-DD) and reminder. */
+  followUpOn?: string | null;
+  followUpNote?: string | null;
+}
+
+// ---------------------------------------------------------------- V8.5: application intelligence
+
+/** One tracked job with the V8.3 match of the current resume; match fields absent without one. */
+export interface ApplicationAnalysis {
+  id: string;
+  job: JobSummary;
+  status: ApplicationStatus;
+  savedAt: string;
+  appliedAt?: string;
+  notes?: string;
+  followUpOn?: string;
+  followUpNote?: string;
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  matchedSkills?: Skill[];
+  missingSkills?: Skill[];
+  matchNote?: string;
+}
+
+export interface ApplicationInsightsCount {
+  name: string;
+  count: number;
+}
+
+export interface ApplicationFollowUp {
+  id: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  status: ApplicationStatus;
+  followUpOn: string;
+  note?: string;
+}
+
+/** Facts from the user's own tracked jobs; a figure without enough data is absent, with a note. */
+export interface ApplicationInsights {
+  tracked: number;
+  applications: number;
+  statusCounts: Record<ApplicationStatus, number>;
+  funnel: {
+    applied: number;
+    interviewed: number;
+    offers: number;
+    interviewRate?: number;
+    offerRate?: number;
+    minimumForRates: number;
+    note?: string;
+  };
+  activity: { month: string; saved: number; applied: number; interviews: number; offers: number }[];
+  activityNote?: string;
+  averageMatchPercentage?: number;
+  scoredApplications: number;
+  matchNote?: string;
+  topMissingSkills: ApplicationInsightsCount[];
+  topCompanies: ApplicationInsightsCount[];
+  topRoles: ApplicationInsightsCount[];
+  upcomingFollowUps: ApplicationFollowUp[];
+  overdueFollowUps: ApplicationFollowUp[];
 }
 
 /** V7.3: one resume against one job: the V3 match plus experience and data-based suggestions. */

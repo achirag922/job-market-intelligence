@@ -14,5 +14,14 @@ public record SavedJobResponse(
         String notes,
         OffsetDateTime savedAt,
         OffsetDateTime appliedAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        /** V8.5: the user's follow-up date and reminder; absent when none is set. */
+        java.time.LocalDate followUpOn,
+        String followUpNote) {
+
+    /** The V7.2 shape, without a follow-up. */
+    public SavedJobResponse(UUID id, JobSummaryResponse job, ApplicationStatus status, String notes,
+                            OffsetDateTime savedAt, OffsetDateTime appliedAt, OffsetDateTime updatedAt) {
+        this(id, job, status, notes, savedAt, appliedAt, updatedAt, null, null);
+    }
 }
