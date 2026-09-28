@@ -732,6 +732,59 @@ export interface ResumeVersionSummary {
 }
 
 /** V7.3: two resume versions; "added" and "removed" read from the first to the second. */
+// ---------------------------------------------------------------- V8.6: resume optimization
+
+export interface ResumeKeyword {
+  term: string;
+  jobMentions: number;
+  resumeMentions: number;
+}
+
+/** One resume against one job, from the resume and posting only; keyword fields absent without stored text. */
+export interface ResumeOptimization {
+  resumeId: string;
+  resumeTitle?: string;
+  resumeVersionLabel?: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  breakdown?: MatchBreakdown;
+  matchedSkills: Skill[];
+  missingSkills: Skill[];
+  otherResumeSkills: Skill[];
+  requiredExperience?: unknown;
+  experienceGap: string;
+  presentKeywords?: ResumeKeyword[];
+  missingKeywords?: ResumeKeyword[];
+  overusedKeywords?: ResumeKeyword[];
+  keywordNote?: string;
+  sectionsFound?: string[];
+  sectionsMissing?: string[];
+  suggestions: { area: string; text: string }[];
+  disclaimer: string;
+}
+
+export interface ResumeJobComparisonScore {
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  matchedSkillCount: number;
+  missingSkillCount: number;
+}
+
+export interface ResumeJobComparison {
+  versions: ResumeComparison;
+  jobId: number;
+  jobTitle: string;
+  first: ResumeJobComparisonScore;
+  second: ResumeJobComparisonScore;
+  overallChange?: number;
+  skillChange?: number;
+  keywordsGained?: string[];
+  keywordsLost?: string[];
+}
+
 export interface ResumeComparison {
   first: ResumeVersionSummary;
   second: ResumeVersionSummary;

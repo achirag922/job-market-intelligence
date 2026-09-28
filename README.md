@@ -218,6 +218,7 @@ etl/data
 - [x] V8.3 — advanced job matching: overall match from skills plus experience, location, work mode and salary (match preferences, `/api/match-preferences`), per-dimension breakdown, recommendations ranked by it
 - [x] V8.4 — job alert digests: scheduled daily/weekly emails of new matching active jobs with match score and link, one record per alert and job (no repeats), delivery status with retries, emailed-jobs view on Job Alerts
 - [x] V8.5 — application intelligence: status history and follow-up dates (V20), per-application V8.3 match with matched/missing skills, funnel, monthly activity, averages and rankings, upcoming/overdue follow-ups on Saved Jobs
+- [x] V8.6 — resume optimization: per-job match, skills, keyword and section analysis with grounded suggestions (no rewriting, no invented skills), and version comparison for a job
 
 ## API
 
@@ -877,6 +878,22 @@ still counts as interviewed. Existing rows were backfilled from what they record
 times exactly, a later stage at the row's last update, flagged and left out of the monthly activity.
 A figure without enough data is absent with a note saying what it needs. Follow-ups are shown on the
 Saved Jobs page; no reminder emails are sent.
+
+### Resume optimization (V8.6)
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/resumes/{resumeId}/optimize/{jobId}` | The V8.3 match and breakdown, matched and missing skills, required experience and the gap, the posting's terms present in and missing from the resume, heavily repeated terms, recognised section headings, and suggestions by area (skills, keywords, sections, experience, alignment) |
+| GET | `/api/resumes/compare-for-job?resumeId1=&resumeId2=&jobId=` | Two versions against one job: skills added and removed, each version's match and the change, posting terms gained and lost |
+
+Keywords are the posting's own terms (its title, and words its description uses at least twice),
+without stopwords or skills, which the skill comparison already covers. Sections are headings on
+their own line (Summary, Skills, Experience, Projects, Education, Certifications). Suggestions come only
+from the resume and the posting, and each says to use a term only if it truthfully describes the
+user's experience; a term repeated ten or more times is flagged, never encouraged. Nothing is
+written into the resume, and no AI is used. Without stored resume text, keywords and sections are
+marked unavailable. Resumes are owner-checked: another account's answers 404. On Resume
+Intelligence, after a match, "7. Optimize resume" shows all of this.
 
 ### Backup and recovery
 

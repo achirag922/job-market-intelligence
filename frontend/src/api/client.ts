@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  ResumeJobComparison,
+  ResumeOptimization,
   ApplicationAnalysis,
   ApplicationInsights,
   JobSource,
@@ -524,6 +526,14 @@ export const api = {
 
   analyzeResumeJob: (resumeId: string, jobId: number) =>
     request<ResumeJobAnalysis>(`/api/resumes/${resumeId}/analyze-job/${jobId}`),
+
+  /** V8.6: keywords, sections and suggestions for one of your resumes against one job. */
+  optimizeResume: (resumeId: string, jobId: number) =>
+    request<ResumeOptimization>(`/api/resumes/${resumeId}/optimize/${jobId}`),
+
+  /** V8.6: two of your versions against one job. */
+  compareResumesForJob: (resumeId1: string, resumeId2: string, jobId: number) =>
+    request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
 
   compareResumes: (resumeId1: string, resumeId2: string) =>
     request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),

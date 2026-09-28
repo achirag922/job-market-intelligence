@@ -16,6 +16,7 @@ import { formatLocation } from '../components/format';
 import { useApi } from '../hooks/useApi';
 import { JobAnalysisPanel, ResumeVersions } from '../components/ResumeVersions';
 import { MatchBreakdownList, MatchPreferencesCard } from '../components/MatchBreakdown';
+import { ResumeOptimizer } from '../components/ResumeOptimizer';
 
 const JOB_RESULTS = 8;
 
@@ -530,6 +531,7 @@ export function ResumeIntelligence() {
           </Card>
 
           <JobAnalysisPanel key={`${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
+          <ResumeOptimizer key={`opt-${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
         </>
       )}
       </div>
