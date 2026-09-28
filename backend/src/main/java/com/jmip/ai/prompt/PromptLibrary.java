@@ -28,13 +28,16 @@ public class PromptLibrary {
 
     private static final String INTENT_EXTRACTION = "prompts/intent-extraction-v2.txt";
     private static final String ANSWER_GENERATION = "prompts/answer-generation-v2.txt";
+    private static final String INTERVIEW_EVALUATION = "prompts/interview-evaluation-v1.txt";
 
     private final String intentExtraction;
     private final String answerGeneration;
+    private final String interviewEvaluation;
 
     public PromptLibrary() {
         this.intentExtraction = read(INTENT_EXTRACTION);
         this.answerGeneration = read(ANSWER_GENERATION);
+        this.interviewEvaluation = read(INTERVIEW_EVALUATION);
         log.info("Assistant prompts loaded: {}, {}", INTENT_EXTRACTION, ANSWER_GENERATION);
     }
 
@@ -48,9 +51,14 @@ public class PromptLibrary {
         return answerGeneration;
     }
 
+    /** V8.7: instructions for scoring one practice interview answer. */
+    public String interviewEvaluation() {
+        return interviewEvaluation;
+    }
+
     /** Which prompt versions are in use, for the logs and for support questions. */
     public String versions() {
-        return INTENT_EXTRACTION + ", " + ANSWER_GENERATION;
+        return INTENT_EXTRACTION + ", " + ANSWER_GENERATION + ", " + INTERVIEW_EVALUATION;
     }
 
     /**

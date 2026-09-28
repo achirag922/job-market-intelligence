@@ -219,6 +219,7 @@ etl/data
 - [x] V8.4 — job alert digests: scheduled daily/weekly emails of new matching active jobs with match score and link, one record per alert and job (no repeats), delivery status with retries, emailed-jobs view on Job Alerts
 - [x] V8.5 — application intelligence: status history and follow-up dates (V20), per-application V8.3 match with matched/missing skills, funnel, monthly activity, averages and rankings, upcoming/overdue follow-ups on Saved Jobs
 - [x] V8.6 — resume optimization: per-job match, skills, keyword and section analysis with grounded suggestions (no rewriting, no invented skills), and version comparison for a job
+- [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
 
 ## API
 
@@ -894,6 +895,32 @@ user's experience; a term repeated ten or more times is flagged, never encourage
 written into the resume, and no AI is used. Without stored resume text, keywords and sections are
 marked unavailable. Resumes are owner-checked: another account's answers 404. On Resume
 Intelligence, after a match, "7. Optimize resume" shows all of this.
+
+### Interview preparation (V8.7)
+
+| Method | Path | Result |
+|---|---|---|
+| POST | `/api/interviews` | 201, a new session for `jobId` (and optionally one of your `resumeId`s; default: your current processed resume) with its questions |
+| GET | `/api/interviews` | Your sessions, newest first (no questions) |
+| GET | `/api/interviews/{id}` | One session with questions, answers and feedback |
+| POST | `/api/interviews/{id}/questions/{position}/answer` | Saves `answer` (up to 4000 characters) and evaluates it |
+| POST | `/api/interviews/{id}/questions/{position}/evaluate` | Evaluates the saved answer again (at most 3 evaluations per question) |
+| POST | `/api/interviews/{id}/complete` | Closes the session with a summary |
+
+**Questions** are generated without AI, from the job and resume data only: technical questions on job
+skills the resume shows, an honest question on a job skill it does not show, role questions on the
+posting's own terms (V8.6) and experience requirement, a resume question on a skill the resume lists
+that the job does not, and two behavioral questions. Up to 8 per session; nothing is invented.
+
+**Evaluation** uses the configured AI provider (`jmip.ai.provider`; the stub in tests) with the
+`interview-evaluation-v1` prompt. The model receives only the job's title, company and skills, the
+resume's skill names, the question and the answer, marked as data; it returns scores (relevance,
+completeness, clarity, technical correctness where it applies, 1 to 5) with short strengths and
+improvements as JSON. It runs nothing and sees no database, schema or resume text. A failed call or
+an unreadable reply leaves the answer saved with feedback UNAVAILABLE, to try again. The completion
+summary is computed from the stored scores, without AI.
+
+Sessions are the signed-in user's own: another account's session or resume answers 404.
 
 ### Backup and recovery
 

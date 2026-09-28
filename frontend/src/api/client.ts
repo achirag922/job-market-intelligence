@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  InterviewQuestion,
+  InterviewSession,
   ResumeJobComparison,
   ResumeOptimization,
   ApplicationAnalysis,
@@ -534,6 +536,16 @@ export const api = {
   /** V8.6: two of your versions against one job. */
   compareResumesForJob: (resumeId1: string, resumeId2: string, jobId: number) =>
     request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
+
+  /** V8.7: practice interviews; the owner is always the signed-in account. */
+  startInterview: (jobId: number, resumeId?: string) => send<InterviewSession>("POST", "/api/interviews", { jobId, resumeId }),
+  interviewSessions: () => request<InterviewSession[]>("/api/interviews"),
+  interviewSession: (id: string) => request<InterviewSession>(`/api/interviews/${id}`),
+  answerInterviewQuestion: (id: string, position: number, answer: string) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/answer`, { answer }),
+  evaluateInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
+  completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
 
   compareResumes: (resumeId1: string, resumeId2: string) =>
     request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),

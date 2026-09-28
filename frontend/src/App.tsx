@@ -22,6 +22,7 @@ import { LocationAnalytics } from './pages/LocationAnalytics';
 import { ResumeIntelligence } from './pages/ResumeIntelligence';
 import { SkillAnalytics } from './pages/SkillAnalytics';
 import { SkillTrends } from './pages/SkillTrends';
+import { InterviewPrep } from './pages/InterviewPrep';
 
 /**
  * Routes. The authentication screens stand alone; everything else sits in the application shell.
@@ -55,6 +56,7 @@ export default function App() {
           <Route path="/career-goals" element={<CareerGoals />} />
           <Route path="/saved-jobs" element={<SavedJobs />} />
           <Route path="/assistant" element={<AiAssistant />} />
+          <Route path="/interview-prep" element={<InterviewPrep />} />
           <Route path="/etl" element={<EtlMonitoring />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

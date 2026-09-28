@@ -785,6 +785,50 @@ export interface ResumeJobComparison {
   keywordsLost?: string[];
 }
 
+// ---------------------------------------------------------------- V8.7: interview preparation
+
+export interface InterviewFeedback {
+  relevance: number;
+  completeness: number;
+  clarity: number;
+  technicalCorrectness?: number;
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  evaluatedAt?: string;
+}
+
+export interface InterviewQuestion {
+  position: number;
+  category: "TECHNICAL" | "ROLE" | "RESUME" | "BEHAVIORAL";
+  question: string;
+  focus?: string;
+  answer?: string;
+  answeredAt?: string;
+  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE";
+  feedback?: InterviewFeedback;
+  feedbackNote?: string;
+  evaluationAttempts: number;
+}
+
+/** A practice session; questions only on the detail view. */
+export interface InterviewSession {
+  id: string;
+  jobId?: number;
+  jobTitle: string;
+  companyName: string;
+  resumeId?: string;
+  status: "IN_PROGRESS" | "COMPLETED";
+  createdAt: string;
+  completedAt?: string;
+  summary?: string;
+  averageScore?: number;
+  answered: number;
+  evaluated: number;
+  total: number;
+  questions?: InterviewQuestion[];
+}
+
 export interface ResumeComparison {
   first: ResumeVersionSummary;
   second: ResumeVersionSummary;

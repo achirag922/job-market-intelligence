@@ -195,7 +195,7 @@ class ReleaseFlowIntegrationTest {
     void schemaAndCascades() throws Exception {
         List<String> versions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank", String.class);
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21");
 
         UUID bob = jdbcTemplate.queryForObject("SELECT id FROM users WHERE email = ?", UUID.class, BOB);
         mockMvc.perform(write(post("/api/jobs/2/save")).with(user(BOB).roles("USER"))).andExpect(status().isCreated());
