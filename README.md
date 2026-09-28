@@ -212,6 +212,7 @@ etl/data
 - [x] V7.7 — personal career dashboard: `GET /api/dashboard` aggregates resume, skills, recommendations, applications, career goal and target-role market data from the existing owner-scoped services; My Career page
 - [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
 - [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
+- [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
 
 ## API
 
@@ -767,6 +768,12 @@ a 404.
 ```bash
 curl -u "metrics:$JMIP_METRICS_PASSWORD" "http://localhost:8080/actuator/metrics/http.server.requests?tag=outcome:SERVER_ERROR"
 ```
+
+### Backup and recovery
+
+What to back up (database, resume files, secrets), how, and how to restore: see
+[docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md). Keep `JMIP_RESUME_ENCRYPTION_KEY` safe: without it
+restored resumes cannot be read.
 
 ## Running with Docker (V6.6)
 
