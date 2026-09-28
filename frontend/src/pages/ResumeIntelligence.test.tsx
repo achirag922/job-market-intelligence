@@ -23,6 +23,8 @@ vi.mock('../api/client', async () => {
       careerInsights: () => Promise.resolve({ resumeId: 'r', resumeSkills: [], highDemandSkills: [],
         strongSkills: [], skillGaps: [], trendingSkills: [], focusAreas: [], recommendedJobs: [] }),
       jobCategories: () => Promise.resolve([]),
+      // V7.3 version list; no stored resumes, so these flows start from an upload as before.
+      resumes: () => Promise.resolve([]),
     },
   };
 });

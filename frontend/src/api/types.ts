@@ -250,6 +250,12 @@ export interface Resume {
   errorMessage?: string;
   uploadedAt: string;
   processedAt?: string;
+  /** V7.3: the owner's name for this version; starts as the file name. */
+  title?: string;
+  versionLabel?: string | null;
+  /** V7.3: the account's default resume. */
+  isDefault?: boolean;
+  updatedAt?: string;
 }
 
 export interface ResumeMatch {
@@ -496,4 +502,285 @@ export interface VerificationStatus {
   email: string;
   resendAvailableInSeconds: number;
   codeValidForSeconds: number;
+}
+
+/** V7.1: how often an alert's owner wants to hear about new matches. Nothing is sent yet. */
+export type AlertFrequency = 'DAILY' | 'WEEKLY';
+
+/** What the user edits: the job search's own filters, plus a name and a frequency. */
+export interface JobAlertInput {
+  name: string;
+  keywords?: string;
+  category?: string;
+  location?: string;
+  experience?: string;
+  skill?: string;
+  frequency: AlertFrequency;
+}
+
+export interface JobAlert extends JobAlertInput {
+  id: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** V7.2: where an application for a saved job stands. */
+export type ApplicationStatus = 'SAVED' | 'APPLIED' | 'INTERVIEW' | 'OFFER' | 'REJECTED' | 'WITHDRAWN';
+
+/** A job the signed-in user saved, with their private tracking details. */
+export interface SavedJob {
+  id: string;
+  job: JobSummary;
+  status: ApplicationStatus;
+  notes?: string | null;
+  savedAt: string;
+  appliedAt?: string | null;
+  updatedAt: string;
+}
+
+/** V7.3: one resume against one job: the V3 match plus experience and data-based suggestions. */
+export interface ResumeJobAnalysis {
+  resumeId: string;
+  resumeTitle: string;
+  resumeVersionLabel?: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  jobCategory?: string;
+  matchPercentage?: number;
+  matchNote?: string;
+  totalJobSkills: number;
+  matchedSkillCount: number;
+  missingSkillCount: number;
+  matchedSkills: Skill[];
+  missingSkills: Skill[];
+  otherResumeSkills: Skill[];
+  experience: { required?: { min?: number; max?: number }; note: string };
+  suggestions: string[];
+  disclaimer: string;
+}
+
+export interface ResumeVersionSummary {
+  id: string;
+  title: string;
+  versionLabel?: string;
+  fileName: string;
+  isDefault: boolean;
+  skillCount: number;
+  uploadedAt: string;
+  updatedAt: string;
+}
+
+/** V7.3: two resume versions; "added" and "removed" read from the first to the second. */
+export interface ResumeComparison {
+  first: ResumeVersionSummary;
+  second: ResumeVersionSummary;
+  skillsAdded: Skill[];
+  skillsRemoved: Skill[];
+  commonSkills: Skill[];
+  differentFields: string[];
+}
+
+/** V7.4 career goals. */
+export type CareerGoalStatus = 'ACTIVE' | 'COMPLETED' | 'ARCHIVED';
+export type SkillProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export interface CareerGoalInput {
+  targetRole: string;
+  /** A job category (V4); the roadmap reads skill demand from its postings. */
+  targetCategory: string;
+  targetLocation?: string;
+  targetExperience?: string;
+  /** Skill names the user wants to develop, on top of market demand. */
+  targetSkills: string[];
+}
+
+export interface CareerGoal extends Omit<CareerGoalInput, 'targetSkills'> {
+  id: string;
+  targetSkills: Skill[];
+  status: CareerGoalStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoadmapSkill {
+  priority: number;
+  skillId: number;
+  skill: string;
+  category?: string;
+  source: 'MARKET_DEMAND' | 'YOUR_CHOICE';
+  percentageOfJobs?: number;
+  demandRank?: number;
+  trendChangeInPercentagePoints?: number;
+  reason: string;
+  status: SkillProgressStatus;
+}
+
+export interface Roadmap {
+  goalId: string;
+  targetRole: string;
+  targetCategory: string;
+  basedOnResume?: { id: string; title: string };
+  currentSkills: Skill[];
+  marketSkills: {
+    skillId: number;
+    skill: string;
+    jobCount: number;
+    percentageOfJobs: number;
+    demandRank: number;
+    trendChangeInPercentagePoints?: number;
+    onResume: boolean;
+  }[];
+  coveredSkills: Skill[];
+  roadmap: RoadmapSkill[];
+  progress: {
+    totalSkills: number;
+    onResume: number;
+    completed: number;
+    inProgress: number;
+    notStarted: number;
+    percentComplete?: number;
+  };
+  staged: boolean;
+  note?: string;
+}
+
+/** V7.5 market intelligence. Every figure is counted from postings; nothing is estimated. */
+export interface MarketFilters {
+  category?: string;
+  location?: string;
+  experience?: string;
+  /** The last N posting months of the data (the period ends at the newest posting, not today). */
+  months?: number;
+}
+
+export interface MarketScope {
+  category?: string;
+  location?: string;
+  experience?: string;
+  from?: string;
+  latestPostingInData?: string;
+  postings: number;
+  datedPostings: number;
+  earliestMonth?: string;
+  latestMonth?: string;
+}
+
+export interface SalaryFigure {
+  currency: string;
+  category?: string;
+  postings: number;
+  averageMin?: number;
+  averageMax?: number;
+  lowestMin?: number;
+  highestMax?: number;
+  reliable: boolean;
+}
+
+export interface MarketSalary {
+  scope: MarketScope;
+  postingsWithSalary: number;
+  byCurrency: SalaryFigure[];
+  byCategory: SalaryFigure[];
+  trend: { month: string; currency: string; postings: number; averageMin?: number; averageMax?: number; reliable: boolean }[];
+  notes: string[];
+}
+
+export interface MarketLocations {
+  scope: MarketScope;
+  locationStated: number;
+  locationNotStated: number;
+  topLocations: { locationId: number; location: string; country: string; postings: number; percentageOfPostings: number }[];
+  notes: string[];
+}
+
+export type WorkMode = 'REMOTE' | 'HYBRID' | 'ON_SITE' | 'NOT_STATED';
+
+export interface MarketRemote {
+  scope: MarketScope;
+  distribution: { mode: WorkMode; postings: number; percentageOfPostings: number }[];
+  trend: { month: string; total: number; remote: number; hybrid: number; onSite: number; notStated: number }[];
+  method: string;
+  notes: string[];
+}
+
+export interface MarketCompanies {
+  scope: MarketScope;
+  topCompanies: { companyId: number; company: string; industry?: string; postings: number; percentageOfPostings: number }[];
+  trend: { companyId: number; company: string; points: { month: string; postings: number }[] }[];
+  notes: string[];
+}
+
+export interface MarketSkills {
+  scope: MarketScope;
+  topSkills: { skillId: number; skill: string; category?: string; postings: number; percentageOfPostings: number; rank: number }[];
+  /** From the stored monthly skill history; absent when a filter narrows the view. */
+  trend?: SkillTrends;
+  notes: string[];
+}
+
+/** V7.7: the signed-in user's career dashboard, one section per existing feature. */
+export interface PersonalDashboard {
+  resume: {
+    available: boolean;
+    current?: { id: string; title: string; versionLabel?: string; isDefault: boolean; skillCount: number; uploadedAt: string };
+    resumeCount: number;
+    matchSummary?: { jobsCompared: number; topMatchPercentage?: number; averageMatchPercentage?: number };
+    missingSkillsForGoal: string[];
+    note?: string;
+  };
+  skills: {
+    available: boolean;
+    currentSkills: Skill[];
+    inProgress: string[];
+    completed: string[];
+    notStarted: number;
+    roadmapPercentComplete?: number;
+    note?: string;
+  };
+  recommendations: {
+    available: boolean;
+    count: number;
+    averageMatchPercentage?: number;
+    topJobs: { jobId: number; title: string; company: string; category?: string; matchPercentage: number }[];
+    note?: string;
+  };
+  applications: {
+    available: boolean;
+    total: number;
+    saved: number;
+    applied: number;
+    interview: number;
+    offer: number;
+    rejected: number;
+    withdrawn: number;
+    funnel: { stage: ApplicationStatus; jobs: number }[];
+    recent: { savedJobId: string; jobId: number; title: string; company: string; status: ApplicationStatus; appliedAt?: string; updatedAt: string }[];
+    note?: string;
+  };
+  careerGoal: {
+    available: boolean;
+    goalId?: string;
+    targetRole?: string;
+    targetCategory?: string;
+    activeGoals: number;
+    progress?: Roadmap['progress'];
+    topMissingSkills: { priority: number; skill: string; reason: string; status: SkillProgressStatus }[];
+    basedOnResume?: string;
+    note?: string;
+  };
+  market: {
+    available: boolean;
+    category?: string;
+    scope: MarketScope;
+    topSkills: MarketSkills['topSkills'];
+    skillTrend?: SkillTrends;
+    topLocations: MarketLocations['topLocations'];
+    locationNotStated: number;
+    workModes: MarketRemote['distribution'];
+    salaries: SalaryFigure[];
+    topCompanies: MarketCompanies['topCompanies'];
+    notes: string[];
+  };
 }

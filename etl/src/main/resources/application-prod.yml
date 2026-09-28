@@ -11,5 +11,10 @@ spring:
     clean-disabled: true
 
 logging:
+  # V7.8: one JSON object per line (Elastic Common Schema), with the request or job id from
+  # the MDC. JMIP_LOG_FORMAT may also be logstash or gelf.
+  structured:
+    format:
+      console: ${JMIP_LOG_FORMAT:ecs}
   level:
     com.jmip.etl: ${JMIP_LOG_LEVEL:INFO}

@@ -131,9 +131,7 @@ public class CareerInsightsService {
         List<DemandSkill> gaps = highDemand.stream().filter(skill -> !skill.onResume()).toList();
 
         Set<Long> categorySkillIds = categorySkills.stream().map(DemandSkill::skillId).collect(Collectors.toSet());
-        List<TrendingSkill> trending = skillTrendService
-                .trends(TREND_MONTHS, TREND_MIN_JOBS, TrendDirection.RISING, TREND_FETCH_LIMIT)
-                .trends().stream()
+        List<TrendingSkill> trending = risingTrends().stream()
                 .filter(trend -> categorySkillIds.contains(trend.skillId()))
                 .limit(TRENDING_LIMIT)
                 .map(trend -> toTrendingSkill(trend, resumeSkillIds.contains(trend.skillId())))
@@ -167,13 +165,23 @@ public class CareerInsightsService {
         return gaps.stream()
                 .map(gap -> new FocusArea(gap.skillId(), gap.skill(), gap.percentageOfJobs(), gap.rank(),
                         changeBySkill.get(gap.skillId())))
-                .sorted(Comparator
-                        .comparing((FocusArea area) -> area.changeInPercentagePoints() == null)
-                        .thenComparing(area -> area.changeInPercentagePoints() == null
-                                ? 0.0 : -area.changeInPercentagePoints())
-                        .thenComparingInt(FocusArea::demandRank))
+                .sorted(FOCUS_ORDER)
                 .limit(FOCUS_AREA_LIMIT)
                 .toList();
+    }
+
+    /**
+     * The focus-area order: rising skills first, biggest rise first, then by demand rank.
+     * Public since V7.4 so the career-goal roadmap ranks its skills by the same rule.
+     */
+    public static final Comparator<FocusArea> FOCUS_ORDER = Comparator
+            .comparing((FocusArea area) -> area.changeInPercentagePoints() == null)
+            .thenComparing(area -> area.changeInPercentagePoints() == null ? 0.0 : -area.changeInPercentagePoints())
+            .thenComparingInt(FocusArea::demandRank);
+
+    /** Skills rising in postings, over the public trends endpoint's defaults. Shared with V7.4. */
+    public List<SkillTrend> risingTrends() {
+        return skillTrendService.trends(TREND_MONTHS, TREND_MIN_JOBS, TrendDirection.RISING, TREND_FETCH_LIMIT).trends();
     }
 
     /**

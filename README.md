@@ -203,6 +203,16 @@ etl/data
 - [x] V6.10.6 — HTTPS deployment: `docker-compose.https.yml` (nginx TLS termination, HTTP→HTTPS 301, HSTS on HTTPS only, backend/DB unpublished), forwarded-proto handling, prod refuses non-Secure/SameSite=None cookies and non-HTTPS CORS origins
 - [x] V6.10.7 — dependency scanning: Dependabot (Maven, npm, GitHub Actions) plus a `Dependency scan` workflow where Trivy fails on HIGH/CRITICAL vulnerabilities that have a fix, using a Maven-resolved CycloneDX SBOM and `package-lock.json`
 - [x] V6.10.8 — final security review: rate limit and header filters match the decoded path (no %-encoding bypass), nginx drops client X-Forwarded-Host/Prefix and Forwarded, prod refuses log-delivered sign-up codes for non-localhost origins, Spring Boot 3.5.16 plus Tomcat/PostgreSQL/httpcore5 patch overrides (0 fixable HIGH/CRITICAL)
+- [x] V7.1 — job alerts foundation: saved job-search alerts per account (keywords, category, location, experience, skill; DAILY/WEEKLY; active/paused), `/api/job-alerts` CRUD + status, owner-scoped 404s, Job Alerts page; no notifications sent yet
+- [x] V7.2 — saved jobs & application tracking: bookmark jobs from results and details, SAVED → APPLIED → INTERVIEW → OFFER (plus REJECTED/WITHDRAWN) with application date and private notes, owner-scoped `/api/saved-jobs`, one row per user and job
+- [x] V7.3 — advanced resume intelligence: multiple resume versions per account (title, version label, one default), job-specific analysis on the V3 match with data-based suggestions, and version comparison from stored skills
+- [x] V7.4 — career goals & skill roadmap: goals per account (role, job category, optional location/experience/skills; ACTIVE/COMPLETED/ARCHIVED), a deterministic roadmap from the default resume, category demand and rising trends (the V6.4 focus-area order), and per-skill progress
+- [x] V7.5 — market intelligence: `/api/market/{salary,locations,remote,companies,skills}` with shared category/location/experience/period filters, per-currency salaries, work mode read from posting wording, posting-month series, skill trends from the stored snapshot; Market Intelligence page
+- [x] V7.6 — AI career copilot: eight personal intents (missing skills, next skills, target-role skills and demand, job matches, resume improvement, application progress, saved-job priority) routed to existing owner-scoped services, default-resume fallback, v2 prompts, career suggestions and job context in the assistant
+- [x] V7.7 — personal career dashboard: `GET /api/dashboard` aggregates resume, skills, recommendations, applications, career goal and target-role market data from the existing owner-scoped services; My Career page
+- [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
+- [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
+- [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
 
 ## API
 
@@ -588,6 +598,182 @@ so the grouping can be checked rather than trusted.
 Errors return a consistent body — `timestamp`, `status`, `error`, `message`, `path`, and
 `fieldErrors` when validation failed. Unknown id gives 404; a bad filter, an unsortable
 field or an out-of-range page size gives 400.
+
+### Job alerts (V7.1)
+
+Saved job searches for the signed-in account. The filters are the job search's own (`keywords`
+is the search's `q`); at least one is required, along with a `name` and a `frequency` of `DAILY`
+or `WEEKLY`. An account can keep up to 25 alerts. The owner always comes from the session: a
+`userId` in the body is ignored, and another account's alert answers 404 like a missing one.
+No notifications are sent yet; the frequency records the user's choice for a later phase.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/job-alerts` | 201, the new alert (active) |
+| `GET` | `/api/job-alerts` | 200, your alerts, newest first |
+| `GET` | `/api/job-alerts/{id}` | 200, one alert |
+| `PUT` | `/api/job-alerts/{id}` | 200, name, filters and frequency replaced |
+| `PATCH` | `/api/job-alerts/{id}/status` | 200, body `{"active": false}` pauses, `true` resumes |
+| `DELETE` | `/api/job-alerts/{id}` | 204 |
+
+```json
+{"name": "Java in Berlin", "keywords": "backend", "category": "Software Engineering",
+ "location": "Berlin", "experience": "2-5", "skill": "Java", "frequency": "WEEKLY"}
+```
+
+### Saved jobs and applications (V7.2)
+
+Bookmark jobs and track each application. Statuses are `SAVED`, `APPLIED`, `INTERVIEW`,
+`OFFER`, `REJECTED` and `WITHDRAWN`; any move is allowed so mistakes can be corrected. The
+application date is set when a job first leaves `SAVED` and cleared if it goes back. There is
+one record per account and job (saving twice returns the same record), up to 500 per account.
+Records, statuses and notes are private: another account's record answers 404.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/jobs/{jobId}/save` | 201 new, or 200 with the existing record |
+| `DELETE` | `/api/jobs/{jobId}/save` | 204, saved or not |
+| `GET` | `/api/saved-jobs?status=APPLIED` | 200, your saved jobs (status optional), most recently changed first |
+| `PATCH` | `/api/saved-jobs/{id}/status` | 200, body `{"status": "INTERVIEW"}` |
+| `PATCH` | `/api/saved-jobs/{id}/notes` | 200, body `{"notes": "..."}` (up to 2000 characters; blank clears) |
+| `DELETE` | `/api/saved-jobs/{id}` | 204 |
+
+### Resume versions and job analysis (V7.3)
+
+An account can keep up to 20 resumes. Each has a `title` (initially the file name), an optional
+`versionLabel` and an `isDefault` flag; the first upload is the default, and deleting the default
+(through the existing `DELETE /api/resumes/{id}`) passes it to the newest remaining resume.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `GET` | `/api/resumes` | 200, your resumes, newest first |
+| `PATCH` | `/api/resumes/{id}` | 200, body `{"title": "Backend CV", "versionLabel": "v2"}` |
+| `PUT` | `/api/resumes/{id}/default` | 200, this resume becomes the default |
+| `GET` | `/api/resumes/{resumeId}/analyze-job/{jobId}` | 200, the V3 match plus experience and suggestions |
+| `GET` | `/api/resumes/compare?resumeId1=&resumeId2=` | 200, skills added, removed and common, and differing metadata |
+
+The analysis uses the same deterministic match as `/match/{jobId}`; its suggestions come only
+from the matched and missing skills and the posting's stated experience, and it makes no claim
+about the chance of being hired. The comparison reads the skills extracted at upload. Every
+resume id must belong to the signed-in account; anything else is a 404.
+
+### Career goals and skill roadmap (V7.4)
+
+A goal names a `targetRole`, a `targetCategory` (an existing V4 job category), and optionally a
+`targetLocation`, a `targetExperience` (`0-2`, `2-5`, `5-8`, `8+`) and up to 20 `targetSkills`
+(existing skill names). Up to 20 goals per account; another account's goal is a 404.
+
+| Method | Path | Result |
+| --- | --- | --- |
+| `POST` | `/api/career-goals` | 201, the new goal (`ACTIVE`) |
+| `GET` | `/api/career-goals?status=ACTIVE` | 200, your goals (status optional) |
+| `GET` / `PUT` / `DELETE` | `/api/career-goals/{id}` | 200 / 200 / 204 |
+| `PATCH` | `/api/career-goals/{id}/status` | 200, body `{"status": "ARCHIVED"}` |
+| `GET` | `/api/career-goals/{id}/roadmap?resumeId=` | 200, the roadmap (default resume unless `resumeId` names another of yours) |
+| `PUT` | `/api/career-goals/{id}/roadmap/skills/{skillId}` | 200, body `{"status": "IN_PROGRESS"}` |
+
+The roadmap is computed on request. Market skills are the category's top 10 skills from the
+category analytics (the same figures as Job Categories); current skills are the resume's. Skills
+not yet on the resume are ordered by the career-insights focus-area rule: rising in recent
+postings first (biggest rise first), then by demand rank, then skills the user chose. Progress is
+the share of roadmap skills on the resume or marked `COMPLETED`. Skills are not split into
+difficulty stages because no data says how advanced a skill is.
+
+### Market intelligence (V7.5)
+
+`GET /api/market/salary`, `/locations`, `/remote`, `/companies` and `/skills` all take the same
+optional filters: `category` (exact job category), `location` (city, state or country text, as in
+the job search), `experience` (`0-2`, `2-5`, `5-8`, `8+`, `unspecified`) and `months` (the last N
+posting months of the data, counted back from the newest posting, not from today). Every
+response has a `scope`: how many postings it covers, their posting months and the newest posting
+date in the data, plus `notes` wherever data is missing or thin.
+
+- **Salary**: averages of the stated minimum and maximum, the lowest and highest, per currency and
+  per category and currency; never converted or combined. Figures from fewer than 3 postings are
+  marked `reliable: false`. Postings without a salary are left out, not counted as zero.
+- **Locations**: postings per location, and how many state no location.
+- **Remote**: postings carry no work-mode field, so it is read from the description: "hybrid" means
+  HYBRID, otherwise "remote" means REMOTE, otherwise "on-site"/"onsite"/"in office" means ON_SITE,
+  and anything else is NOT_STATED.
+- **Companies**: postings per company in JMIP's dataset (not a company's total hiring), with a
+  monthly series for the top five.
+- **Skills**: the most requested skills among the filtered postings. The earlier-vs-recent trend is
+  the V6.1 stored skill history (`skill_demand_snapshot`), which covers all postings, so it is
+  omitted, with a note, when a category, location or experience filter is set.
+
+Monthly series group postings by `posted_date`, like the skill snapshot; undated postings count in
+totals only. Nothing is forecast.
+
+### AI career copilot (V7.6)
+
+`POST /api/assistant/query` also answers questions about the signed-in user's own data, through
+the same closed pipeline: question → intent (a fixed list) → validated call to an existing service
+→ rows → prose that may only repeat those rows.
+
+| Intent | Example | Service |
+| --- | --- | --- |
+| `MY_SKILL_GAP` | What skills am I missing for my target role? | V7.4 roadmap of the active goal |
+| `NEXT_SKILLS` | What skills should I focus on next? | roadmap, or V6.4 focus areas without a goal |
+| `TARGET_ROLE_SKILLS` | Which skills are most requested for my target role? | V7.5 market skills for the goal's category |
+| `TARGET_ROLE_DEMAND` | How is demand for my target role changing? | V7.5 postings per posting month |
+| `MY_JOB_MATCHES` | Which jobs match my resume? | V6.3 recommendations |
+| `RESUME_IMPROVEMENT` | What should I improve in my resume? | V7.3 job analysis (with a job) or V6.4 gaps |
+| `APPLICATION_PROGRESS` | Show me my application progress. | V7.2 saved jobs per status |
+| `SAVED_JOB_PRIORITY` | Which saved jobs should I prioritize? | open saved jobs by V3 resume match |
+
+"How does my resume compare with this job?" is the existing `RESUME_MATCH` with a `jobId` (Job
+Details → Ask the copilot). When no `resumeId` is sent, resume questions use the account's default
+resume. None of these intents takes a user from the question or the model: every service reads
+the account from the session, and a `resumeId` from the request is ownership-checked as elsewhere.
+Rows exclude application notes and posting descriptions, so stored free text never reaches the
+model. Prompts are `intent-extraction-v2.txt` and `answer-generation-v2.txt`; the offline `stub`
+provider routes the example questions by keyword.
+
+### Personal career dashboard (V7.7)
+
+`GET /api/dashboard` (optional `?goalId=` for one of your goals) returns the **My Career** page in
+one response, with a section per feature, each assembled from the service that owns it:
+
+| Section | Source |
+| --- | --- |
+| `resume` | current resume (the default if processed, else the newest processed), match summary over the V6.3 recommendations, roadmap skills missing for the goal |
+| `skills` | resume skills, and roadmap skills in progress / completed (V7.4) |
+| `recommendations` | top V6.3 matches, count and average match |
+| `applications` | V7.2 counts per status, a SAVED → OFFER funnel by current status, recently updated jobs (no notes) |
+| `careerGoal` | the most recently changed active goal (or `goalId`), roadmap progress and highest-priority skills |
+| `market` | V7.5 skills, locations, work modes, salaries and companies for the goal's category, or all postings without a goal |
+
+Every section has `available` and, when empty, a `note` saying what is missing. Every personal
+figure comes from services that read the account from the session; another account's `goalId` is
+a 404.
+
+### Observability (V7.8)
+
+- **Logs.** Every request gets an id (`X-Request-Id`, reused from a proxy when it looks like one)
+  that appears on every log line it causes and on the response. One summary line per request
+  (`method=… path=… status=… durationMs=…`) is WARN for server errors, INFO when slower than
+  `JMIP_SLOW_REQUEST_THRESHOLD` (1s) and DEBUG otherwise. Query strings, headers, cookies and
+  bodies are never logged. Under `prod`, backend and ETL log one JSON object per line
+  (`JMIP_LOG_FORMAT`: `ecs`, `logstash` or `gelf`). ETL runs log their execution id on every
+  line and finish with `etl.run executionId=… status=… durationMs=… read=… rejected=…`.
+- **Health.** `/actuator/health` (overall), `/actuator/health/liveness` (the application),
+  `/actuator/health/readiness` (application and database) and `/actuator/health/database`. Public;
+  status only under `prod`.
+- **Metrics.** `/actuator/metrics` needs HTTP Basic with `JMIP_METRICS_USERNAME` /
+  `JMIP_METRICS_PASSWORD` (at least 16 characters); with no password it is closed to everyone.
+  It includes `http.server.requests` (count, time, status and outcome per endpoint, so errors
+  are `outcome:SERVER_ERROR`), JVM, `hikaricp.connections.*` and more. Nothing else in Actuator
+  (env, configprops, beans, heapdump) is exposed, and nginx does not proxy `/actuator/metrics`.
+
+```bash
+curl -u "metrics:$JMIP_METRICS_PASSWORD" "http://localhost:8080/actuator/metrics/http.server.requests?tag=outcome:SERVER_ERROR"
+```
+
+### Backup and recovery
+
+What to back up (database, resume files, secrets), how, and how to restore: see
+[docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md). Keep `JMIP_RESUME_ENCRYPTION_KEY` safe: without it
+restored resumes cannot be read.
 
 ## Running with Docker (V6.6)
 

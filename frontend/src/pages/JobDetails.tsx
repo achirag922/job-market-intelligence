@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import type { JobDetail } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { Badge, Card } from '../components/ui';
-import { IconFile } from '../components/icons';
+import { IconChat, IconFile } from '../components/icons';
 import {
   formatDate,
   formatEmploymentType,
@@ -12,6 +12,7 @@ import {
   formatSalary,
 } from '../components/format';
 import { useApi } from '../hooks/useApi';
+import { SaveJobButton } from '../saved/SavedJobs';
 
 export function JobDetails() {
   const { id } = useParams<{ id: string }>();
@@ -52,11 +53,19 @@ export function JobDetails() {
                   {formatLocation(data)}
                 </p>
               </div>
-              {/* Carries the posting through to the V3 comparison, which does the work. */}
-              <Link className="button-link primary" to={`/resume?jobId=${data.id}`}>
-                <IconFile size={16} />
-                Compare with resume
-              </Link>
+              <div className="job-hero-actions">
+                {/* Carries the posting through to the V3 comparison, which does the work. */}
+                <Link className="button-link primary" to={`/resume?jobId=${data.id}`}>
+                  <IconFile size={16} />
+                  Compare with resume
+                </Link>
+                <SaveJobButton jobId={data.id} />
+                {/* V7.6: carries the posting into the copilot, for "how does my resume compare with this job?". */}
+                <Link className="button-link" to={`/assistant?jobId=${data.id}`}>
+                  <IconChat size={16} />
+                  Ask the copilot
+                </Link>
+              </div>
             </div>
 
             <div className="card">

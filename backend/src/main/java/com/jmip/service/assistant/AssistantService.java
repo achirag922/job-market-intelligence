@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Answers one question, end to end.
@@ -128,14 +129,19 @@ public class AssistantService {
 
         ResolvedIntent intent = validation.intent();
 
-        if (intent.intent().requiresResume() && request.resumeId() == null) {
+        UUID resumeId = request.resumeId();
+        if (intent.intent().requiresResume() && resumeId == null) {
+            // V7.6: no resume selected means the signed-in user's own default, never anyone else's.
+            resumeId = router.defaultResumeId().orElse(null);
+        }
+        if (intent.intent().requiresResume() && resumeId == null) {
             return ungrounded(question, RESUME_REQUIRED, intent.intent(),
                     contextOf(question, intent), null);
         }
 
         AssistantData data;
         try {
-            data = router.route(intent, request.resumeId(), request.jobId());
+            data = router.route(intent, resumeId, request.jobId());
         } catch (ResourceNotFoundException notFound) {
             // A resume or posting id the caller supplied does not exist. Their input, not
             // a fault: the message names what was missing and no query ran.

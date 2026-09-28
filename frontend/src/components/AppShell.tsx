@@ -4,10 +4,13 @@ import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import {
+  IconBell,
+  IconBookmark,
   IconBriefcase,
   IconBuilding,
   IconChat,
   IconDatabase,
+  IconFlag,
   IconClose,
   IconDashboard,
   IconFile,
@@ -35,12 +38,16 @@ interface NavItem {
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
-    items: [{ to: '/', label: 'Dashboard', icon: IconDashboard, end: true }],
+    items: [
+      { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
+      { to: '/my-career', label: 'My Career', icon: IconFlag },
+    ],
   },
   {
     label: 'Job market',
     items: [
       { to: '/jobs', label: 'Job Explorer', icon: IconBriefcase },
+      { to: '/market', label: 'Market Intelligence', icon: IconTrend },
       { to: '/analytics/skills', label: 'Skills', icon: IconSpark },
       { to: '/analytics/trends', label: 'Skill Trends', icon: IconTrend },
       { to: '/analytics/companies', label: 'Companies', icon: IconBuilding },
@@ -52,6 +59,9 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     label: 'Career',
     items: [
       { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
+      { to: '/saved-jobs', label: 'Saved Jobs', icon: IconBookmark },
+      { to: '/career-goals', label: 'Career Goals', icon: IconFlag },
+      { to: '/alerts', label: 'Job Alerts', icon: IconBell },
       { to: '/assistant', label: 'AI Assistant', icon: IconChat },
     ],
   },
@@ -72,6 +82,11 @@ const PAGE_TITLES: [string, string][] = [
   ['/analytics/categories', 'Job Categories'],
   ['/resume', 'Resume Intelligence'],
   ['/assistant', 'AI Assistant'],
+  ['/my-career', 'My Career'],
+  ['/market', 'Market Intelligence'],
+  ['/alerts', 'Job Alerts'],
+  ['/saved-jobs', 'Saved Jobs'],
+  ['/career-goals', 'Career Goals'],
   ['/etl', 'ETL Monitoring'],
   ['/login', 'Log in'],
   ['/signup', 'Sign up'],

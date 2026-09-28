@@ -5,6 +5,24 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  JobAlert,
+  JobAlertInput,
+  ApplicationStatus,
+  SavedJob,
+  ResumeComparison,
+  CareerGoal,
+  MarketCompanies,
+  PersonalDashboard,
+  MarketFilters,
+  MarketLocations,
+  MarketRemote,
+  MarketSalary,
+  MarketSkills,
+  CareerGoalInput,
+  CareerGoalStatus,
+  Roadmap,
+  SkillProgressStatus,
+  ResumeJobAnalysis,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -55,6 +73,40 @@ export class ApiError extends Error {
 /** Fired when an application API says the session is gone, so the app can show Log in. */
 export const UNAUTHORIZED_EVENT = 'jmip:unauthorized';
 
+/** V7.8: shown when the request never reached the server; no addresses or internals. */
+export const CANNOT_REACH = 'Cannot reach the server. Check your connection and try again.';
+
+/**
+ * V7.8: what the user is told when a call fails. The server's own message is kept for
+ * requests it rejected (validation, not found, sign-in), since those are written for users.
+ * A server error never shows the server's words, only a plain sentence and the request id,
+ * which matches the id in the server log for support.
+ */
+export function friendlyMessage(response: Pick<Response, 'status' | 'headers'>, serverMessage: string): string {
+  const { status } = response;
+  if (status >= 500) {
+    const reference = response.headers.get('X-Request-Id');
+    return `Something went wrong on our side. Please try again in a moment.${reference ? ` (Reference: ${reference})` : ''}`;
+  }
+  if (serverMessage) {
+    return serverMessage;
+  }
+  switch (status) {
+    case 400:
+      return 'The request was not valid. Please check what you entered.';
+    case 401:
+      return 'Please sign in again.';
+    case 403:
+      return 'You do not have access to that.';
+    case 404:
+      return 'That could not be found. It may have been removed.';
+    case 429:
+      return 'Too many requests. Please wait a minute and try again.';
+    default:
+      return `The request could not be completed (${status}).`;
+  }
+}
+
 function reportIfUnauthorized(status: number, path: string): void {
   // /api/auth/* answer 401 as part of their normal job (e.g. /me when signed out).
   if (status === 401 && !path.startsWith('/api/auth/') && typeof window !== 'undefined') {
@@ -77,11 +129,11 @@ async function request<T>(path: string, params?: Record<string, string | number 
   } catch {
     // fetch only rejects on a network-level failure, which here almost always means the
     // backend is not running or CORS refused the request before it was sent.
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const body = (await response.json()) as ApiErrorBody;
       if (body.message) {
@@ -91,7 +143,7 @@ async function request<T>(path: string, params?: Record<string, string | number 
       // A non-JSON error body is not worth failing over; the status line will do.
     }
     reportIfUnauthorized(response.status, path);
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as T;
@@ -120,10 +172,10 @@ async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       // Field errors are more useful than the generic "Request validation failed".
@@ -131,7 +183,7 @@ async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
     } catch {
       // A non-JSON error body is not worth failing over.
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
   return response.status === 204 ? null : ((await response.json()) as T);
 }
@@ -216,11 +268,11 @@ async function uploadResume(file: File): Promise<Resume> {
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -230,7 +282,7 @@ async function uploadResume(file: File): Promise<Resume> {
       // A non-JSON error body is not worth failing over.
     }
     reportIfUnauthorized(response.status, '/api/resumes');
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as Resume;
@@ -255,11 +307,11 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -269,10 +321,47 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
       // A non-JSON error body is not worth failing over.
     }
     reportIfUnauthorized(response.status, '/api/assistant/query');
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as AssistantResponse;
+}
+
+/**
+ * A JSON write (V7.1 job alerts): sends the CSRF token and, on a 400, the server's own field
+ * messages, so a form can say what to fix. Resolves to undefined for 204 No Content.
+ */
+async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...csrfHeader(),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+  } catch {
+    throw new ApiError(0, CANNOT_REACH);
+  }
+
+  if (!response.ok) {
+    let message = '';
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      const details = (error.fieldErrors ?? []).map((field) => field.message);
+      message = details.length > 0 ? details.join('; ') : error.message || message;
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    reportIfUnauthorized(response.status, path);
+    throw new ApiError(response.status, friendlyMessage(response, message));
+  }
+
+  return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
 export const api = {
@@ -365,6 +454,77 @@ export const api = {
     request<PagedResponse<CompanyDemand>>('/api/analytics/companies', { page, size }),
 
   askAssistant,
+
+  /** V7.1: the signed-in user's job alerts, newest first. */
+  jobAlerts: () => request<JobAlert[]>('/api/job-alerts'),
+
+  createJobAlert: (input: JobAlertInput) => send<JobAlert>('POST', '/api/job-alerts', input),
+
+  updateJobAlert: (id: string, input: JobAlertInput) => send<JobAlert>('PUT', `/api/job-alerts/${id}`, input),
+
+  setJobAlertActive: (id: string, active: boolean) =>
+    send<JobAlert>('PATCH', `/api/job-alerts/${id}/status`, { active }),
+
+  deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
+
+  /** V7.2: the signed-in user's saved jobs, most recently changed first. */
+  savedJobs: (status?: ApplicationStatus) => request<SavedJob[]>('/api/saved-jobs', { status }),
+
+  /** Saving an already saved job returns the existing record. */
+  saveJob: (jobId: number) => send<SavedJob>('POST', `/api/jobs/${jobId}/save`),
+
+  unsaveJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/save`),
+
+  setSavedJobStatus: (id: string, status: ApplicationStatus) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/status`, { status }),
+
+  setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
+
+  deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
+
+  /** V7.3: the signed-in user's resumes, newest first. */
+  resumes: () => request<Resume[]>('/api/resumes'),
+
+  updateResume: (id: string, title: string, versionLabel: string) =>
+    send<Resume>('PATCH', `/api/resumes/${id}`, { title, versionLabel }),
+
+  setDefaultResume: (id: string) => send<Resume>('PUT', `/api/resumes/${id}/default`),
+
+  /** The V6.10.5 delete: the file, its text and its skills. */
+  deleteResume: (id: string) => send<void>('DELETE', `/api/resumes/${id}`),
+
+  analyzeResumeJob: (resumeId: string, jobId: number) =>
+    request<ResumeJobAnalysis>(`/api/resumes/${resumeId}/analyze-job/${jobId}`),
+
+  compareResumes: (resumeId1: string, resumeId2: string) =>
+    request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),
+
+  /** V7.4: the signed-in user's career goals, most recently changed first. */
+  careerGoals: (status?: CareerGoalStatus) => request<CareerGoal[]>('/api/career-goals', { status }),
+
+  createCareerGoal: (input: CareerGoalInput) => send<CareerGoal>('POST', '/api/career-goals', input),
+
+  updateCareerGoal: (id: string, input: CareerGoalInput) => send<CareerGoal>('PUT', `/api/career-goals/${id}`, input),
+
+  setCareerGoalStatus: (id: string, status: CareerGoalStatus) =>
+    send<CareerGoal>('PATCH', `/api/career-goals/${id}/status`, { status }),
+
+  deleteCareerGoal: (id: string) => send<void>('DELETE', `/api/career-goals/${id}`),
+
+  careerGoalRoadmap: (goalId: string) => request<Roadmap>(`/api/career-goals/${goalId}/roadmap`),
+
+  setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
+    send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V7.5 market intelligence; every endpoint takes the same filters. */
+  marketSalary: (filters: MarketFilters) => request<MarketSalary>('/api/market/salary', { ...filters }),
+  marketLocations: (filters: MarketFilters) => request<MarketLocations>('/api/market/locations', { ...filters }),
+  marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),
+  marketCompanies: (filters: MarketFilters) => request<MarketCompanies>('/api/market/companies', { ...filters }),
+  marketSkills: (filters: MarketFilters) => request<MarketSkills>('/api/market/skills', { ...filters }),
+
+  /** V7.7: the signed-in user's career dashboard; optionally for one of their goals. */
+  dashboard: (goalId?: string) => request<PersonalDashboard>('/api/dashboard', { goalId }),
 };
 
 export { BASE_URL };

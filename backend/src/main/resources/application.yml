@@ -90,12 +90,33 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # V7.8: metrics joins health and info; nothing else (env, configprops, beans, heapdump)
+        # is reachable over HTTP. Metrics need the metrics account (ActuatorSecurityConfig).
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
+      # /actuator/health/liveness: the application itself is running.
+      # /actuator/health/readiness: it can serve, which includes a reachable database.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        # /actuator/health/database: the database alone.
+        database:
+          include: db
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 jmip:
+  observability:
+    # HTTP Basic account for /actuator/metrics. No password, no metrics endpoint for anyone.
+    metrics-username: ${JMIP_METRICS_USERNAME:metrics}
+    metrics-password: ${JMIP_METRICS_PASSWORD:}
+    # Requests at least this slow are logged at INFO; faster ones only at DEBUG.
+    slow-request-threshold: ${JMIP_SLOW_REQUEST_THRESHOLD:1s}
   resume:
     storage:
       # Relative by default so nothing assumes a particular machine's layout. Override
@@ -174,5 +195,9 @@ jmip:
     max-question-length: ${JMIP_ASSISTANT_MAX_QUESTION_LENGTH:500}
 
 logging:
+  pattern:
+    # V7.8: the request id next to the level in plain (local) logs; structured logs in prod
+    # carry it as a field.
+    level: "%5p [%X{requestId:-}]"
   level:
     com.jmip: INFO

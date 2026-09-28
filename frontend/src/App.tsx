@@ -1,4 +1,5 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
 import { EtlMonitoring } from './pages/EtlMonitoring';
@@ -9,6 +10,12 @@ import { VerifyEmail } from './pages/VerifyEmail';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
+import { CareerGoals } from './pages/CareerGoals';
+import { JobAlerts } from './pages/JobAlerts';
+import { MarketIntelligence } from './pages/MarketIntelligence';
+import { MyCareer } from './pages/MyCareer';
+import { SavedJobs } from './pages/SavedJobs';
+import { SavedJobsProvider } from './saved/SavedJobs';
 import { JobExplorer } from './pages/JobExplorer';
 import { JobIntelligence } from './pages/JobIntelligence';
 import { LocationAnalytics } from './pages/LocationAnalytics';
@@ -34,6 +41,7 @@ export default function App() {
         {/* V6.10.3: everything inside the shell needs a signed-in user. */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/my-career" element={<MyCareer />} />
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/categories" element={<JobIntelligence />} />
@@ -41,7 +49,11 @@ export default function App() {
           <Route path="/analytics/trends" element={<SkillTrends />} />
           <Route path="/analytics/companies" element={<CompanyAnalytics />} />
           <Route path="/analytics/locations" element={<LocationAnalytics />} />
+          <Route path="/market" element={<MarketIntelligence />} />
           <Route path="/resume" element={<ResumeIntelligence />} />
+          <Route path="/alerts" element={<JobAlerts />} />
+          <Route path="/career-goals" element={<CareerGoals />} />
+          <Route path="/saved-jobs" element={<SavedJobs />} />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/etl" element={<EtlMonitoring />} />
         </Route>
@@ -52,9 +64,17 @@ export default function App() {
 }
 
 function ShellLayout() {
+  // V7.8: a page that fails to render is contained; moving to another page resets it.
+  const { pathname } = useLocation();
+  // Saved jobs are shared by every page in the shell; signing out leaves the shell, which
+  // drops them, so the next account never sees the last one's.
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <SavedJobsProvider>
+      <AppShell>
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
+      </AppShell>
+    </SavedJobsProvider>
   );
 }

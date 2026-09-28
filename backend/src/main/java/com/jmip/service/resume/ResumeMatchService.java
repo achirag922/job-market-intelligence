@@ -52,11 +52,20 @@ public class ResumeMatchService {
 
     @Transactional(readOnly = true)
     public ResumeMatchResponse match(UUID resumeId, Long jobId) {
+        return matchWithContext(resumeId, jobId).match();
+    }
+
+    /** V7.3: the same match, with the resume and job it was computed from, for deeper analysis. */
+    public record MatchContext(Resume resume, Job job, ResumeMatchResponse match) {
+    }
+
+    @Transactional(readOnly = true)
+    public MatchContext matchWithContext(UUID resumeId, Long jobId) {
         Resume resume = resumeService.requireCompletedResume(resumeId);
         Job job = jobRepository.findDetailById(jobId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", jobId));
 
-        return compare(resume, job);
+        return new MatchContext(resume, job, compare(resume, job));
     }
 
     /**

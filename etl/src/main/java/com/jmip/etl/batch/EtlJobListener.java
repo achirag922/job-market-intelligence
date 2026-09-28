@@ -4,6 +4,7 @@ import com.jmip.etl.load.EtlMetrics;
 import com.jmip.etl.load.EtlRunMetricsRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.StepExecution;
@@ -18,6 +19,8 @@ import java.time.LocalDateTime;
 @Component
 public class EtlJobListener implements JobExecutionListener {
 
+    static final String MDC_JOB_EXECUTION_ID = "jobExecutionId";
+
     private static final Logger log = LoggerFactory.getLogger(EtlJobListener.class);
 
     private final EtlMetrics metrics;
@@ -31,6 +34,8 @@ public class EtlJobListener implements JobExecutionListener {
     @Override
     public void beforeJob(JobExecution jobExecution) {
         metrics.reset();
+        // V7.8: every log line of this run carries its execution id (structured logs in prod).
+        MDC.put(MDC_JOB_EXECUTION_ID, String.valueOf(jobExecution.getId()));
         log.info("ETL job '{}' started (execution {}), parameters: {}",
                 jobExecution.getJobInstance().getJobName(),
                 jobExecution.getId(),
@@ -80,7 +85,12 @@ public class EtlJobListener implements JobExecutionListener {
                         elapsed.toMillis() / 1000.0,
                         jobExecution.getStatus());
         log.info(summary);
+        // The same figures on one line, for searching and alerting on the log.
+        log.info("etl.run executionId={} job={} status={} durationMs={} read={} processed={} loaded={} duplicates={} rejected={}",
+                jobExecution.getId(), jobExecution.getJobInstance().getJobName(), jobExecution.getStatus(),
+                elapsed.toMillis(), read, processed, metrics.jobsLoaded(), metrics.duplicatesSkipped(), rejected);
         persistRunMetrics(jobExecution);
+        MDC.remove(MDC_JOB_EXECUTION_ID);
     }
 
     /**
