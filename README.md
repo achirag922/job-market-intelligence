@@ -209,6 +209,7 @@ etl/data
 - [x] V7.4 — career goals & skill roadmap: goals per account (role, job category, optional location/experience/skills; ACTIVE/COMPLETED/ARCHIVED), a deterministic roadmap from the default resume, category demand and rising trends (the V6.4 focus-area order), and per-skill progress
 - [x] V7.5 — market intelligence: `/api/market/{salary,locations,remote,companies,skills}` with shared category/location/experience/period filters, per-currency salaries, work mode read from posting wording, posting-month series, skill trends from the stored snapshot; Market Intelligence page
 - [x] V7.6 — AI career copilot: eight personal intents (missing skills, next skills, target-role skills and demand, job matches, resume improvement, application progress, saved-job priority) routed to existing owner-scoped services, default-resume fallback, v2 prompts, career suggestions and job context in the assistant
+- [x] V7.7 — personal career dashboard: `GET /api/dashboard` aggregates resume, skills, recommendations, applications, career goal and target-role market data from the existing owner-scoped services; My Career page
 
 ## API
 
@@ -724,6 +725,24 @@ the account from the session, and a `resumeId` from the request is ownership-che
 Rows exclude application notes and posting descriptions, so stored free text never reaches the
 model. Prompts are `intent-extraction-v2.txt` and `answer-generation-v2.txt`; the offline `stub`
 provider routes the example questions by keyword.
+
+### Personal career dashboard (V7.7)
+
+`GET /api/dashboard` (optional `?goalId=` for one of your goals) returns the **My Career** page in
+one response, with a section per feature, each assembled from the service that owns it:
+
+| Section | Source |
+| --- | --- |
+| `resume` | current resume (the default if processed, else the newest processed), match summary over the V6.3 recommendations, roadmap skills missing for the goal |
+| `skills` | resume skills, and roadmap skills in progress / completed (V7.4) |
+| `recommendations` | top V6.3 matches, count and average match |
+| `applications` | V7.2 counts per status, a SAVED → OFFER funnel by current status, recently updated jobs (no notes) |
+| `careerGoal` | the most recently changed active goal (or `goalId`), roadmap progress and highest-priority skills |
+| `market` | V7.5 skills, locations, work modes, salaries and companies for the goal's category, or all postings without a goal |
+
+Every section has `available` and, when empty, a `note` saying what is missing. Every personal
+figure comes from services that read the account from the session; another account's `goalId` is
+a 404.
 
 ## Running with Docker (V6.6)
 

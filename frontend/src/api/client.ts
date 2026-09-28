@@ -12,6 +12,7 @@ import type {
   ResumeComparison,
   CareerGoal,
   MarketCompanies,
+  PersonalDashboard,
   MarketFilters,
   MarketLocations,
   MarketRemote,
@@ -487,6 +488,9 @@ export const api = {
   marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),
   marketCompanies: (filters: MarketFilters) => request<MarketCompanies>('/api/market/companies', { ...filters }),
   marketSkills: (filters: MarketFilters) => request<MarketSkills>('/api/market/skills', { ...filters }),
+
+  /** V7.7: the signed-in user's career dashboard; optionally for one of their goals. */
+  dashboard: (goalId?: string) => request<PersonalDashboard>('/api/dashboard', { goalId }),
 };
 
 export { BASE_URL };

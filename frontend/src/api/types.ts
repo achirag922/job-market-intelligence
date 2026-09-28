@@ -719,3 +719,68 @@ export interface MarketSkills {
   trend?: SkillTrends;
   notes: string[];
 }
+
+/** V7.7: the signed-in user's career dashboard, one section per existing feature. */
+export interface PersonalDashboard {
+  resume: {
+    available: boolean;
+    current?: { id: string; title: string; versionLabel?: string; isDefault: boolean; skillCount: number; uploadedAt: string };
+    resumeCount: number;
+    matchSummary?: { jobsCompared: number; topMatchPercentage?: number; averageMatchPercentage?: number };
+    missingSkillsForGoal: string[];
+    note?: string;
+  };
+  skills: {
+    available: boolean;
+    currentSkills: Skill[];
+    inProgress: string[];
+    completed: string[];
+    notStarted: number;
+    roadmapPercentComplete?: number;
+    note?: string;
+  };
+  recommendations: {
+    available: boolean;
+    count: number;
+    averageMatchPercentage?: number;
+    topJobs: { jobId: number; title: string; company: string; category?: string; matchPercentage: number }[];
+    note?: string;
+  };
+  applications: {
+    available: boolean;
+    total: number;
+    saved: number;
+    applied: number;
+    interview: number;
+    offer: number;
+    rejected: number;
+    withdrawn: number;
+    funnel: { stage: ApplicationStatus; jobs: number }[];
+    recent: { savedJobId: string; jobId: number; title: string; company: string; status: ApplicationStatus; appliedAt?: string; updatedAt: string }[];
+    note?: string;
+  };
+  careerGoal: {
+    available: boolean;
+    goalId?: string;
+    targetRole?: string;
+    targetCategory?: string;
+    activeGoals: number;
+    progress?: Roadmap['progress'];
+    topMissingSkills: { priority: number; skill: string; reason: string; status: SkillProgressStatus }[];
+    basedOnResume?: string;
+    note?: string;
+  };
+  market: {
+    available: boolean;
+    category?: string;
+    scope: MarketScope;
+    topSkills: MarketSkills['topSkills'];
+    skillTrend?: SkillTrends;
+    topLocations: MarketLocations['topLocations'];
+    locationNotStated: number;
+    workModes: MarketRemote['distribution'];
+    salaries: SalaryFigure[];
+    topCompanies: MarketCompanies['topCompanies'];
+    notes: string[];
+  };
+}

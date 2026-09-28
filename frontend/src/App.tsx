@@ -12,6 +12,7 @@ import { JobDetails } from './pages/JobDetails';
 import { CareerGoals } from './pages/CareerGoals';
 import { JobAlerts } from './pages/JobAlerts';
 import { MarketIntelligence } from './pages/MarketIntelligence';
+import { MyCareer } from './pages/MyCareer';
 import { SavedJobs } from './pages/SavedJobs';
 import { SavedJobsProvider } from './saved/SavedJobs';
 import { JobExplorer } from './pages/JobExplorer';
@@ -39,6 +40,7 @@ export default function App() {
         {/* V6.10.3: everything inside the shell needs a signed-in user. */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/my-career" element={<MyCareer />} />
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/categories" element={<JobIntelligence />} />

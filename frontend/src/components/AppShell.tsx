@@ -38,7 +38,10 @@ interface NavItem {
 const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   {
     label: 'Overview',
-    items: [{ to: '/', label: 'Dashboard', icon: IconDashboard, end: true }],
+    items: [
+      { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
+      { to: '/my-career', label: 'My Career', icon: IconFlag },
+    ],
   },
   {
     label: 'Job market',
@@ -79,6 +82,11 @@ const PAGE_TITLES: [string, string][] = [
   ['/analytics/categories', 'Job Categories'],
   ['/resume', 'Resume Intelligence'],
   ['/assistant', 'AI Assistant'],
+  ['/my-career', 'My Career'],
+  ['/market', 'Market Intelligence'],
+  ['/alerts', 'Job Alerts'],
+  ['/saved-jobs', 'Saved Jobs'],
+  ['/career-goals', 'Career Goals'],
   ['/etl', 'ETL Monitoring'],
   ['/login', 'Log in'],
   ['/signup', 'Sign up'],

@@ -3266,3 +3266,51 @@ button.filter-chip-remove:hover:not(:disabled) {
 .chat-suggestions-label {
   margin: var(--space-2) 0 var(--space-1);
 }
+
+/* V7.7 My Career dashboard */
+.career-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.career-grid > .card {
+  margin-bottom: 0;
+}
+
+.career-wide {
+  grid-column: 1 / -1;
+}
+
+.career-job-list,
+.career-priority-list {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.career-job-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.career-job-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.career-applications {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .career-grid,
+  .career-applications {
+    grid-template-columns: 1fr;
+  }
+}

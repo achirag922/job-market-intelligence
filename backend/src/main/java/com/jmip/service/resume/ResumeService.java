@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -180,6 +181,24 @@ public class ResumeService {
         return resumeRepository.findByUserIdOrderByUploadedAtDesc(currentUser.requireId()).stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    /**
+     * The resume analyses run against: the default if it is processed, otherwise the newest
+     * processed one (V7.6 copilot, V7.7 dashboard). Empty when none is processed.
+     */
+    public static Optional<ResumeResponse> currentProcessed(List<ResumeResponse> resumes) {
+        List<ResumeResponse> completed = resumes.stream()
+                .filter(resume -> "COMPLETED".equals(resume.status()))
+                .toList();
+        return completed.stream().filter(ResumeResponse::isDefault).findFirst()
+                .or(() -> completed.stream().findFirst());
+    }
+
+    /** {@link #currentProcessed(List)} for the signed-in user. */
+    @Transactional(readOnly = true)
+    public Optional<UUID> currentProcessedResumeId() {
+        return currentProcessed(list()).map(ResumeResponse::id);
     }
 
     /** Renames or relabels one of the caller's resumes. */

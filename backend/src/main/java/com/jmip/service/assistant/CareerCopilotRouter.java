@@ -10,7 +10,6 @@ import com.jmip.dto.resume.CareerInsightsResponse;
 import com.jmip.dto.resume.ResumeJobAnalysisResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
 import com.jmip.dto.resume.ResumeRecommendationResponse;
-import com.jmip.dto.resume.ResumeResponse;
 import com.jmip.dto.saved.SavedJobResponse;
 import com.jmip.entity.ApplicationStatus;
 import com.jmip.entity.CareerGoalStatus;
@@ -79,12 +78,7 @@ public class CareerCopilotRouter {
 
     /** The signed-in user's default resume if it is processed, else their newest processed one. */
     public Optional<UUID> defaultResumeId() {
-        List<ResumeResponse> completed = resumeService.list().stream()
-                .filter(resume -> "COMPLETED".equals(resume.status()))
-                .toList();
-        return completed.stream().filter(ResumeResponse::isDefault).findFirst()
-                .or(() -> completed.stream().findFirst())
-                .map(ResumeResponse::id);
+        return resumeService.currentProcessedResumeId();
     }
 
     public AssistantData route(ResolvedIntent intent, UUID resumeId, Long jobId) {
