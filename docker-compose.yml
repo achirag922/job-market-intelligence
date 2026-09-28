@@ -17,6 +17,8 @@ x-database-env: &database-env
   # prod removes the local-development fallbacks (see application-prod.yml).
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
   JMIP_LOG_LEVEL: ${JMIP_LOG_LEVEL:-INFO}
+  # V7.8: JSON log lines (ecs, logstash or gelf) for backend and ETL.
+  JMIP_LOG_FORMAT: ${JMIP_LOG_FORMAT:-ecs}
 
 services:
   postgres:
@@ -72,6 +74,10 @@ services:
       # Resume files and extracted text are encrypted with this (base64, 32 bytes).
       JMIP_RESUME_ENCRYPTION_KEY: ${JMIP_RESUME_ENCRYPTION_KEY:?Set JMIP_RESUME_ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       JMIP_RESUME_RETENTION: ${JMIP_RESUME_RETENTION:-0s}
+      # V7.8: /actuator/metrics over HTTP Basic; empty keeps it closed. nginx never proxies it.
+      JMIP_METRICS_USERNAME: ${JMIP_METRICS_USERNAME:-metrics}
+      JMIP_METRICS_PASSWORD: ${JMIP_METRICS_PASSWORD:-}
+      JMIP_SLOW_REQUEST_THRESHOLD: ${JMIP_SLOW_REQUEST_THRESHOLD:-1s}
       JMIP_MAIL_HOST: ${JMIP_MAIL_HOST:-smtp.gmail.com}
       JMIP_MAIL_PORT: ${JMIP_MAIL_PORT:-587}
       JMIP_MAIL_USERNAME: ${JMIP_MAIL_USERNAME:-}

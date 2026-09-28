@@ -210,6 +210,7 @@ etl/data
 - [x] V7.5 — market intelligence: `/api/market/{salary,locations,remote,companies,skills}` with shared category/location/experience/period filters, per-currency salaries, work mode read from posting wording, posting-month series, skill trends from the stored snapshot; Market Intelligence page
 - [x] V7.6 — AI career copilot: eight personal intents (missing skills, next skills, target-role skills and demand, job matches, resume improvement, application progress, saved-job priority) routed to existing owner-scoped services, default-resume fallback, v2 prompts, career suggestions and job context in the assistant
 - [x] V7.7 — personal career dashboard: `GET /api/dashboard` aggregates resume, skills, recommendations, applications, career goal and target-role market data from the existing owner-scoped services; My Career page
+- [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
 
 ## API
 
@@ -743,6 +744,28 @@ one response, with a section per feature, each assembled from the service that o
 Every section has `available` and, when empty, a `note` saying what is missing. Every personal
 figure comes from services that read the account from the session; another account's `goalId` is
 a 404.
+
+### Observability (V7.8)
+
+- **Logs.** Every request gets an id (`X-Request-Id`, reused from a proxy when it looks like one)
+  that appears on every log line it causes and on the response. One summary line per request
+  (`method=… path=… status=… durationMs=…`) is WARN for server errors, INFO when slower than
+  `JMIP_SLOW_REQUEST_THRESHOLD` (1s) and DEBUG otherwise. Query strings, headers, cookies and
+  bodies are never logged. Under `prod`, backend and ETL log one JSON object per line
+  (`JMIP_LOG_FORMAT`: `ecs`, `logstash` or `gelf`). ETL runs log their execution id on every
+  line and finish with `etl.run executionId=… status=… durationMs=… read=… rejected=…`.
+- **Health.** `/actuator/health` (overall), `/actuator/health/liveness` (the application),
+  `/actuator/health/readiness` (application and database) and `/actuator/health/database`. Public;
+  status only under `prod`.
+- **Metrics.** `/actuator/metrics` needs HTTP Basic with `JMIP_METRICS_USERNAME` /
+  `JMIP_METRICS_PASSWORD` (at least 16 characters); with no password it is closed to everyone.
+  It includes `http.server.requests` (count, time, status and outcome per endpoint, so errors
+  are `outcome:SERVER_ERROR`), JVM, `hikaricp.connections.*` and more. Nothing else in Actuator
+  (env, configprops, beans, heapdump) is exposed, and nginx does not proxy `/actuator/metrics`.
+
+```bash
+curl -u "metrics:$JMIP_METRICS_PASSWORD" "http://localhost:8080/actuator/metrics/http.server.requests?tag=outcome:SERVER_ERROR"
+```
 
 ## Running with Docker (V6.6)
 

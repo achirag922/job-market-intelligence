@@ -4,6 +4,9 @@ import com.jmip.etl.load.EtlMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
@@ -228,6 +231,18 @@ class EtlJobIntegrationTest {
 
     private int count(String table) {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("V7.8: a run logs a one-line summary with its execution id, and leaves no id behind")
+    void logsRunSummary(CapturedOutput output) throws Exception {
+        JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+        assertThat(output).contains("etl.run executionId=" + execution.getId())
+                .contains("status=COMPLETED")
+                .contains("read=10 processed=7 loaded=5 duplicates=2 rejected=3");
+        assertThat(org.slf4j.MDC.get(EtlJobListener.MDC_JOB_EXECUTION_ID)).isNull();
     }
 
     private List<String> names(String sql) {

@@ -43,6 +43,8 @@ public class WebCorsConfig implements WebMvcConfigurer {
                 .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 // Only what the frontend sends, including the CSRF token header.
                 .allowedHeaders("Content-Type", "Accept", "X-CSRF-TOKEN")
+                // V7.8: lets the browser read the request id, shown as a reference on errors.
+                .exposedHeaders("X-Request-Id")
                 // The session cookie must travel when the frontend runs on another origin (the Vite
                 // dev server). Safe only because the origins are exact: wildcards are refused.
                 .allowCredentials(true)

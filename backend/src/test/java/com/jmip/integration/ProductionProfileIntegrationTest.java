@@ -113,7 +113,22 @@ class ProductionProfileIntegrationTest {
     @Test
     @DisplayName("health reports status only, no component details, in production")
     void healthHidesDetails() throws Exception {
-        mockMvc.perform(get("/actuator/health")).andExpect(content().json("{\"status\":\"UP\"}", true));
+        // V7.8: the group names are listed too; component details still are not.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(content().json("{\"status\":\"UP\",\"groups\":[\"database\",\"liveness\",\"readiness\"]}", true));
+        for (String group : new String[]{"liveness", "readiness", "database"}) {
+            mockMvc.perform(get("/actuator/health/" + group)).andExpect(content().json("{\"status\":\"UP\"}", true));
+        }
+    }
+
+    @Test
+    @DisplayName("without JMIP_METRICS_PASSWORD the metrics endpoint is closed to everyone")
+    void metricsClosedWithoutPassword() throws Exception {
+        int anonymous = mockMvc.perform(get("/actuator/metrics")).andReturn().getResponse().getStatus();
+        int guessed = mockMvc.perform(get("/actuator/metrics").header("Authorization", "Basic bWV0cmljczptZXRyaWNz"))
+                .andReturn().getResponse().getStatus();
+        org.assertj.core.api.Assertions.assertThat(anonymous).isIn(401, 403);
+        org.assertj.core.api.Assertions.assertThat(guessed).isIn(401, 403);
     }
 
     @Test

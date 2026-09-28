@@ -1,4 +1,5 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
 import { EtlMonitoring } from './pages/EtlMonitoring';
@@ -63,12 +64,16 @@ export default function App() {
 }
 
 function ShellLayout() {
+  // V7.8: a page that fails to render is contained; moving to another page resets it.
+  const { pathname } = useLocation();
   // Saved jobs are shared by every page in the shell; signing out leaves the shell, which
   // drops them, so the next account never sees the last one's.
   return (
     <SavedJobsProvider>
       <AppShell>
-        <Outlet />
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </AppShell>
     </SavedJobsProvider>
   );

@@ -73,6 +73,40 @@ export class ApiError extends Error {
 /** Fired when an application API says the session is gone, so the app can show Log in. */
 export const UNAUTHORIZED_EVENT = 'jmip:unauthorized';
 
+/** V7.8: shown when the request never reached the server; no addresses or internals. */
+export const CANNOT_REACH = 'Cannot reach the server. Check your connection and try again.';
+
+/**
+ * V7.8: what the user is told when a call fails. The server's own message is kept for
+ * requests it rejected (validation, not found, sign-in), since those are written for users.
+ * A server error never shows the server's words, only a plain sentence and the request id,
+ * which matches the id in the server log for support.
+ */
+export function friendlyMessage(response: Pick<Response, 'status' | 'headers'>, serverMessage: string): string {
+  const { status } = response;
+  if (status >= 500) {
+    const reference = response.headers.get('X-Request-Id');
+    return `Something went wrong on our side. Please try again in a moment.${reference ? ` (Reference: ${reference})` : ''}`;
+  }
+  if (serverMessage) {
+    return serverMessage;
+  }
+  switch (status) {
+    case 400:
+      return 'The request was not valid. Please check what you entered.';
+    case 401:
+      return 'Please sign in again.';
+    case 403:
+      return 'You do not have access to that.';
+    case 404:
+      return 'That could not be found. It may have been removed.';
+    case 429:
+      return 'Too many requests. Please wait a minute and try again.';
+    default:
+      return `The request could not be completed (${status}).`;
+  }
+}
+
 function reportIfUnauthorized(status: number, path: string): void {
   // /api/auth/* answer 401 as part of their normal job (e.g. /me when signed out).
   if (status === 401 && !path.startsWith('/api/auth/') && typeof window !== 'undefined') {
@@ -95,11 +129,11 @@ async function request<T>(path: string, params?: Record<string, string | number 
   } catch {
     // fetch only rejects on a network-level failure, which here almost always means the
     // backend is not running or CORS refused the request before it was sent.
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const body = (await response.json()) as ApiErrorBody;
       if (body.message) {
@@ -109,7 +143,7 @@ async function request<T>(path: string, params?: Record<string, string | number 
       // A non-JSON error body is not worth failing over; the status line will do.
     }
     reportIfUnauthorized(response.status, path);
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as T;
@@ -138,10 +172,10 @@ async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       // Field errors are more useful than the generic "Request validation failed".
@@ -149,7 +183,7 @@ async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
     } catch {
       // A non-JSON error body is not worth failing over.
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
   return response.status === 204 ? null : ((await response.json()) as T);
 }
@@ -234,11 +268,11 @@ async function uploadResume(file: File): Promise<Resume> {
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -248,7 +282,7 @@ async function uploadResume(file: File): Promise<Resume> {
       // A non-JSON error body is not worth failing over.
     }
     reportIfUnauthorized(response.status, '/api/resumes');
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as Resume;
@@ -273,11 +307,11 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -287,7 +321,7 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
       // A non-JSON error body is not worth failing over.
     }
     reportIfUnauthorized(response.status, '/api/assistant/query');
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as AssistantResponse;
@@ -311,11 +345,11 @@ async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string
       credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       const details = (error.fieldErrors ?? []).map((field) => field.message);
@@ -324,7 +358,7 @@ async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string
       // A non-JSON error body is not worth failing over.
     }
     reportIfUnauthorized(response.status, path);
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (response.status === 204 ? undefined : await response.json()) as T;
