@@ -129,7 +129,8 @@ public class SkillTrendService {
                 series.points(window, periodTotals));
     }
 
-    private static TrendDirection directionOf(double changeInPoints) {
+    /** V8.8: also used by the market trends, so both apply the same stable band. */
+    public static TrendDirection directionOf(double changeInPoints) {
         if (changeInPoints >= STABLE_BAND_PERCENTAGE_POINTS) {
             return TrendDirection.RISING;
         }

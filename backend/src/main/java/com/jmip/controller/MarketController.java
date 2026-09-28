@@ -29,9 +29,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class MarketController {
 
     private final MarketIntelligenceService service;
+    private final com.jmip.service.market.MarketTrendsService trendsService;
 
-    public MarketController(MarketIntelligenceService service) {
+    public MarketController(MarketIntelligenceService service, com.jmip.service.market.MarketTrendsService trendsService) {
         this.service = service;
+        this.trendsService = trendsService;
+    }
+
+    /**
+     * V8.8: how demand for a role (job category), or the whole market, moved over the last
+     * {@code months} months of data, with a labelled estimate when there is enough history.
+     */
+    @GetMapping("/trends")
+    public com.jmip.dto.market.MarketTrendsResponse trends(@RequestParam(required = false) @Size(max = 50) String category,
+                                                           @RequestParam(required = false) @Min(2) @Max(36) Integer months) {
+        return trendsService.trends(category, months);
     }
 
     @GetMapping("/salary")

@@ -5,6 +5,7 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  MarketTrends,
   InterviewQuestion,
   InterviewSession,
   ResumeJobComparison,
@@ -568,6 +569,9 @@ export const api = {
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
 
   /** V7.5 market intelligence; every endpoint takes the same filters. */
+  /** V8.8: historical trends for a role (job category) or all roles, with a labelled estimate. */
+  marketTrends: (filters: { category?: string; months?: number }) => request<MarketTrends>("/api/market/trends", { ...filters }),
+
   marketSalary: (filters: MarketFilters) => request<MarketSalary>('/api/market/salary', { ...filters }),
   marketLocations: (filters: MarketFilters) => request<MarketLocations>('/api/market/locations', { ...filters }),
   marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),

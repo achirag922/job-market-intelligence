@@ -903,6 +903,83 @@ export interface Roadmap {
 }
 
 /** V7.5 market intelligence. Every figure is counted from postings; nothing is estimated. */
+// ---------------------------------------------------------------- V8.8: career market trends
+
+/** A comparison of the earlier and recent halves of the covered months. */
+export interface MarketTrend {
+  direction: "INCREASING" | "DECREASING" | "STABLE" | "INSUFFICIENT_DATA";
+  change?: number;
+  unit?: "PERCENT" | "PERCENTAGE_POINTS";
+  earlierFrom?: string;
+  earlierTo?: string;
+  recentFrom?: string;
+  recentTo?: string;
+  earlierValue?: number;
+  recentValue?: number;
+  basis?: string;
+  note?: string;
+}
+
+export interface MarketSkillMove {
+  skillId: number;
+  skill: string;
+  category?: string;
+  postings: number;
+  earlierSharePercentage: number;
+  recentSharePercentage: number;
+  changeInPercentagePoints: number;
+  direction: string;
+}
+
+/** Historical trends for a role or the whole market, and a separately labelled estimate. */
+export interface MarketTrends {
+  category?: string;
+  period: {
+    requestedMonths: number;
+    fromMonth?: string;
+    toMonth?: string;
+    coveredMonths: number;
+    monthsWithoutData: string[];
+    latestPostedDate?: string;
+    source: string;
+  };
+  volume: { month: string; postings?: number; allPostings?: number; sharePercentage?: number }[];
+  volumeTrend: MarketTrend;
+  shareTrend?: MarketTrend;
+  skills: {
+    source?: string;
+    earlierFrom?: string;
+    earlierTo?: string;
+    recentFrom?: string;
+    recentTo?: string;
+    growing: MarketSkillMove[];
+    declining: MarketSkillMove[];
+    note?: string;
+  };
+  salary?: {
+    currency: string;
+    series: { month: string; currency: string; postings: number; averageMin?: number; averageMax?: number; reliable: boolean }[];
+    trend: MarketTrend;
+    note?: string;
+  };
+  locations: { locationId: number; location: string; postings: number; trend: MarketTrend }[];
+  workModes: { month: string; total: number; remote: number; hybrid: number; onSite: number; notStated: number }[];
+  workModeTrends: { mode: string; trend: MarketTrend }[];
+  forecast: {
+    status: "ESTIMATE" | "INSUFFICIENT_DATA";
+    label: string;
+    method: string;
+    basedOnMonths?: number;
+    fromMonth?: string;
+    toMonth?: string;
+    slopePerMonth?: number;
+    rSquared?: number;
+    estimates: { month: string; estimatedPostings: number }[];
+    note?: string;
+  };
+  notes: string[];
+}
+
 export interface MarketFilters {
   category?: string;
   location?: string;

@@ -220,6 +220,7 @@ etl/data
 - [x] V8.5 — application intelligence: status history and follow-up dates (V20), per-application V8.3 match with matched/missing skills, funnel, monthly activity, averages and rankings, upcoming/overdue follow-ups on Saved Jobs
 - [x] V8.6 — resume optimization: per-job match, skills, keyword and section analysis with grounded suggestions (no rewriting, no invented skills), and version comparison for a job
 - [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
+- [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
 
 ## API
 
@@ -921,6 +922,32 @@ an unreadable reply leaves the answer saved with feedback UNAVAILABLE, to try ag
 summary is computed from the stored scores, without AI.
 
 Sessions are the signed-in user's own: another account's session or resume answers 404.
+
+### Career market trends (V8.8)
+
+`GET /api/market/trends?category=&months=` (`months` 2 to 36, default 12; `category` is a job category,
+i.e. the role; absent means all roles). Built on the V7.5 market queries and filter; the period ends at
+the newest posting in the data, not today.
+
+- **History.** Postings per posting month, with the role's share of all postings. A month in the period
+  with no postings in JMIP at all is listed in `monthsWithoutData`, drawn as a gap and left out of every
+  calculation, never read as zero.
+- **Trends.** The covered months are split in two (the later half, rounded up, is recent) and compared:
+  counts and salaries by percentage change (under 5% is STABLE), shares in percentage points with the
+  skill trends' one-point stable band. Every trend states the two periods it compares, or
+  `INSUFFICIENT_DATA` with why (fewer than 5 postings, or fewer than two months).
+- **Role insights.** Growing and declining skills (all roles: the stored monthly skill history; one role:
+  that role's postings, same rule), the salary midpoint in the currency most postings state (never
+  converted; needs 3 postings with a salary in each period), the top locations and the remote, hybrid and
+  on-site shares.
+- **Estimate.** Only from 6 months with data and 10 postings: an ordinary least-squares line through
+  monthly postings (months placed by calendar position, so gaps do not bend it), extended 3 months,
+  never below zero, labelled "Estimate, not a prediction", with the slope and R². No probability,
+  hiring prediction, model or external data. Otherwise: "Insufficient data".
+- If the newest posting is more than two months old, the response says the figures describe the
+  market up to then, not today.
+
+On the Market Intelligence page, "Career market trends" has its own role and time-range filters.
 
 ### Backup and recovery
 
