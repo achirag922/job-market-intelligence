@@ -605,6 +605,20 @@ export interface JobAlert extends JobAlertInput {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** V8.4: when the digest pass last checked this alert. */
+  lastProcessedAt?: string;
+}
+
+/** V8.4: a job an alert recorded, and whether its digest email went out. */
+export interface JobAlertNotification {
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  /** V8.3 overall match with the current resume; absent without one. */
+  matchPercentage?: number;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  recordedAt: string;
+  sentAt?: string;
 }
 
 /** V7.2: where an application for a saved job stands. */

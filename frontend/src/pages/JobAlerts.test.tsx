@@ -12,6 +12,8 @@ const updateJobAlert = vi.fn();
 const setJobAlertActive = vi.fn();
 const deleteJobAlert = vi.fn();
 
+const jobAlertNotifications = vi.fn();
+
 vi.mock('../api/client', async () => {
   const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
   return {
@@ -23,6 +25,7 @@ vi.mock('../api/client', async () => {
       updateJobAlert: (...args: unknown[]) => updateJobAlert(...args),
       setJobAlertActive: (...args: unknown[]) => setJobAlertActive(...args),
       deleteJobAlert: (...args: unknown[]) => deleteJobAlert(...args),
+      jobAlertNotifications: (...args: unknown[]) => jobAlertNotifications(...args),
     },
   };
 });
@@ -183,5 +186,39 @@ describe('JobAlerts', () => {
 describe('alertSearchLink', () => {
   it('leaves out empty filters', () => {
     expect(alertSearchLink({ name: 'x', skill: 'Go', keywords: '', frequency: 'DAILY' })).toBe('/jobs?skill=Go');
+  });
+});
+
+describe('JobAlerts emailed jobs (V8.4)', () => {
+  beforeEach(() => {
+    jobCategories.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows when an alert was last checked and, when opened, what it emailed', async () => {
+    jobAlerts.mockResolvedValue([alert({ lastProcessedAt: '2026-09-27T08:00:00Z' })]);
+    jobAlertNotifications.mockResolvedValue([
+      { jobId: 7, jobTitle: 'Java Developer', companyName: 'Acme', matchPercentage: 72.4, status: 'SENT', recordedAt: '2026-09-27T08:00:00Z', sentAt: '2026-09-27T08:00:05Z' },
+      { jobId: 8, jobTitle: 'Java Lead', companyName: 'Beta', status: 'FAILED', recordedAt: '2026-09-27T08:00:00Z' },
+    ]);
+    renderPage();
+
+    const item = (await screen.findByText('Java in Berlin')).closest('li')!;
+    expect(within(item).getByText(/Last checked/)).toBeTruthy();
+    expect(jobAlertNotifications).not.toHaveBeenCalled();
+
+    const details = within(item).getByText('Emailed jobs').closest('details')!;
+    details.open = true;
+    fireEvent(details, new Event('toggle'));
+
+    expect(await within(item).findByText('Java Developer')).toBeTruthy();
+    expect(within(item).getByText('72% match')).toBeTruthy();
+    expect(within(item).getByText('Emailed')).toBeTruthy();
+    expect(within(item).getByText('Not delivered')).toBeTruthy();
+    expect(jobAlertNotifications).toHaveBeenCalledWith(alert().id);
   });
 });

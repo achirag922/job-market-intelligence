@@ -164,7 +164,7 @@ public class JobMatchScorer {
     }
 
     /** REMOTE, HYBRID or ON_SITE from what the posting says; null when it does not say. */
-    static String workModeOf(String description) {
+    public static String workModeOf(String description) {
         if (description == null) {
             return null;
         }

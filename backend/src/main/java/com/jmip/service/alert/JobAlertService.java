@@ -24,6 +24,11 @@ import java.util.UUID;
 @Service
 public class JobAlertService {
 
+    static final int RECENT_NOTIFICATIONS = 20;
+
+    /** V8.4: what the digest pass recorded; null only in unit tests that do not need it. */
+    private final com.jmip.repository.AlertNotificationRepository notifications;
+
     /** Enough for real use, and a bound on what one account can make a future run do. */
     static final int MAX_ALERTS_PER_ACCOUNT = 25;
 
@@ -34,9 +39,16 @@ public class JobAlertService {
     private final Clock clock;
 
     public JobAlertService(JobAlertRepository repository, CurrentUser currentUser, Clock clock) {
+        this(repository, currentUser, clock, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JobAlertService(JobAlertRepository repository, CurrentUser currentUser, Clock clock,
+                           com.jmip.repository.AlertNotificationRepository notifications) {
         this.repository = repository;
         this.currentUser = currentUser;
         this.clock = clock;
+        this.notifications = notifications;
     }
 
     @Transactional
@@ -73,6 +85,10 @@ public class JobAlertService {
     @Transactional
     public JobAlertResponse setActive(UUID id, boolean active) {
         JobAlert alert = requireOwn(id);
+        if (active && !alert.isActive() && notifications != null) {
+            // V8.4: a resumed alert starts from now; postings seen while it was paused are not sent.
+            notifications.markProcessed(id, now());
+        }
         alert.setActive(active, now());
         return JobAlertResponse.of(alert);
     }
@@ -81,6 +97,13 @@ public class JobAlertService {
     public void delete(UUID id) {
         repository.delete(requireOwn(id));
         log.info("Job alert {} deleted", id);
+    }
+
+    /** V8.4: the latest jobs this alert recorded, and whether each digest went out. Owner only. */
+    @Transactional(readOnly = true)
+    public List<com.jmip.dto.alert.JobAlertNotificationResponse> notifications(UUID id) {
+        requireOwn(id);
+        return notifications.recent(id, RECENT_NOTIFICATIONS);
     }
 
     private JobAlert requireOwn(UUID id) {

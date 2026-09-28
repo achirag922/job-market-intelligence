@@ -216,6 +216,7 @@ etl/data
 - [x] V8.1 — job sources: `job_sources` registry, per-posting source/first seen/last seen/run id/source job id, inactive sources rejected, per-run source counts in ETL monitoring, read-only `/api/job-sources`
 - [x] V8.2 — deduplication and data quality: match by source job id, then source URL, then content fingerprint (updating last seen); expiry dates and source status (`expires_at`, `active`, never deleted); expired count in ETL monitoring
 - [x] V8.3 — advanced job matching: overall match from skills plus experience, location, work mode and salary (match preferences, `/api/match-preferences`), per-dimension breakdown, recommendations ranked by it
+- [x] V8.4 — job alert digests: scheduled daily/weekly emails of new matching active jobs with match score and link, one record per alert and job (no repeats), delivery status with retries, emailed-jobs view on Job Alerts
 
 ## API
 
@@ -608,7 +609,7 @@ Saved job searches for the signed-in account. The filters are the job search's o
 is the search's `q`); at least one is required, along with a `name` and a `frequency` of `DAILY`
 or `WEEKLY`. An account can keep up to 25 alerts. The owner always comes from the session: a
 `userId` in the body is ignored, and another account's alert answers 404 like a missing one.
-No notifications are sent yet; the frequency records the user's choice for a later phase.
+Since V8.4 each active alert emails a digest at its frequency (see below).
 
 | Method | Path | Result |
 | --- | --- | --- |
@@ -839,6 +840,25 @@ compatibility measure, not an interview or hiring probability.
 Preferences are the signed-in user's own (`GET`/`PUT /api/match-preferences`: `yearsExperience`,
 `preferredLocation`, `workMode` REMOTE/HYBRID/ON_SITE, `minSalary` with `salaryCurrency`), set on
 the Resume Intelligence page.
+
+### Job alert digests (V8.4)
+
+A scheduled pass in the API (`JMIP_ALERTS_CRON`, hourly by default; never part of the ETL) takes
+each **active** alert of a **verified** account whose frequency has come round (daily: 23 hours
+since the last pass, weekly: 167). It finds active postings **first seen** since that pass that match
+the alert's filters (the Job Explorer's own), scores each with the V8.3 overall match against the
+user's current resume and preferences, and emails one plain-text digest: title, company,
+location and work mode, match score, and a link to the job in JMIP.
+
+Every job is recorded once per alert in `job_alert_notifications` (unique on alert and job), so it
+is never sent twice. Each record has a status (PENDING, SENT with `sent_at`, FAILED); a failed
+digest is retried on later passes up to 3 attempts, recording only the error type. Pausing an
+alert stops its digests; resuming it starts from that moment. `GET /api/job-alerts/{id}/notifications`
+(owner only) lists what an alert recorded, shown under "Emailed jobs" on the Job Alerts page.
+
+Delivery is `JMIP_ALERTS_DELIVERY=log` by default: nothing is emailed, a line is logged without
+the recipient. `smtp` uses the `JMIP_MAIL_*` server and credentials; `JMIP_APP_URL` sets the
+link base. The email carries no ids, tokens or account data beyond the user's name.
 
 ### Backup and recovery
 

@@ -9,6 +9,7 @@ import type {
   MatchPreferences,
   JobAlert,
   JobAlertInput,
+  JobAlertNotification,
   ApplicationStatus,
   SavedJob,
   ResumeComparison,
@@ -480,6 +481,9 @@ export const api = {
     send<JobAlert>('PATCH', `/api/job-alerts/${id}/status`, { active }),
 
   deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
+
+  /** V8.4: the latest jobs an alert emailed (or will email), newest first. */
+  jobAlertNotifications: (id: string) => request<JobAlertNotification[]>(`/api/job-alerts/${id}/notifications`),
 
   /** V7.2: the signed-in user's saved jobs, most recently changed first. */
   savedJobs: (status?: ApplicationStatus) => request<SavedJob[]>('/api/saved-jobs', { status }),

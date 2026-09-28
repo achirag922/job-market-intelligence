@@ -142,7 +142,8 @@ public class JobService {
         };
     }
 
-    private Specification<Job> toSpecification(JobSearchCriteria criteria) {
+    /** The search filters as a specification; V8.4 alerts run their criteria through the same one. */
+    public Specification<Job> toSpecification(JobSearchCriteria criteria) {
         Specification<Job> specification = JobSpecifications.all();
         if (criteria.hasQuery()) {
             specification = specification.and(JobSpecifications.matchesQuery(criteria.q()));

@@ -2,12 +2,54 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { AlertFrequency, CategoryDemand, JobAlert, JobAlertInput } from '../api/types';
+import type { AlertFrequency, CategoryDemand, JobAlert, JobAlertInput, JobAlertNotification } from '../api/types';
 import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 import { EXPERIENCE_OPTIONS } from './jobSearchState';
 
 const FREQUENCY_LABEL: Record<AlertFrequency, string> = { DAILY: 'Daily', WEEKLY: 'Weekly' };
+
+const DELIVERY: Record<JobAlertNotification['status'], { label: string; tone: 'success' | 'warning' | 'danger' }> = {
+  SENT: { label: 'Emailed', tone: 'success' },
+  PENDING: { label: 'In next digest', tone: 'warning' },
+  FAILED: { label: 'Not delivered', tone: 'danger' },
+};
+
+/** V8.4: what this alert has emailed, loaded only when opened. */
+function SentJobs({ alertId }: { alertId: string }) {
+  const [items, setItems] = useState<JobAlertNotification[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <details
+      onToggle={(event) => {
+        if ((event.target as HTMLDetailsElement).open && items === null) {
+          api.jobAlertNotifications(alertId).then(setItems, (cause: unknown) => setError(messageOf(cause)));
+        }
+      }}
+    >
+      <summary className="small">Emailed jobs</summary>
+      {error ? (
+        <p className="status status-error" role="alert">{error}</p>
+      ) : items === null ? (
+        <p className="muted small">Loading…</p>
+      ) : items.length === 0 ? (
+        <p className="muted small">Nothing yet. New matching jobs appear here once a digest includes them.</p>
+      ) : (
+        <ul className="stack" style={{ gap: 4, listStyle: 'none', padding: 0, margin: '4px 0 0' }}>
+          {items.map((item) => (
+            <li key={item.jobId} className="row small" style={{ gap: 8, flexWrap: 'wrap' }}>
+              <Link to={`/jobs/${item.jobId}`}>{item.jobTitle}</Link>
+              <span className="muted">{item.companyName}</span>
+              {item.matchPercentage !== undefined && <span className="muted">{Math.round(item.matchPercentage)}% match</span>}
+              <Badge tone={DELIVERY[item.status].tone}>{DELIVERY[item.status].label}</Badge>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
+  );
+}
 
 const EMPTY_FORM: JobAlertInput = { name: '', keywords: '', category: '', location: '', experience: '', skill: '', frequency: 'WEEKLY' };
 
@@ -41,8 +83,8 @@ function messageOf(error: unknown): string {
 }
 
 /**
- * V7.1: saved job searches the signed-in user wants to hear about. Notifications are not
- * sent yet; the frequency records the user's choice for when they are.
+ * V7.1: saved job searches the signed-in user wants to hear about. V8.4: each active alert
+ * emails a digest of new matching postings at its frequency; paused alerts send nothing.
  */
 export function JobAlerts() {
   const [alerts, setAlerts] = useState<JobAlert[] | null>(null);
@@ -139,7 +181,7 @@ export function JobAlerts() {
     <>
       <PageHeader
         title="Job Alerts"
-        description="Save a job search and choose how often you want to hear about new matches. Email notifications are coming soon."
+        description="Save a job search and get a daily or weekly email digest of new matching jobs, with your match score. Pause an alert to stop its emails."
       />
 
       <Card
@@ -241,7 +283,9 @@ export function JobAlerts() {
                   </p>
                   <p className="muted small" style={{ margin: '2px 0 0' }}>
                     Created {new Date(alert.createdAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                    {alert.lastProcessedAt && ` · Last checked ${new Date(alert.lastProcessedAt).toLocaleString()}`}
                   </p>
+                  <SentJobs alertId={alert.id} />
                 </div>
                 <div className="alert-item-actions">
                   <Link to={alertSearchLink(alert)} className="button-link">

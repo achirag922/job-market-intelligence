@@ -83,6 +83,11 @@ services:
       JMIP_MAIL_USERNAME: ${JMIP_MAIL_USERNAME:-}
       JMIP_MAIL_PASSWORD: ${JMIP_MAIL_PASSWORD:-}
       JMIP_MAIL_FROM: ${JMIP_MAIL_FROM:-}
+      # V8.4: job alert digests. "log" (the default) never emails; smtp uses the JMIP_MAIL_* values.
+      JMIP_ALERTS_ENABLED: ${JMIP_ALERTS_ENABLED:-true}
+      JMIP_ALERTS_DELIVERY: ${JMIP_ALERTS_DELIVERY:-log}
+      JMIP_ALERTS_CRON: ${JMIP_ALERTS_CRON:-0 0 * * * *}
+      JMIP_APP_URL: ${JMIP_APP_URL:-http://localhost:3000}
     volumes:
       - resume-data:/app/data/resumes
     ports:
