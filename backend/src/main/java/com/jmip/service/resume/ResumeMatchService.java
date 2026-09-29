@@ -46,12 +46,16 @@ public class ResumeMatchService {
     private final JobMapper jobMapper;
     private final JobMatchScorer scorer;
     private final com.jmip.repository.MatchPreferencesRepository preferencesRepository;
+    /** V9.3: the owner's active career goal, for goal alignment. */
+    private final MatchGoals goals;
 
     /** V8.3: candidates re-ranked by the full score are drawn from this many times the limit. */
     static final int CANDIDATE_POOL_FACTOR = 5;
 
     public ResumeMatchService(ResumeService resumeService, JobRepository jobRepository, JobMapper jobMapper,
-                              JobMatchScorer scorer, com.jmip.repository.MatchPreferencesRepository preferencesRepository) {
+                              JobMatchScorer scorer, com.jmip.repository.MatchPreferencesRepository preferencesRepository,
+                              MatchGoals goals) {
+        this.goals = goals;
         this.resumeService = resumeService;
         this.jobRepository = jobRepository;
         this.jobMapper = jobMapper;
@@ -74,7 +78,7 @@ public class ResumeMatchService {
         Job job = jobRepository.findDetailById(jobId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", jobId));
 
-        return new MatchContext(resume, job, compare(resume, job, preferencesOf(resume)));
+        return new MatchContext(resume, job, compare(resume, job, preferencesOf(resume), goalOf(resume)));
     }
 
     /**
@@ -105,10 +109,11 @@ public class ResumeMatchService {
         // V8.3: the overall score then ranks, and the stable sort keeps the skill order for ties,
         // so without preferences the result is exactly the V6.3 ranking.
         MatchPreferences preferences = preferencesOf(resume);
+        JobMatchScorer.GoalContext goal = goalOf(resume);
         return rankedIds.stream()
                 .map(jobsById::get)
                 .filter(java.util.Objects::nonNull)
-                .map(job -> toRecommendation(job, compare(resume, job, preferences)))
+                .map(job -> toRecommendation(job, compare(resume, job, preferences, goal)))
                 .sorted(Comparator.comparing(ResumeRecommendationResponse::overallMatchPercentage,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(limit)
@@ -126,12 +131,14 @@ public class ResumeMatchService {
         }
         Resume resume = resumeService.requireCompletedResume(resumeId);
         MatchPreferences preferences = preferencesOf(resume);
+        JobMatchScorer.GoalContext goal = goalOf(resume);
         return jobRepository.findRecommendationDetailsByIdIn(jobIds).stream()
-                .collect(Collectors.toMap(Job::getId, job -> compare(resume, job, preferences)));
+                .collect(Collectors.toMap(Job::getId, job -> compare(resume, job, preferences, goal)));
     }
 
     /** The one V3 comparison implementation shared by direct matches and recommendations. */
-    private ResumeMatchResponse compare(Resume resume, Job job, MatchPreferences preferences) {
+    private ResumeMatchResponse compare(Resume resume, Job job, MatchPreferences preferences,
+                                        JobMatchScorer.GoalContext goal) {
 
         Set<Long> resumeSkillIds = idsOf(resume.getSkills());
         Set<Long> jobSkillIds = idsOf(job.getSkills());
@@ -172,7 +179,13 @@ public class ResumeMatchService {
                 toSortedResponses(matched),
                 toSortedResponses(missing),
                 toSortedResponses(resumeOnly),
-                scorer.score(matched.size(), totalJobSkills, job, preferences));
+                scorer.score(resumeSkillIds, job, preferences, goal));
+    }
+
+    /** V9.3: the resume owner's active goal, or none (also when no goal service is wired, as in unit tests). */
+    private JobMatchScorer.GoalContext goalOf(Resume resume) {
+        JobMatchScorer.GoalContext goal = goals == null ? null : goals.forUser(resume.getUserId());
+        return goal == null ? JobMatchScorer.GoalContext.NONE : goal;
     }
 
     /** The resume owner's preferences: the resume is already owner-checked, so this is the signed-in user's. */

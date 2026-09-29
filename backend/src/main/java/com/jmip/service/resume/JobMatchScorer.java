@@ -12,6 +12,9 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import com.jmip.entity.Skill;
 import java.util.regex.Pattern;
 
 /**
@@ -31,6 +34,19 @@ public class JobMatchScorer {
     static final int LOCATION_WEIGHT = 10;
     static final int WORK_MODE_WEIGHT = 10;
     static final int SALARY_WEIGHT = 5;
+    /** V9.3: the goal and the V9.2 preferences join the V8.3 dimensions; unavailable ones do not count. */
+    static final int GOAL_WEIGHT = 10;
+    static final int ROLE_WEIGHT = 5;
+    static final int PREFERRED_SKILLS_WEIGHT = 5;
+
+    /** V9.3: the owner's active career goal, or {@link #NONE}. */
+    public record GoalContext(String targetRole, String targetCategory, Set<Long> skillIds) {
+        public static final GoalContext NONE = new GoalContext(null, null, Set.of());
+
+        boolean present() {
+            return targetCategory != null || targetRole != null;
+        }
+    }
 
     /** Points lost per year short of a posting's minimum experience. */
     private static final double PER_YEAR_SHORT = 25;
@@ -51,24 +67,119 @@ public class JobMatchScorer {
                 : new Dimension(matchedSkills == jobSkills ? Status.MATCH : matchedSkills == 0 ? Status.NO_MATCH : Status.PARTIAL,
                 round(matchedSkills * 100.0 / jobSkills), SKILLS_WEIGHT,
                 matchedSkills + " of " + jobSkills + " required skills on your resume");
+        return assemble(skills, List.of(), List.of(), job, preferences, GoalContext.NONE);
+    }
+
+    /**
+     * V9.3: the full match. Skills are weighed by importance as the posting states it: the score is
+     * the share of its required skills the resume shows; skills it lists as nice to have are shown
+     * but never lower the score (when every skill is optional, all of them count).
+     */
+    public MatchBreakdown score(Set<Long> resumeSkillIds, Job job, MatchPreferences preferences, GoalContext goal) {
+        List<Skill> listed = job.getSkills().stream().sorted(java.util.Comparator.comparing(Skill::getName)).toList();
+        Set<String> optionalNames = SkillImportance.optional(job.getDescription(), listed.stream().map(Skill::getName).toList());
+        List<Skill> required = listed.stream().filter(s -> !optionalNames.contains(s.getName())).toList();
+        List<Skill> optional = listed.stream().filter(s -> optionalNames.contains(s.getName())).toList();
+        List<Skill> scored = required.isEmpty() ? optional : required;
+        long matched = scored.stream().filter(s -> resumeSkillIds.contains(s.getId())).count();
+        Dimension skills;
+        if (listed.isEmpty()) {
+            skills = Dimension.unavailable(SKILLS_WEIGHT, "The posting lists no skills");
+        } else {
+            double score = round(matched * 100.0 / scored.size());
+            long optionalHeld = optional.stream().filter(s -> resumeSkillIds.contains(s.getId())).count();
+            String detail = required.isEmpty()
+                    ? matched + " of " + scored.size() + " skills on your resume (all listed as nice to have)"
+                    : matched + " of " + required.size() + " required skills on your resume"
+                            + (optional.isEmpty() ? "" : "; " + optionalHeld + " of " + optional.size() + " nice-to-have");
+            skills = new Dimension(score == 100 ? Status.MATCH : score == 0 ? Status.NO_MATCH : Status.PARTIAL, score,
+                    SKILLS_WEIGHT, detail);
+        }
+        List<String> missingRequired = required.stream().filter(s -> !resumeSkillIds.contains(s.getId()))
+                .map(Skill::getName).toList();
+        return assemble(skills, missingRequired, optional.stream().map(Skill::getName).toList(), job, preferences, goal);
+    }
+
+    private MatchBreakdown assemble(Dimension skills, List<String> missingRequired, List<String> optional, Job job,
+                                    MatchPreferences preferences, GoalContext goal) {
         Dimension experience = experience(job, preferences.yearsExperience());
         Dimension location = location(job.getLocation(), preferences.preferredLocation());
         Dimension workMode = workMode(job.getDescription(), preferences.workMode());
         Dimension salary = salary(job, preferences.minSalary(), preferences.salaryCurrency());
+        Dimension careerGoal = careerGoal(job, goal);
+        Dimension role = role(job.getJobCategory(), preferences.preferredCategories());
+        Dimension preferredSkills = preferredSkills(job, preferences.preferredSkills());
 
         Double overall = null;
+        List<String> reasons = new java.util.ArrayList<>();
+        List<Map.Entry<String, Dimension>> all = List.of(Map.entry("Skills", skills), Map.entry("Experience", experience),
+                Map.entry("Location", location), Map.entry("Work mode", workMode), Map.entry("Salary", salary),
+                Map.entry("Career goal", careerGoal), Map.entry("Preferred role", role),
+                Map.entry("Preferred skills", preferredSkills));
         if (skills.available()) {
             double points = 0;
             int weights = 0;
-            for (Dimension dimension : List.of(skills, experience, location, workMode, salary)) {
+            for (Map.Entry<String, Dimension> entry : all) {
+                Dimension dimension = entry.getValue();
                 if (dimension.available()) {
                     points += dimension.score() * dimension.weight();
                     weights += dimension.weight();
+                    reasons.add(entry.getKey() + " (weight " + dimension.weight() + "): " + dimension.detail() + " — "
+                            + String.format(Locale.ROOT, "%.0f", dimension.score()) + "%");
                 }
             }
             overall = round(points / weights);
         }
-        return new MatchBreakdown(overall, skills, experience, location, workMode, salary);
+        return new MatchBreakdown(overall, skills, experience, location, workMode, salary, careerGoal, role,
+                preferredSkills, missingRequired, optional, reasons);
+    }
+
+    /** V9.3: the job's category against the goal's; otherwise how many of its skills are on the roadmap. */
+    Dimension careerGoal(Job job, GoalContext goal) {
+        if (goal == null || !goal.present()) {
+            return Dimension.unavailable(GOAL_WEIGHT, "Set an active career goal to see alignment");
+        }
+        String category = norm(job.getJobCategory());
+        if (!category.isEmpty() && category.equals(norm(goal.targetCategory()))) {
+            return new Dimension(Status.MATCH, 100.0, GOAL_WEIGHT, "Matches your goal: " + goal.targetRole());
+        }
+        List<Skill> skills = List.copyOf(job.getSkills());
+        if (category.isEmpty() && skills.isEmpty()) {
+            return Dimension.unavailable(GOAL_WEIGHT, "The posting has no category or skills to compare with your goal");
+        }
+        long onRoadmap = skills.stream().filter(s -> goal.skillIds().contains(s.getId())).count();
+        if (onRoadmap > 0) {
+            return new Dimension(Status.PARTIAL, round(onRoadmap * 100.0 / skills.size()), GOAL_WEIGHT,
+                    onRoadmap + " of its " + skills.size() + " skills are on your " + goal.targetRole() + " roadmap");
+        }
+        return new Dimension(Status.NO_MATCH, 0.0, GOAL_WEIGHT, "A different role from your goal (" + goal.targetRole() + ")");
+    }
+
+    /** V9.3: the V9.2 preferred roles (job categories). */
+    Dimension role(String category, List<String> preferred) {
+        if (preferred == null || preferred.isEmpty()) {
+            return Dimension.unavailable(ROLE_WEIGHT, "Add preferred roles in match preferences");
+        }
+        if (category == null || category.isBlank()) {
+            return Dimension.unavailable(ROLE_WEIGHT, "The posting has no category");
+        }
+        return preferred.stream().anyMatch(role -> norm(role).equals(norm(category)))
+                ? new Dimension(Status.MATCH, 100.0, ROLE_WEIGHT, "Matches target role: " + category)
+                : new Dimension(Status.NO_MATCH, 0.0, ROLE_WEIGHT, category + " is not one of your preferred roles");
+    }
+
+    /** V9.3: the V9.2 preferred skills among the job's skills. */
+    Dimension preferredSkills(Job job, List<String> preferred) {
+        if (preferred == null || preferred.isEmpty()) {
+            return Dimension.unavailable(PREFERRED_SKILLS_WEIGHT, "Add preferred skills in match preferences");
+        }
+        Set<String> wanted = preferred.stream().map(JobMatchScorer::norm).collect(java.util.stream.Collectors.toSet());
+        List<String> found = job.getSkills().stream().map(Skill::getName).filter(name -> wanted.contains(norm(name)))
+                .sorted().toList();
+        return found.isEmpty()
+                ? new Dimension(Status.NO_MATCH, 0.0, PREFERRED_SKILLS_WEIGHT, "None of your preferred skills")
+                : new Dimension(Status.MATCH, 100.0, PREFERRED_SKILLS_WEIGHT, "Has your preferred skill"
+                        + (found.size() == 1 ? "" : "s") + ": " + String.join(", ", found));
     }
 
     Dimension experience(Job job, Integer years) {

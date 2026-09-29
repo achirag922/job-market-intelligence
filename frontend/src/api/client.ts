@@ -18,6 +18,7 @@ import type {
   ApplicationInsights,
   JobSource,
   MatchPreferences,
+  PersonalizedFeed,
   JobAlert,
   JobAlertInput,
   JobAlertNotification,
@@ -449,6 +450,9 @@ export const api = {
 
   /** V8.3: the signed-in user's match preferences; an empty object when none are saved. */
   matchPreferences: () => request<MatchPreferences>('/api/match-preferences'),
+
+  /** V9.2: jobs ranked for the signed-in user, with the reasons for each. */
+  personalizedJobs: (limit = 20) => request<PersonalizedFeed>('/api/jobs/personalized', { limit }),
 
   saveMatchPreferences: (preferences: MatchPreferences) =>
     send<MatchPreferences>('PUT', '/api/match-preferences', preferences),

@@ -47,11 +47,25 @@ public class JobService {
     private final JobMapper jobMapper;
     private final JobClassificationSignalRepository signalRepository;
 
+    /** V9.2: only for searches that opt in to the signed-in user's preferences. */
+    private final com.jmip.repository.MatchPreferencesRepository preferences;
+    private final com.jmip.service.auth.CurrentUser currentUser;
+
     public JobService(JobRepository jobRepository, JobMapper jobMapper,
                       JobClassificationSignalRepository signalRepository) {
+        this(jobRepository, jobMapper, signalRepository, null, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public JobService(JobRepository jobRepository, JobMapper jobMapper,
+                      JobClassificationSignalRepository signalRepository,
+                      com.jmip.repository.MatchPreferencesRepository preferences,
+                      com.jmip.service.auth.CurrentUser currentUser) {
         this.jobRepository = jobRepository;
         this.jobMapper = jobMapper;
         this.signalRepository = signalRepository;
+        this.preferences = preferences;
+        this.currentUser = currentUser;
     }
 
     /** The pre-V6.2 entry point: plain fields via {@code sort}, newest first by default. */
@@ -68,9 +82,17 @@ public class JobService {
      */
     public PagedResponse<JobSummaryResponse> search(JobSearchCriteria criteria, Pageable pageable,
                                                     JobOrder order) {
+        return search(criteria, pageable, order, null);
+    }
+
+    private PagedResponse<JobSummaryResponse> search(JobSearchCriteria criteria, Pageable pageable, JobOrder order,
+                                                     Specification<Job> extra) {
         validate(criteria, order);
 
         Specification<Job> specification = toSpecification(criteria);
+        if (extra != null) {
+            specification = specification.and(extra);
+        }
         Pageable resolved;
         if (order != null) {
             // The named orderings carry their own ORDER BY; a leftover Sort would be
@@ -93,6 +115,27 @@ public class JobService {
                 .map(job -> jobMapper.toSummary(job, skillsByJob.getOrDefault(job.getId(), List.of())))
                 .toList();
         return PagedResponse.of(content, page);
+    }
+
+    /**
+     * V9.2: the same search with the signed-in user's preferences filling what the request leaves
+     * empty: the first preferred role as the category and the preferred location's first part as the
+     * location. A filter in the request always wins. Excluded companies are left out.
+     */
+    public PagedResponse<JobSummaryResponse> searchWithPreferences(JobSearchCriteria criteria, Pageable pageable,
+                                                                   JobOrder order) {
+        com.jmip.dto.resume.MatchPreferences prefs = preferences.find(currentUser.requireId());
+        String category = criteria.category() != null || prefs.preferredCategories().isEmpty()
+                ? criteria.category() : prefs.preferredCategories().get(0);
+        String location = criteria.location() != null || prefs.preferredLocation() == null
+                ? criteria.location() : prefs.preferredLocation().split(",")[0].strip();
+        JobSearchCriteria merged = new JobSearchCriteria(criteria.q(), criteria.title(), location, criteria.company(),
+                criteria.skill(), criteria.employmentType(), category, criteria.experience(), criteria.salaryMin(),
+                criteria.salaryMax(), criteria.currency(), criteria.locationStated());
+        java.util.List<String> excluded = prefs.excludedCompanies().stream()
+                .map(name -> name.toLowerCase(java.util.Locale.ROOT)).toList();
+        return search(merged, pageable, order, excluded.isEmpty() ? null
+                : (root, query, cb) -> cb.not(cb.lower(root.join("company").get("name")).in(excluded)));
     }
 
     public JobDetailResponse findById(Long id) {

@@ -56,9 +56,12 @@ export function JobExplorer() {
   // One request per URL change. Everything a search depends on is in the URL, so a change
   // that touches several filters at once is still a single navigation and a single fetch.
   const apiFilters = useMemo(() => toApiFilters(state.filters), [state.filters]);
+  // V9.2: opt in to fill empty filters from your preferences; plain search is unchanged.
+  const [usePreferences, setUsePreferences] = useState(false);
   const jobs = useApi<PagedResponse<JobSummary>>(
-    () => api.jobs(apiFilters, state.page - 1, state.size, undefined, state.order),
-    [searchParams.toString(), attempt],
+    () => api.jobs(usePreferences ? { ...apiFilters, usePreferences: 'true' } : apiFilters, state.page - 1, state.size,
+      undefined, state.order),
+    [searchParams.toString(), attempt, usePreferences],
   );
 
   const apply = (next: SearchState) => {
@@ -87,6 +90,10 @@ export function JobExplorer() {
       />
 
       <section className="card job-search" aria-label="Search and filters">
+        <label className="row small" style={{ gap: 6, marginBottom: 8 }}>
+          <input type="checkbox" checked={usePreferences} onChange={(event) => setUsePreferences(event.target.checked)} />
+          Use my preferences (fills an empty role and location, leaves out excluded companies)
+        </label>
         <form
           className="search-row"
           role="search"

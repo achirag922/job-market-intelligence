@@ -18,7 +18,23 @@ public record MatchBreakdown(
         Dimension experience,
         Dimension location,
         Dimension workMode,
-        Dimension salary) {
+        Dimension salary,
+        // V9.3: career-goal alignment and the V9.2 role and skill preferences.
+        Dimension careerGoal,
+        Dimension role,
+        Dimension preferredSkills,
+        /** Required skills the resume does not show, by name. */
+        java.util.List<String> missingRequiredSkills,
+        /** Skills the posting only lists as nice to have; they never lower the skill score. */
+        java.util.List<String> optionalSkills,
+        /** Each available dimension's contribution, in words. */
+        java.util.List<String> reasons) {
+
+    /** The V8.3 shape. */
+    public MatchBreakdown(Double overallPercentage, Dimension skills, Dimension experience, Dimension location,
+                          Dimension workMode, Dimension salary) {
+        this(overallPercentage, skills, experience, location, workMode, salary, null, null, null, null, null, null);
+    }
 
     public enum Status { MATCH, PARTIAL, NO_MATCH, UNAVAILABLE }
 

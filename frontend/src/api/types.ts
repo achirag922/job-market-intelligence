@@ -123,6 +123,8 @@ export interface ApiErrorBody {
  * writes `q`, which matches across title, company, location, description and skills.
  */
 export interface JobFilters {
+  /** V9.2: fill empty filters from the signed-in user's preferences (explicit filters win). */
+  usePreferences?: 'true';
   q?: string;
   category?: string;
   title?: string;
@@ -302,6 +304,16 @@ export interface MatchBreakdown {
   location: MatchDimension;
   workMode: MatchDimension;
   salary: MatchDimension;
+  /** V9.3: career-goal alignment and the V9.2 preferred roles and skills. */
+  careerGoal?: MatchDimension;
+  role?: MatchDimension;
+  preferredSkills?: MatchDimension;
+  /** Required skills the resume does not show. */
+  missingRequiredSkills?: string[];
+  /** Skills the posting lists only as nice to have; they never lower the skill score. */
+  optionalSkills?: string[];
+  /** Each available dimension's contribution, in words. */
+  reasons?: string[];
 }
 
 /** The signed-in user's own match preferences; every field optional. */
@@ -311,6 +323,31 @@ export interface MatchPreferences {
   workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
   minSalary?: number;
   salaryCurrency?: string;
+  /** V9.2: personalization lists (at most 20 each). */
+  preferredCategories?: string[];
+  preferredSkills?: string[];
+  excludedCompanies?: string[];
+  excludedLocations?: string[];
+}
+
+// ---------------------------------------------------------------- V9.2: personalized feed
+
+export interface PersonalizedFeedItem {
+  job: JobSummary;
+  /** The V8.3 overall match; absent without a processed resume. */
+  matchPercentage?: number;
+  /** The match plus the personal signals in reasons; what the feed is ordered by. */
+  priority: number;
+  saved: boolean;
+  reasons: { text: string; kind: 'POSITIVE' | 'NEGATIVE' | 'INFO'; points?: number }[];
+  breakdown?: MatchBreakdown;
+}
+
+export interface PersonalizedFeed {
+  jobs: PersonalizedFeedItem[];
+  context: { resume: boolean; careerGoal?: string; preferredRoles: string[]; preferredSkills: string[];
+    candidates: number; excludedApplied: number; excludedByPreference: number };
+  note?: string;
 }
 
 /** A job whose existing required skills overlap with a completed resume. */

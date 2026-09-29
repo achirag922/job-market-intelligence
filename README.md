@@ -243,6 +243,8 @@ etl/data
 - [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
 - [x] V8.9 — admin: ADMIN role (bootstrapped from JMIP_ADMIN_EMAILS, never at signup), admin-only /api/admin (overview, data quality, users, job-source switch), Admin Dashboard for admins
 - [x] V9.1 — multi-source connectors: JobSourceConnector with the existing file connector and a mock sample-board connector, selected by job parameter or JMIP_ETL_CONNECTOR, through the one common pipeline; each run records its connector (V22)
+- [x] V9.2 — personalized feed: GET /api/jobs/personalized ranks jobs by the V8.3 match plus goal, preferred role and skill, freshness and application-history signals with reasons; preference lists (V23); opt-in usePreferences search; For You page
+- [x] V9.3 — smart matching 2.0: required vs optional skills from the posting's wording, career-goal, preferred-role and preferred-skill dimensions, missing important skills and reasons, one engine for every match
 
 ## API
 
@@ -992,6 +994,44 @@ password or hash, a session, a verification code, resume contents or a rejected 
 "Active users" means accounts that saved, uploaded or changed something in the last 30 days, because
 sign-ins are not recorded. Accounts cannot be deactivated: the user model has no active flag. There is
 no SQL or command execution. The Admin Dashboard page (`/admin`) appears in the menu for admins only.
+
+### Personalized feed (V9.2)
+
+`GET /api/jobs/personalized?limit=` (1 to 50, default 20) ranks the signed-in user's jobs. The score is the
+V8.3 match with the current resume and match preferences; on top of it fixed, listed signals order the
+feed: the active career goal's category (+10), a preferred role (+8), preferred skills (+3 each, up to +9),
+first seen in the last 7 days (+5), and a category the user applied to before (+4). Each job returns its
+match, priority, breakdown and reasons such as "Strong skill match (3 of 4 skills)", "Matches target role",
+"Preferred location", "Remote preference matched" or "Missing 2 required skills". Jobs already applied to,
+inactive jobs, and excluded companies or locations are left out; saved jobs stay, marked. It is a
+ranking aid, not a hiring or interview prediction.
+
+Preferences extend the V8.3 `/api/match-preferences` resource with `preferredCategories`, `preferredSkills`,
+`excludedCompanies` and `excludedLocations` (up to 20 each). `GET /api/jobs?usePreferences=true` fills an
+empty category and location from them and leaves out excluded companies; filters in the request win, and
+without the flag search is unchanged. Everything is the signed-in user's own. The For You page shows the feed
+with Save and Mark applied, and Job Explorer has a "Use my preferences" option.
+
+### Smart matching 2.0 (V9.3)
+
+The one matching engine (`JobMatchScorer`) now also weighs skills by importance and adds the career goal and
+the V9.2 preferences. Recommendations, the personalized feed, resume analysis and optimisation, interview
+preparation, application intelligence and alert digests all use it.
+
+- **Required vs optional skills.** Postings carry no required/optional flag, so the posting's own wording
+  decides: a listed skill mentioned only in a sentence or a section headed with "nice to have", "a plus",
+  "bonus", "preferred", "desirable", "optional" or "advantageous" is optional; every other listed skill,
+  including one the text never names, is required. The skill score is the share of required skills the
+  resume shows; optional ones are listed but never lower it (when all are optional, all count).
+- **New dimensions** (unavailable, and not counted, when their data is missing): career goal (weight 10:
+  same category as the active goal, or the share of the job's skills on its roadmap), preferred role
+  (5) and preferred skills (5), next to skills (60), experience (15), location (10), work mode (10) and
+  salary (5). The overall score is the weighted average of the available dimensions.
+- **Explanation.** The breakdown adds `careerGoal`, `role`, `preferredSkills`, `missingRequiredSkills`,
+  `optionalSkills` and `reasons` (each dimension's contribution in words). The feed's goal, role and skill
+  bonuses moved into the engine; only freshness and application history are still added there.
+- Experience still comes only from the years in match preferences; resumes do not state it reliably, so it
+  is unavailable rather than guessed. It is a compatibility measure, not a hiring prediction.
 
 ### Backup and recovery
 

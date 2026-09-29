@@ -57,11 +57,15 @@ public class JobController {
     public ResponseEntity<PagedResponse<JobSummaryResponse>> search(
             @Valid JobSearchCriteria criteria,
             @RequestParam(required = false) String order,
+            @RequestParam(defaultValue = "false") boolean usePreferences,
             @PageableDefault(size = 20) Pageable pageable) {
         JobOrder resolved = resolveOrder(order);
-        log.info("GET /api/jobs page={} size={} order={} filters={}",
-                pageable.getPageNumber(), pageable.getPageSize(), resolved, criteria);
-        return ResponseEntity.ok(jobService.search(criteria, pageable, resolved));
+        log.info("GET /api/jobs page={} size={} order={} filters={} usePreferences={}",
+                pageable.getPageNumber(), pageable.getPageSize(), resolved, criteria, usePreferences);
+        // V9.2: off by default, so a plain search is exactly what it always was.
+        return ResponseEntity.ok(usePreferences
+                ? jobService.searchWithPreferences(criteria, pageable, resolved)
+                : jobService.search(criteria, pageable, resolved));
     }
 
     /**
