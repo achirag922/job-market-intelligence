@@ -91,6 +91,7 @@ export function EtlMonitoring() {
                       <th scope="col" className="rank-cell">#</th>
                       <th scope="col">Job</th>
                       <th scope="col">Status</th>
+                      <th scope="col">Connector</th>
                       <th scope="col">Feed</th>
                       <th scope="col">Started</th>
                       <th scope="col">Duration</th>
@@ -110,6 +111,7 @@ export function EtlMonitoring() {
                         <td>
                           <OutcomeBadge outcome={run.outcome} />
                         </td>
+                        <td>{run.connector ?? '—'}</td>
                         <td>{run.feedName ?? '—'}</td>
                         <td>{formatDateTime(run.startTime)}</td>
                         <td className="tabular">{formatDuration(run.durationMillis)}</td>
@@ -196,6 +198,7 @@ function LatestRun({ run }: { run: EtlRun }) {
         <OutcomeBadge outcome={run.outcome} />
         <strong>{run.jobName}</strong>
         <span className="muted">Execution #{run.executionId}</span>
+        {run.connector && <span className="muted">Connector {run.connector}</span>}
         {run.feedName && <span className="muted">Feed {run.feedName}</span>}
         <span className="muted">Started {formatDateTime(run.startTime)}</span>
         <span className="muted">

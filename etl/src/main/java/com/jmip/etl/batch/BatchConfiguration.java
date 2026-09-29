@@ -9,7 +9,6 @@ import com.jmip.etl.reprocess.StoredJob;
 import com.jmip.etl.load.ReferenceDataCache;
 import com.jmip.etl.model.TransformedJob;
 import com.jmip.etl.raw.RawJobRecord;
-import com.jmip.etl.raw.RawJobRecordReaderFactory;
 import com.jmip.etl.transform.JobItemProcessor;
 import com.jmip.etl.validation.RecordRejectedException;
 import org.springframework.batch.core.Job;
@@ -64,9 +63,12 @@ public class BatchConfiguration {
     }
 
     /**
-     * Resolved per step execution, because the file to read is a job parameter.
+     * Resolved per step execution, because the source to read is chosen by job parameters.
+     * V9.1: through the selected connector ({@code connector} parameter, else
+     * {@code jmip.etl.connectors.active}, default {@code file}); every connector's records then
+     * go through the same processor and writer.
      *
-     * @param inputFile     path to the dataset, e.g. {@code etl/data/raw/synthetic-job-postings-v1.json}
+     * @param inputFile     for the file connector: path to the dataset, e.g. {@code etl/data/raw/synthetic-job-postings-v1.json}
      * @param defaultSource used for CSV files that carry no source column
      */
     @Bean
@@ -74,12 +76,10 @@ public class BatchConfiguration {
     public ItemStreamReader<RawJobRecord> jobRecordReader(
             @Value("#{jobParameters['inputFile']}") String inputFile,
             @Value("#{jobParameters['defaultSource']}") String defaultSource,
-            RawJobRecordReaderFactory readerFactory) {
-        if (inputFile == null || inputFile.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Job parameter 'inputFile' is required, for example: inputFile=etl/data/raw/dataset.json");
-        }
-        return readerFactory.create(Path.of(inputFile), defaultSource == null ? "unknown" : defaultSource);
+            @Value("#{jobParameters['connector']}") String connector,
+            com.jmip.etl.connector.JobSourceConnectors connectors) {
+        return connectors.select(connector)
+                .open(new com.jmip.etl.connector.JobSourceConnector.ConnectorRequest(inputFile, defaultSource));
     }
 
     @Bean

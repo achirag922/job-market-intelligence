@@ -563,6 +563,8 @@ export interface EtlRun {
   sources?: EtlRunSource[];
   /** V8.2: jobs the run marked inactive (expired, or closed by their source). */
   expired?: number;
+  /** V9.1: the connector the run read through ("file", "sample", ...). */
+  connector?: string;
 }
 
 export interface EtlRunSource {

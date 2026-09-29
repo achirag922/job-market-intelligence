@@ -37,6 +37,7 @@ function run(overrides: Partial<EtlRun> = {}): EtlRun {
     rejected: 3,
     expired: 2,
     feedName: 'sample-jobs.json',
+    connector: 'file',
     feedType: 'FILE_JSON',
     sources: [{ sourceId: 1, code: 'board-a', name: 'board-a', recordsLoaded: 1200, recordsSeenAgain: 47 }],
     ...overrides,
@@ -145,6 +146,7 @@ describe('EtlMonitoring sources (V8.1)', () => {
     render(<EtlMonitoring />);
 
     expect(await screen.findByText('Feed sample-jobs.json')).toBeInTheDocument();
+    expect(screen.getByText('Connector file')).toBeInTheDocument();
     expect(screen.getByText(/board-a: 1\D?200 new, 47 seen again/)).toBeInTheDocument();
     expect(screen.getByText('Marked inactive, kept for history')).toBeInTheDocument();
   });

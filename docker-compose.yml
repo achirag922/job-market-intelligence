@@ -122,6 +122,8 @@ services:
     environment:
       <<: *database-env
       JMIP_ETL_JOB: ${JMIP_ETL_JOB:-ingestJobPostings}
+      # V9.1: "file" reads inputFile (below) as before; "sample" reads the bundled mock job-board feed.
+      JMIP_ETL_CONNECTOR: ${JMIP_ETL_CONNECTOR:-file}
     volumes:
       - ./etl/data/raw:/data/raw:ro
     command: ["inputFile=/data/raw/${JMIP_ETL_INPUT_FILE:-synthetic-job-postings-v1.json}"]

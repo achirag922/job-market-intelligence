@@ -28,13 +28,15 @@ public class EtlJobListener implements JobExecutionListener {
     private final EtlRunMetricsRepository runMetricsRepository;
     private final JobSourceRegistry sources;
     private final com.jmip.etl.load.JobExpiry jobExpiry;
+    private final com.jmip.etl.connector.JobSourceConnectors connectors;
 
     public EtlJobListener(EtlMetrics metrics, EtlRunMetricsRepository runMetricsRepository, JobSourceRegistry sources,
-                          com.jmip.etl.load.JobExpiry jobExpiry) {
+                          com.jmip.etl.load.JobExpiry jobExpiry, com.jmip.etl.connector.JobSourceConnectors connectors) {
         this.metrics = metrics;
         this.runMetricsRepository = runMetricsRepository;
         this.sources = sources;
         this.jobExpiry = jobExpiry;
+        this.connectors = connectors;
     }
 
     @Override
@@ -43,11 +45,30 @@ public class EtlJobListener implements JobExecutionListener {
         // V7.8: every log line of this run carries its execution id (structured logs in prod).
         MDC.put(MDC_JOB_EXECUTION_ID, String.valueOf(jobExecution.getId()));
         // V8.1: which feed this run reads; its sources are registered as their records arrive.
-        sources.beginRun(jobExecution.getId(), jobExecution.getJobParameters().getString("inputFile"));
+        // V9.1: through which connector. The reprocessing job reads no source.
+        beginRun(jobExecution);
         log.info("ETL job '{}' started (execution {}), parameters: {}",
                 jobExecution.getJobInstance().getJobName(),
                 jobExecution.getId(),
                 jobExecution.getJobParameters());
+    }
+
+    private void beginRun(JobExecution jobExecution) {
+        if (BatchConfiguration.REPROCESS_JOB_NAME.equals(jobExecution.getJobInstance().getJobName())) {
+            sources.beginRun(jobExecution.getId(), null, null, null);
+            return;
+        }
+        var parameters = jobExecution.getJobParameters();
+        String requested = parameters.getString("connector");
+        try {
+            var connector = connectors.select(requested);
+            var feed = connector.describe(new com.jmip.etl.connector.JobSourceConnector.ConnectorRequest(
+                    parameters.getString("inputFile"), parameters.getString("defaultSource")));
+            sources.beginRun(jobExecution.getId(), connector.name(), feed.name(), feed.type());
+        } catch (IllegalArgumentException unknown) {
+            // The step fails with the same message when it opens its reader; the run still records what was asked for.
+            sources.beginRun(jobExecution.getId(), requested, null, null);
+        }
     }
 
     @Override
@@ -76,6 +97,7 @@ public class EtlJobListener implements JobExecutionListener {
 
                 ============================================
                 ETL COMPLETED
+                Connector:         %s
                 Records Read:      %d
                 Records Processed: %d
                 Records Loaded:    %d
@@ -86,7 +108,8 @@ public class EtlJobListener implements JobExecutionListener {
                 Execution Time:    %.2f seconds
                 Status:            %s
                 ============================================"""
-                .formatted(read,
+                .formatted(sources.connector() == null ? "-" : sources.connector(),
+                        read,
                         processed,
                         metrics.jobsLoaded(),
                         metrics.duplicatesSkipped(),
@@ -97,10 +120,10 @@ public class EtlJobListener implements JobExecutionListener {
                         jobExecution.getStatus());
         log.info(summary);
         // The same figures on one line, for searching and alerting on the log.
-        log.info("etl.run executionId={} job={} status={} durationMs={} read={} processed={} loaded={} duplicates={} rejected={} expired={}",
+        log.info("etl.run executionId={} job={} status={} durationMs={} read={} processed={} loaded={} duplicates={} rejected={} expired={} connector={}",
                 jobExecution.getId(), jobExecution.getJobInstance().getJobName(), jobExecution.getStatus(),
                 elapsed.toMillis(), read, processed, metrics.jobsLoaded(), metrics.duplicatesSkipped(), rejected,
-                metrics.jobsExpired());
+                metrics.jobsExpired(), sources.connector());
         persistRunMetrics(jobExecution);
         MDC.remove(MDC_JOB_EXECUTION_ID);
     }
@@ -124,7 +147,8 @@ public class EtlJobListener implements JobExecutionListener {
 
     private void persistRunMetrics(JobExecution jobExecution) {
         try {
-            runMetricsRepository.save(jobExecution.getId(), metrics, sources.feedName(), sources.feedType());
+            runMetricsRepository.save(jobExecution.getId(), metrics, sources.feedName(), sources.feedType(),
+                    sources.connector());
             sources.finishRun();
         } catch (RuntimeException exception) {
             log.warn("Could not record run metrics for execution {}", jobExecution.getId(), exception);

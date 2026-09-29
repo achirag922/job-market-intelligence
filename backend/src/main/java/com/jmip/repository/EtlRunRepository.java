@@ -32,7 +32,7 @@ public class EtlRunRepository {
                    coalesce(sum(s.read_count), 0) AS read_count,
                    coalesce(sum(s.write_count), 0) AS write_count,
                    coalesce(sum(s.read_skip_count + s.process_skip_count + s.write_skip_count), 0) AS skip_count,
-                   m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type, m.jobs_expired
+                   m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type, m.jobs_expired, m.connector
               FROM batch_job_execution e
               JOIN batch_job_instance i ON i.job_instance_id = e.job_instance_id
               LEFT JOIN batch_step_execution s ON s.job_execution_id = e.job_execution_id
@@ -40,7 +40,7 @@ public class EtlRunRepository {
             """.formatted(EXIT_MESSAGE_LIMIT);
 
     private static final String GROUP_AND_ORDER = """
-             GROUP BY e.job_execution_id, i.job_name, m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type, m.jobs_expired
+             GROUP BY e.job_execution_id, i.job_name, m.records_loaded, m.duplicates_skipped, m.feed_name, m.feed_type, m.jobs_expired, m.connector
              ORDER BY e.job_execution_id DESC
              LIMIT ? OFFSET ?
             """;
@@ -96,7 +96,8 @@ public class EtlRunRepository {
                 rs.getObject("duplicates_skipped", Long.class),
                 rs.getString("feed_name"),
                 rs.getString("feed_type"),
-                rs.getObject("jobs_expired", Long.class));
+                rs.getObject("jobs_expired", Long.class),
+                rs.getString("connector"));
     }
 
     private static LocalDateTime toLocalDateTime(Timestamp timestamp) {

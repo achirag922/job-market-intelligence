@@ -50,7 +50,9 @@ public record EtlRunResponse(
         String feedType,
         java.util.List<Source> sources,
         // V8.2: jobs the run marked inactive because they expired or their source closed them.
-        Long expired) {
+        Long expired,
+        // V9.1: which connector the run read through ("file", "sample", ...).
+        String connector) {
 
     /** What the run did with one source. */
     public record Source(long sourceId, String code, String name, long recordsLoaded, long recordsSeenAgain) {

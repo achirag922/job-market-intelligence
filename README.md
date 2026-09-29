@@ -112,6 +112,26 @@ without a source column take one from an optional `defaultSource=<name>` paramet
 
 Re-running the same file is safe: duplicate detection means nothing is loaded twice.
 
+**Connectors (V9.1).** Records come through a connector, and every connector's records then go through
+the same pipeline: Connector → Normalize → Validate → Deduplicate → Load (the V8.1/V8.2 processor,
+writer and source registry). The connector is the `connector` job parameter, else
+`JMIP_ETL_CONNECTOR` (`jmip.etl.connectors.active`), default `file`:
+
+| Connector | Reads | Feed type |
+|---|---|---|
+| `file` | the `inputFile` JSON or CSV, exactly as before | FILE_JSON / FILE_CSV |
+| `sample` | a bundled mock job-board feed (`connectors/sample-postings.json`) with its own record shape, mapped to the common raw record; never touches the network | SAMPLE |
+
+```
+java -jar etl/target/etl-0.0.1-SNAPSHOT.jar connector=sample
+```
+
+The sample feed's location (`JMIP_ETL_SAMPLE_RESOURCE`, `classpath:` or `file:` only) and its source code
+(`JMIP_ETL_SAMPLE_SOURCE`, default `sample-board`) are configurable. Each run records its connector with
+its metrics; ETL Monitoring and `/api/etl/runs` show it next to the feed, read, loaded, duplicate and
+rejected counts, status and duration. A new connector implements `JobSourceConnector` (a name, a reader
+over `RawJobRecord`s and a feed description) and is picked up automatically.
+
 To re-read postings already in the database after the rules or the skill dictionary change,
 run the reprocessing job instead — see [Job categories and text processing](#job-categories-and-text-processing-v4).
 
@@ -222,6 +242,7 @@ etl/data
 - [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
 - [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
 - [x] V8.9 — admin: ADMIN role (bootstrapped from JMIP_ADMIN_EMAILS, never at signup), admin-only /api/admin (overview, data quality, users, job-source switch), Admin Dashboard for admins
+- [x] V9.1 — multi-source connectors: JobSourceConnector with the existing file connector and a mock sample-board connector, selected by job parameter or JMIP_ETL_CONNECTOR, through the one common pipeline; each run records its connector (V22)
 
 ## API
 
