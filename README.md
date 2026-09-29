@@ -245,6 +245,7 @@ etl/data
 - [x] V9.1 — multi-source connectors: JobSourceConnector with the existing file connector and a mock sample-board connector, selected by job parameter or JMIP_ETL_CONNECTOR, through the one common pipeline; each run records its connector (V22)
 - [x] V9.2 — personalized feed: GET /api/jobs/personalized ranks jobs by the V8.3 match plus goal, preferred role and skill, freshness and application-history signals with reasons; preference lists (V23); opt-in usePreferences search; For You page
 - [x] V9.3 — smart matching 2.0: required vs optional skills from the posting's wording, career-goal, preferred-role and preferred-skill dimensions, missing important skills and reasons, one engine for every match
+- [x] V9.4 — resume builder: built resumes as ordinary resume rows (V24) with sections, versions, duplicate, default and delete, two ATS-friendly templates, server-side PDF export, live preview and job optimisation check
 
 ## API
 
@@ -1032,6 +1033,33 @@ preparation, application intelligence and alert digests all use it.
   bonuses moved into the engine; only freshness and application history are still added there.
 - Experience still comes only from the years in match preferences; resumes do not state it reliably, so it
   is unavailable rather than guessed. It is a compatibility measure, not a hiring prediction.
+
+### Resume builder (V9.4)
+
+Write a resume section by section (personal information, summary, skills, experience, education, projects,
+certifications, achievements and named extra sections), preview it live and export it as a PDF. A built
+resume is an ordinary resume row (`source = BUILDER`, migration V24): versions, rename (`PATCH /api/resumes/{id}`),
+default (`PUT /api/resumes/{id}/default`) and delete (`DELETE /api/resumes/{id}`) work as for uploads. On every
+save its text is regenerated from the sections and its skills extracted by the same matcher uploads use, so
+matching, recommendations, analysis, V8.6 optimisation and interview preparation work on it unchanged.
+Its sections are stored as JSON, encrypted at rest like extracted text; nothing is ever added or rewritten.
+
+| Method | Path | Result |
+|---|---|---|
+| POST | `/api/resumes/builder` | 201, a new built resume (`title`, `versionLabel`, optional `content`; blank starts from the account's name) |
+| GET | `/api/resumes/{id}/builder` | Its sections |
+| PUT | `/api/resumes/{id}/builder` | Saves the sections (validated: names, titles and sizes) |
+| POST | `/api/resumes/{id}/duplicate` | 201, a copy ("Copy of …", not the default) |
+| GET | `/api/resumes/{id}/builder/pdf` | The PDF, as a download named after the title |
+
+PDFs are drawn server-side with PDFBox in one of two ATS-friendly templates (Classic: serif, centred header,
+ruled headings; Modern: sans-serif, left-aligned, coloured headings): selectable single-column text, standard
+fonts, A4, entries kept on one page when they fit and headings kept with their first entry. Characters the
+standard fonts cannot print (such as emoji) become "?". The document carries only the user's content (its
+title is the person's name): no ids, export dates or product names. Only the owner can read, edit, duplicate,
+export or delete a built resume. The Resume Builder page lists built resumes and has section navigation, a
+live preview, template choice, unsaved-change tracking, validation, PDF export and a check against a saved job
+using V8.6 optimisation.
 
 ### Backup and recovery
 

@@ -39,5 +39,15 @@ public record ResumeResponse(
         String title,
         String versionLabel,
         boolean isDefault,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        /** V9.4: UPLOAD or BUILDER. */
+        String source) {
+
+    /** The V7.3 shape. */
+    public ResumeResponse(UUID id, String fileName, long fileSizeBytes, String status, List<SkillResponse> skills,
+                          String errorMessage, OffsetDateTime uploadedAt, OffsetDateTime processedAt, String title,
+                          String versionLabel, boolean isDefault, OffsetDateTime updatedAt) {
+        this(id, fileName, fileSizeBytes, status, skills, errorMessage, uploadedAt, processedAt, title, versionLabel,
+                isDefault, updatedAt, null);
+    }
 }

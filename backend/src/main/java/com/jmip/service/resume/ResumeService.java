@@ -270,7 +270,7 @@ public class ResumeService {
         };
     }
 
-    private ResumeResponse toResponse(Resume resume) {
+    ResumeResponse toResponse(Resume resume) {
         return new ResumeResponse(
                 resume.getId(),
                 resume.getOriginalFileName(),
@@ -283,7 +283,8 @@ public class ResumeService {
                 resume.getTitle(),
                 resume.getVersionLabel(),
                 resume.isDefaultResume(),
-                resume.getUpdatedAt());
+                resume.getUpdatedAt(),
+                resume.getSource());
     }
 
     private List<SkillResponse> sortedSkills(Set<Skill> skills) {

@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  BuilderContent,
+  BuiltResume,
   AdminDataQuality,
   AdminOverview,
   AdminUserDetail,
@@ -526,6 +528,28 @@ export const api = {
 
   /** V7.3: the signed-in user's resumes, newest first. */
   resumes: () => request<Resume[]>('/api/resumes'),
+
+  /** V9.4: the Resume Builder. Rename, default and delete are the resume endpoints below. */
+  createBuiltResume: (input: { title?: string; versionLabel?: string; content?: BuilderContent }) =>
+    send<BuiltResume>('POST', '/api/resumes/builder', input),
+  builtResume: (id: string) => request<BuiltResume>(`/api/resumes/${id}/builder`),
+  saveBuiltResume: (id: string, content: BuilderContent) => send<BuiltResume>('PUT', `/api/resumes/${id}/builder`, content),
+  duplicateResume: (id: string) => send<BuiltResume>('POST', `/api/resumes/${id}/duplicate`),
+  /** The PDF as a file to save, with the name the server gives it. */
+  downloadResumePdf: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}/api/resumes/${id}/builder/pdf`, { credentials: 'include' });
+    } catch {
+      throw new ApiError(0, CANNOT_REACH);
+    }
+    if (!response.ok) {
+      throw new ApiError(response.status, friendlyMessage(response, ''));
+    }
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'resume.pdf';
+    return { blob: await response.blob(), fileName: name };
+  },
 
   updateResume: (id: string, title: string, versionLabel: string) =>
     send<Resume>('PATCH', `/api/resumes/${id}`, { title, versionLabel }),

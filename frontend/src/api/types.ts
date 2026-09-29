@@ -258,6 +258,29 @@ export interface Resume {
   /** V7.3: the account's default resume. */
   isDefault?: boolean;
   updatedAt?: string;
+  /** V9.4: UPLOAD for a PDF, BUILDER for one written in the Resume Builder. */
+  source?: 'UPLOAD' | 'BUILDER';
+}
+
+// ---------------------------------------------------------------- V9.4: resume builder
+
+/** A built resume's sections; only what the user wrote. */
+export interface BuilderContent {
+  template?: 'CLASSIC' | 'MODERN';
+  personal: { fullName: string; headline?: string; email?: string; phone?: string; location?: string; links?: string[] };
+  summary?: string;
+  skills?: string[];
+  experience?: { title: string; company: string; location?: string; start?: string; end?: string; current: boolean; bullets?: string[] }[];
+  education?: { degree: string; institution: string; location?: string; start?: string; end?: string; details?: string }[];
+  projects?: { name: string; url?: string; description?: string; bullets?: string[] }[];
+  certifications?: { name: string; issuer?: string; date?: string }[];
+  achievements?: string[];
+  additional?: { title: string; items?: string[] }[];
+}
+
+export interface BuiltResume {
+  resume: Resume;
+  content: BuilderContent;
 }
 
 export interface ResumeMatch {
