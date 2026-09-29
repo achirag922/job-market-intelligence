@@ -28,6 +28,8 @@ import { RequireAdmin } from './auth/RequireAdmin';
 import { ForYou } from './pages/ForYou';
 import { ResumeBuilder } from './pages/ResumeBuilder';
 import { Learning } from './pages/Learning';
+import { PortfolioPage } from './pages/Portfolio';
+import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
  * Routes. The authentication screens stand alone; everything else sits in the application shell.
@@ -42,6 +44,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      {/* V9.7: a published profile, readable without signing in. */}
+      <Route path="/profile/:slug" element={<PublicProfilePage />} />
 
       <Route element={<ShellLayout />}>
         {/* V6.10.3: everything inside the shell needs a signed-in user. */}
@@ -63,6 +67,7 @@ export default function App() {
           <Route path="/for-you" element={<ForYou />} />
           <Route path="/resume-builder" element={<ResumeBuilder />} />
           <Route path="/learning" element={<Learning />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/interview-prep" element={<InterviewPrep />} />
           <Route path="/etl" element={<EtlMonitoring />} />

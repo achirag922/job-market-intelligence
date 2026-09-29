@@ -360,7 +360,7 @@ function ResumeEditor({ id, onClose }: { id: string; onClose: () => void }) {
   );
 }
 
-function Entries({ label, onAdd, children }: { label: string; onAdd: () => void; children: React.ReactNode }) {
+export function Entries({ label, onAdd, children }: { label: string; onAdd: () => void; children: React.ReactNode }) {
   return (
     <div className="stack" style={{ gap: 12 }}>
       {children}
@@ -369,7 +369,7 @@ function Entries({ label, onAdd, children }: { label: string; onAdd: () => void;
   );
 }
 
-function Entry({ label, onRemove, children }: { label: string; onRemove: () => void; children: React.ReactNode }) {
+export function Entry({ label, onRemove, children }: { label: string; onRemove: () => void; children: React.ReactNode }) {
   return (
     <fieldset className="builder-entry">
       <legend>{label}</legend>
