@@ -1222,3 +1222,96 @@ export interface PersonalDashboard {
     notes: string[];
   };
 }
+
+/** V9.5: the learning plan. */
+export type LearningStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type LearningPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type LearningResourceType = 'COURSE' | 'VIDEO' | 'ARTICLE' | 'DOCUMENTATION' | 'PROJECT' | 'OTHER';
+
+export interface LearningResource {
+  id: string;
+  title: string;
+  url: string;
+  type: LearningResourceType;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface LearningResourceInput {
+  title: string;
+  url: string;
+  type: LearningResourceType;
+  notes?: string;
+}
+
+export interface LearningItem {
+  id: string;
+  goalId?: string;
+  skillId?: number;
+  skill: string;
+  topic: string;
+  priority: LearningPriority;
+  status: LearningStatus;
+  progress: number;
+  targetDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  /** The skill's status on the career goal's roadmap, when the item serves one. */
+  roadmapStatus?: LearningStatus;
+  resources: LearningResource[];
+}
+
+export interface LearningItemInput {
+  skillId?: number;
+  skillName?: string;
+  topic: string;
+  priority?: LearningPriority;
+  targetDate?: string;
+  notes?: string;
+}
+
+export interface LearningItemUpdate {
+  topic: string;
+  priority: LearningPriority;
+  progress: number;
+  targetDate?: string;
+  notes?: string;
+}
+
+export interface LearningPrioritySkill {
+  rank: number;
+  skillId: number;
+  skill: string;
+  reason: string;
+  roadmapStatus?: LearningStatus;
+  suggestedPriority: LearningPriority;
+  itemId?: string;
+}
+
+export interface LearningPlan {
+  goalId?: string;
+  goalRole?: string;
+  priorities: LearningPrioritySkill[];
+  items: LearningItem[];
+  progress: {
+    items: number;
+    notStarted: number;
+    inProgress: number;
+    completed: number;
+    averageProgress?: number;
+    completedSkills: string[];
+  };
+  impact: {
+    goalRole?: string;
+    roadmapSkills?: number;
+    roadmapCompleted?: number;
+    roadmapPercentComplete?: number;
+    completedNotOnResume?: string[];
+    savedJobDemand?: { skill: string; savedJobs: number }[];
+    note?: string;
+  };
+  note?: string;
+}

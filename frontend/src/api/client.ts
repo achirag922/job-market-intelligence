@@ -38,6 +38,13 @@ import type {
   CareerGoalInput,
   CareerGoalStatus,
   Roadmap,
+  LearningItem,
+  LearningItemInput,
+  LearningItemUpdate,
+  LearningPlan,
+  LearningResource,
+  LearningResourceInput,
+  LearningStatus,
   SkillProgressStatus,
   ResumeJobAnalysis,
   AssistantResponse,
@@ -607,6 +614,19 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.5: the learning plan; everything is the signed-in user's own. */
+  learningPlan: () => request<LearningPlan>('/api/learning'),
+  createLearningItem: (input: LearningItemInput) => send<LearningItem>('POST', '/api/learning/items', input),
+  updateLearningItem: (id: string, input: LearningItemUpdate) => send<LearningItem>('PUT', `/api/learning/items/${id}`, input),
+  setLearningItemStatus: (id: string, status: LearningStatus) =>
+    send<LearningItem>('PATCH', `/api/learning/items/${id}/status`, { status }),
+  deleteLearningItem: (id: string) => send<void>('DELETE', `/api/learning/items/${id}`),
+  addLearningResource: (itemId: string, input: LearningResourceInput) =>
+    send<LearningResource>('POST', `/api/learning/items/${itemId}/resources`, input),
+  updateLearningResource: (id: string, input: LearningResourceInput) =>
+    send<LearningResource>('PUT', `/api/learning/resources/${id}`, input),
+  deleteLearningResource: (id: string) => send<void>('DELETE', `/api/learning/resources/${id}`),
 
   /** V7.5 market intelligence; every endpoint takes the same filters. */
   /** V8.8: historical trends for a role (job category) or all roles, with a labelled estimate. */

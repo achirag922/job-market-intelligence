@@ -246,6 +246,7 @@ etl/data
 - [x] V9.2 — personalized feed: GET /api/jobs/personalized ranks jobs by the V8.3 match plus goal, preferred role and skill, freshness and application-history signals with reasons; preference lists (V23); opt-in usePreferences search; For You page
 - [x] V9.3 — smart matching 2.0: required vs optional skills from the posting's wording, career-goal, preferred-role and preferred-skill dimensions, missing important skills and reasons, one engine for every match
 - [x] V9.4 — resume builder: built resumes as ordinary resume rows (V24) with sections, versions, duplicate, default and delete, two ATS-friendly templates, server-side PDF export, live preview and job optimisation check
+- [x] V9.5 — learning plan: learning items per skill prioritised by the career-goal roadmap, own resources, progress and target dates, completion synced to the roadmap, career impact without editing the resume, and a Learning & Skills page
 
 ## API
 
@@ -1060,6 +1061,27 @@ title is the person's name): no ids, export dates or product names. Only the own
 export or delete a built resume. The Resume Builder page lists built resumes and has section navigation, a
 live preview, template choice, unsaved-change tracking, validation, PDF export and a check against a saved job
 using V8.6 optimisation.
+
+### Learning plan (V9.5)
+
+The **Learning & Skills** page (`/learning`) turns the active career goal's roadmap (V7.4) into a learning plan.
+
+- **Priority skills** are the roadmap's own ranking (market demand plus skills you added to the goal, minus what your resume already shows); the top three are suggested HIGH, the next four MEDIUM, the rest LOW. Without an active goal you can still plan any skill by name.
+- **Items** have a skill, topic, priority, status (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`), progress 0–100, optional target date and notes. Completing an item sets progress to 100 and marks the skill COMPLETED on the goal's roadmap; reopening moves it back.
+- **Resources** are links you add yourself (title, http(s) URL, type `COURSE`, `VIDEO`, `ARTICLE`, `DOCUMENTATION`, `PROJECT` or `OTHER`, notes). JMIP does not suggest or fetch courses.
+- **Career impact** shows roadmap coverage, completed skills not yet on your resume and how many of your saved jobs ask for them. Job matches read the resume, so a learned skill counts once you add it there; JMIP never edits the resume for you.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/learning` | Priorities, items with resources, progress and impact |
+| POST | `/api/learning/items` | Plan a skill (`skillId` or `skillName`, `topic`, optional `priority`, `targetDate`, `notes`) |
+| PUT | `/api/learning/items/{id}` | Edit topic, priority, progress, target date, notes |
+| PATCH | `/api/learning/items/{id}/status` | Start, complete or reopen |
+| DELETE | `/api/learning/items/{id}` | Remove an item and its resources |
+| POST | `/api/learning/items/{id}/resources` | Add a resource |
+| PUT / DELETE | `/api/learning/resources/{id}` | Edit or remove a resource |
+
+Everything is the signed-in user's own: no endpoint takes a user id, and another user's items or resources return 404. Tables: `learning_items`, `learning_resources` (migration V25).
 
 ### Backup and recovery
 

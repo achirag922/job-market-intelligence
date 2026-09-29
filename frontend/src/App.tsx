@@ -27,6 +27,7 @@ import { AdminDashboard } from './pages/AdminDashboard';
 import { RequireAdmin } from './auth/RequireAdmin';
 import { ForYou } from './pages/ForYou';
 import { ResumeBuilder } from './pages/ResumeBuilder';
+import { Learning } from './pages/Learning';
 
 /**
  * Routes. The authentication screens stand alone; everything else sits in the application shell.
@@ -61,6 +62,7 @@ export default function App() {
           <Route path="/saved-jobs" element={<SavedJobs />} />
           <Route path="/for-you" element={<ForYou />} />
           <Route path="/resume-builder" element={<ResumeBuilder />} />
+          <Route path="/learning" element={<Learning />} />
           <Route path="/assistant" element={<AiAssistant />} />
           <Route path="/interview-prep" element={<InterviewPrep />} />
           <Route path="/etl" element={<EtlMonitoring />} />
