@@ -17,13 +17,15 @@ public class InterviewRepository {
 
     public record SessionRow(UUID id, Long jobId, UUID resumeId, String jobTitle, String companyName, String status,
                              OffsetDateTime createdAt, OffsetDateTime completedAt, String summary, BigDecimal averageScore,
-                             int answered, int evaluated, int total) {
+                             int answered, int evaluated, int total, String interviewType, String difficulty,
+                             int skipped) {
     }
 
     public record QuestionRow(int position, String category, String question, String focus, String answer,
                               OffsetDateTime answeredAt, String feedbackStatus, int evaluationAttempts, Integer relevance,
                               Integer completeness, Integer clarity, Integer technicalCorrectness, String strengths,
-                              String improvements, OffsetDateTime evaluatedAt) {
+                              String improvements, OffsetDateTime evaluatedAt, Integer communication,
+                              String suggestedApproach, OffsetDateTime skippedAt) {
     }
 
     private static final String SESSION_SELECT = """
@@ -31,7 +33,8 @@ public class InterviewRepository {
                    s.summary, s.average_score,
                    count(q.id) FILTER (WHERE q.answer IS NOT NULL) AS answered,
                    count(q.id) FILTER (WHERE q.feedback_status = 'EVALUATED') AS evaluated,
-                   count(q.id) AS total
+                   count(q.id) AS total, s.interview_type, s.difficulty,
+                   count(q.id) FILTER (WHERE q.feedback_status = 'SKIPPED') AS skipped
               FROM interview_sessions s LEFT JOIN interview_questions q ON q.session_id = s.id
             """;
 
@@ -42,11 +45,13 @@ public class InterviewRepository {
     }
 
     public void create(UUID id, UUID userId, Long jobId, UUID resumeId, String jobTitle, String companyName,
-                       OffsetDateTime at, List<Question> questions) {
+                       String interviewType, String difficulty, OffsetDateTime at, List<Question> questions) {
         jdbcTemplate.update("""
-                INSERT INTO interview_sessions (id, user_id, job_id, resume_id, job_title, company_name, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, id, userId, jobId, resumeId, jobTitle, companyName, Timestamp.from(at.toInstant()));
+                INSERT INTO interview_sessions (id, user_id, job_id, resume_id, job_title, company_name, interview_type,
+                                                difficulty, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, id, userId, jobId, resumeId, jobTitle, companyName, interviewType, difficulty,
+                Timestamp.from(at.toInstant()));
         for (int i = 0; i < questions.size(); i++) {
             Question question = questions.get(i);
             jdbcTemplate.update("INSERT INTO interview_questions (session_id, position, category, question, focus) "
@@ -72,13 +77,15 @@ public class InterviewRepository {
     public List<QuestionRow> questions(UUID sessionId) {
         return jdbcTemplate.query("""
                 SELECT position, category, question, focus, answer, answered_at, feedback_status, evaluation_attempts,
-                       relevance, completeness, clarity, technical_correctness, strengths, improvements, evaluated_at
+                       relevance, completeness, clarity, technical_correctness, strengths, improvements, evaluated_at,
+                       communication, suggested_approach, skipped_at
                   FROM interview_questions WHERE session_id = ? ORDER BY position
                 """, (rs, row) -> new QuestionRow(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
                 rs.getString(5), rs.getObject(6, OffsetDateTime.class), rs.getString(7), rs.getInt(8),
                 rs.getObject(9, Integer.class), rs.getObject(10, Integer.class), rs.getObject(11, Integer.class),
                 rs.getObject(12, Integer.class), rs.getString(13), rs.getString(14),
-                rs.getObject(15, OffsetDateTime.class)), sessionId);
+                rs.getObject(15, OffsetDateTime.class), rs.getObject(16, Integer.class), rs.getString(17),
+                rs.getObject(18, OffsetDateTime.class)), sessionId);
     }
 
     /** A new answer replaces the old one and its feedback. */
@@ -86,25 +93,35 @@ public class InterviewRepository {
         jdbcTemplate.update("""
                 UPDATE interview_questions
                    SET answer = ?, answered_at = ?, feedback_status = 'NOT_ANSWERED', relevance = NULL, completeness = NULL,
-                       clarity = NULL, technical_correctness = NULL, strengths = NULL, improvements = NULL, evaluated_at = NULL
+                       clarity = NULL, technical_correctness = NULL, strengths = NULL, improvements = NULL, evaluated_at = NULL,
+                       communication = NULL, suggested_approach = NULL, skipped_at = NULL
                  WHERE session_id = ? AND position = ?
                 """, answer, Timestamp.from(at.toInstant()), sessionId, position);
     }
 
     public void saveEvaluation(UUID sessionId, int position, int relevance, int completeness, int clarity,
-                               Integer technical, String strengths, String improvements, OffsetDateTime at) {
+                               Integer technical, Integer communication, String strengths, String improvements,
+                               String suggestedApproach, OffsetDateTime at) {
         jdbcTemplate.update("""
                 UPDATE interview_questions
                    SET feedback_status = 'EVALUATED', evaluation_attempts = evaluation_attempts + 1, relevance = ?,
-                       completeness = ?, clarity = ?, technical_correctness = ?, strengths = ?, improvements = ?, evaluated_at = ?
+                       completeness = ?, clarity = ?, technical_correctness = ?, communication = ?, strengths = ?,
+                       improvements = ?, suggested_approach = ?, evaluated_at = ?
                  WHERE session_id = ? AND position = ?
-                """, relevance, completeness, clarity, technical, strengths, improvements, Timestamp.from(at.toInstant()),
+                """, relevance, completeness, clarity, technical, communication, strengths, improvements, suggestedApproach,
+                Timestamp.from(at.toInstant()),
                 sessionId, position);
     }
 
     public void markUnavailable(UUID sessionId, int position) {
         jdbcTemplate.update("UPDATE interview_questions SET feedback_status = 'UNAVAILABLE', "
                 + "evaluation_attempts = evaluation_attempts + 1 WHERE session_id = ? AND position = ?", sessionId, position);
+    }
+
+    /** V9.6: an unanswered question is set aside; answering it later clears the skip. */
+    public void skip(UUID sessionId, int position, OffsetDateTime at) {
+        jdbcTemplate.update("UPDATE interview_questions SET feedback_status = 'SKIPPED', skipped_at = ? "
+                + "WHERE session_id = ? AND position = ? AND answer IS NULL", Timestamp.from(at.toInstant()), sessionId, position);
     }
 
     public void complete(UUID sessionId, String summary, BigDecimal averageScore, OffsetDateTime at) {
@@ -116,6 +133,6 @@ public class InterviewRepository {
         return new SessionRow(rs.getObject(1, UUID.class), rs.getObject(2, Long.class), rs.getObject(3, UUID.class),
                 rs.getString(4), rs.getString(5), rs.getString(6), rs.getObject(7, OffsetDateTime.class),
                 rs.getObject(8, OffsetDateTime.class), rs.getString(9), rs.getBigDecimal(10), rs.getInt(11), rs.getInt(12),
-                rs.getInt(13));
+                rs.getInt(13), rs.getString(14), rs.getString(15), rs.getInt(16));
     }
 }

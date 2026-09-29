@@ -19,6 +19,7 @@ vi.mock('../api/client', async () => {
       savedJobs: (...args: unknown[]) => savedJobs(...args),
       interviewSessions: (...args: unknown[]) => interviewSessions(...args),
       startInterview: (...args: unknown[]) => startInterview(...args),
+      resumes: () => Promise.resolve([]),
       interviewSession: (...args: unknown[]) => interviewSession(...args),
       answerInterviewQuestion: (...args: unknown[]) => answerInterviewQuestion(...args),
       evaluateInterviewQuestion: (...args: unknown[]) => evaluateInterviewQuestion(...args),
@@ -60,7 +61,7 @@ describe('InterviewPrep', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start interview' }));
 
     expect(await screen.findByText('Describe a problem you solved with Java.')).toBeTruthy();
-    expect(startInterview).toHaveBeenCalledWith(42);
+    expect(startInterview).toHaveBeenCalledWith({ jobId: 42, interviewType: 'MIXED', difficulty: 'MEDIUM' });
     expect(screen.getByText('Question 1 of 2 · 0 answered')).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText('Your answer'), { target: { value: 'I used Java to rebuild a service.' } });

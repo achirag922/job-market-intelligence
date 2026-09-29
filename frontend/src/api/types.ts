@@ -901,6 +901,10 @@ export interface InterviewFeedback {
   strengths: string[];
   improvements: string[];
   evaluatedAt?: string;
+  /** V9.6: 1 to 5, absent on answers evaluated before V9.6. */
+  communication?: number;
+  /** V9.6: how a stronger answer would be built; never written as the user's experience. */
+  suggestedApproach?: string;
 }
 
 export interface InterviewQuestion {
@@ -910,10 +914,11 @@ export interface InterviewQuestion {
   focus?: string;
   answer?: string;
   answeredAt?: string;
-  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE";
+  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE" | "SKIPPED";
   feedback?: InterviewFeedback;
   feedbackNote?: string;
   evaluationAttempts: number;
+  skippedAt?: string;
 }
 
 /** A practice session; questions only on the detail view. */
@@ -932,6 +937,41 @@ export interface InterviewSession {
   evaluated: number;
   total: number;
   questions?: InterviewQuestion[];
+  /** V9.6 setup. */
+  interviewType?: InterviewType;
+  difficulty?: InterviewDifficulty;
+  skipped?: number;
+  /** V9.6: present on a completed session's detail view. */
+  report?: InterviewReport;
+}
+
+export type InterviewType = 'TECHNICAL' | 'BEHAVIORAL' | 'MIXED';
+export type InterviewDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface InterviewSetup {
+  jobId: number;
+  resumeId?: string;
+  interviewType?: InterviewType;
+  difficulty?: InterviewDifficulty;
+  questionCount?: number;
+}
+
+/** V9.6: the end-of-interview report; scores are 1 to 5. */
+export interface InterviewReport {
+  overallScore?: number;
+  technicalScore?: number;
+  behavioralScore?: number;
+  strongAreas: string[];
+  weakAreas: string[];
+  prepareTopics: string[];
+  learning: {
+    skill: string;
+    source: 'PLAN_ITEM' | 'ROADMAP_PRIORITY';
+    itemId?: string;
+    skillId?: number;
+    status?: string;
+    reason?: string;
+  }[];
 }
 
 export interface ResumeComparison {
@@ -1314,4 +1354,71 @@ export interface LearningPlan {
     note?: string;
   };
   note?: string;
+}
+
+/** V9.7: the professional portfolio; section shapes are the resume builder's. */
+export interface PortfolioContent {
+  headline?: string;
+  about?: string;
+  skills: string[];
+  experience: NonNullable<BuilderContent['experience']>;
+  education: NonNullable<BuilderContent['education']>;
+  projects: NonNullable<BuilderContent['projects']>;
+  certifications: NonNullable<BuilderContent['certifications']>;
+  achievements: string[];
+  links: { label: string; url: string }[];
+}
+
+export interface PortfolioSections {
+  about: boolean;
+  skills: boolean;
+  experience: boolean;
+  education: boolean;
+  projects: boolean;
+  certifications: boolean;
+  achievements: boolean;
+  careerGoals: boolean;
+  links: boolean;
+}
+
+export interface Portfolio {
+  slug: string;
+  displayName: string;
+  visibility: 'PRIVATE' | 'PUBLIC';
+  publicPath: string;
+  content: PortfolioContent;
+  sections: PortfolioSections;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+export interface PortfolioInput {
+  displayName: string;
+  slug?: string;
+  content: PortfolioContent;
+  sections: PortfolioSections;
+}
+
+/** What /profile/{slug} shows; hidden sections are absent. */
+export interface PublicProfile {
+  displayName: string;
+  headline?: string;
+  about?: string;
+  skills?: string[];
+  experience?: PortfolioContent['experience'];
+  education?: PortfolioContent['education'];
+  projects?: PortfolioContent['projects'];
+  certifications?: PortfolioContent['certifications'];
+  achievements?: string[];
+  careerGoals?: string[];
+  links?: PortfolioContent['links'];
+  updatedAt: string;
+}
+
+export interface PortfolioImport {
+  displayName: string;
+  content: PortfolioContent;
+  learnedSkills: string[];
+  source: 'BUILDER' | 'UPLOAD';
 }

@@ -14,6 +14,7 @@ import type {
   MarketTrends,
   InterviewQuestion,
   InterviewSession,
+  InterviewSetup,
   ResumeJobComparison,
   ResumeOptimization,
   ApplicationAnalysis,
@@ -39,6 +40,10 @@ import type {
   CareerGoalStatus,
   Roadmap,
   LearningItem,
+  Portfolio,
+  PortfolioImport,
+  PortfolioInput,
+  PublicProfile,
   LearningItemInput,
   LearningItemUpdate,
   LearningPlan,
@@ -578,13 +583,16 @@ export const api = {
     request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
 
   /** V8.7: practice interviews; the owner is always the signed-in account. */
-  startInterview: (jobId: number, resumeId?: string) => send<InterviewSession>("POST", "/api/interviews", { jobId, resumeId }),
+  /** V9.6: with the resume, interview type, difficulty and question count. */
+  startInterview: (setup: InterviewSetup) => send<InterviewSession>("POST", "/api/interviews", setup),
   interviewSessions: () => request<InterviewSession[]>("/api/interviews"),
   interviewSession: (id: string) => request<InterviewSession>(`/api/interviews/${id}`),
   answerInterviewQuestion: (id: string, position: number, answer: string) =>
     send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/answer`, { answer }),
   evaluateInterviewQuestion: (id: string, position: number) =>
     send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
+  skipInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/skip`),
   completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
 
   /** V8.9: admin only; the server answers 403 to any other account. */
@@ -614,6 +622,16 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.7: the signed-in user's portfolio (404 until created) and published public profiles. */
+  portfolio: () => request<Portfolio>('/api/portfolio'),
+  createPortfolio: (input: PortfolioInput) => send<Portfolio>('POST', '/api/portfolio', input),
+  updatePortfolio: (input: PortfolioInput) => send<Portfolio>('PUT', '/api/portfolio', input),
+  changePortfolioSlug: (slug: string) => send<Portfolio>('PATCH', '/api/portfolio/slug', { slug }),
+  publishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/publish'),
+  unpublishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/unpublish'),
+  portfolioImport: (resumeId?: string) => request<PortfolioImport>('/api/portfolio/import', { resumeId }),
+  publicProfile: (slug: string) => request<PublicProfile>(`/api/public/profiles/${encodeURIComponent(slug)}`),
 
   /** V9.5: the learning plan; everything is the signed-in user's own. */
   learningPlan: () => request<LearningPlan>('/api/learning'),

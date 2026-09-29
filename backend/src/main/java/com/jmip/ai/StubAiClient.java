@@ -92,9 +92,10 @@ public class StubAiClient implements AiClient {
         int clarity = answer.split("[.!?]\\s").length > 1 ? 4 : 3;
         return """
                 {"relevance":%d,"completeness":%d,"clarity":%d,"technicalCorrectness":%s,\
-                "strengths":["The answer addresses the question directly."],\
-                "improvements":["Add a concrete example with the result you achieved."]}"""
-                .formatted(relevance, completeness, clarity, technical ? String.valueOf(relevance) : "null");
+                "communication":%d,"strengths":["The answer addresses the question directly."],\
+                "improvements":["Add a concrete example with the result you achieved."],\
+                "suggestedApproach":"Open with your own example, say what you did, then the result you achieved."}"""
+                .formatted(relevance, completeness, clarity, technical ? String.valueOf(relevance) : "null", clarity);
     }
 
     private static String lineValue(String payload, String label) {

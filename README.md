@@ -247,6 +247,8 @@ etl/data
 - [x] V9.3 — smart matching 2.0: required vs optional skills from the posting's wording, career-goal, preferred-role and preferred-skill dimensions, missing important skills and reasons, one engine for every match
 - [x] V9.4 — resume builder: built resumes as ordinary resume rows (V24) with sections, versions, duplicate, default and delete, two ATS-friendly templates, server-side PDF export, live preview and job optimisation check
 - [x] V9.5 — learning plan: learning items per skill prioritised by the career-goal roadmap, own resources, progress and target dates, completion synced to the roadmap, career impact without editing the resume, and a Learning & Skills page
+- [x] V9.6 — interview simulation: mock interviews by type (technical, behavioral, mixed), difficulty and question count, one question at a time with skip and end, communication score and a suggested approach per answer, and a final report with technical/behavioral scores and learning-plan recommendations (V26)
+- [x] V9.7 — professional portfolio: a profile built from your resume (builder sections reused), skills and career goals, with section visibility, private/public publishing, a unique changeable slug and a read-only public page at /profile/{slug} (V27)
 
 ## API
 
@@ -1082,6 +1084,44 @@ The **Learning & Skills** page (`/learning`) turns the active career goal's road
 | PUT / DELETE | `/api/learning/resources/{id}` | Edit or remove a resource |
 
 Everything is the signed-in user's own: no endpoint takes a user id, and another user's items or resources return 404. Tables: `learning_items`, `learning_resources` (migration V25).
+
+### Interview simulation (V9.6)
+
+Interview Preparation (`/interview-prep`) now runs a mock interview on top of the V8.7 sessions.
+
+- **Setup:** a saved job, one of your processed resumes (default: the current one), type `TECHNICAL`, `BEHAVIORAL` or `MIXED`, difficulty `EASY`, `MEDIUM` or `HARD`, and 3–10 questions. Without a type or count the V8.7 mixed set is used. Questions are still generated without AI from the job's skills and terms and the resume's skills; HARD questions also ask for trade-offs and how success is measured.
+- **Flow:** one question at a time with a progress bar; submit an answer to get feedback, skip an unanswered question, or end the interview at any time.
+- **Evaluation** (prompt `interview-evaluation-v2.txt`): relevance, completeness, clarity, technical correctness where it applies and communication (1–5), strengths, improvements and a suggested approach that describes structure and never writes experience for you. Replies that are not the expected JSON, or scores out of range, are treated as unavailable feedback; the answer is kept.
+- **Report** (completed sessions): overall, technical (technical and resume questions) and behavioral (behavioral and role questions) scores, strong areas (4+), weak areas (under 3), topics to prepare (weak, skipped or unanswered) and matching items or priority skills from the V9.5 learning plan. The plan is only read; adding a skill to it is your own action.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/api/interviews` | Start: `jobId`, optional `resumeId`, `interviewType`, `difficulty`, `questionCount` |
+| POST | `/api/interviews/{id}/questions/{position}/skip` | Skip an unanswered question |
+| POST | `/api/interviews/{id}/complete` | End the interview; the detail view then has `report` |
+| GET | `/api/interviews` | History with job, type, difficulty, date, score and summary |
+
+Sessions stay owner-only (404 for other accounts). The AI sees only the job's title, company and skills, the resume's skill names, the question and the answer, and everything after `DATA:` is treated as data. Migration V26 adds the session type and difficulty and the question's communication score, suggested approach and skip time.
+
+### Professional portfolio (V9.7)
+
+The **Portfolio** page (`/portfolio`) builds a professional profile: display name, headline, about, skills, experience, education, projects, certifications, achievements and links (the V9.4 resume builder's section shapes), plus the target roles of your active career goals when you choose to show them.
+
+- **Import** fills the editor from one of your resumes: a built resume brings all its sections, an uploaded one its skills; skills completed in the V9.5 learning plan are offered separately. Nothing is saved until you save, and the resume's email and phone are never copied.
+- **Visibility:** the profile is `PRIVATE` until you publish it, and each section can be hidden. The live preview shows exactly what a visitor would see.
+- **Address:** a unique slug (3–50 lowercase letters, digits and hyphens, a few reserved words refused), made from your name on creation and changeable later; the old address then stops working. A taken slug answers 409.
+- **Public page:** `/profile/{slug}` (API `GET /api/public/profiles/{slug}`, no sign-in) shows a published profile's visible sections only. It never includes an email, phone, account id, applications, alerts, interviews or learning data; a private or unknown slug is the same 404.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET / POST / PUT / DELETE | `/api/portfolio` | Your portfolio (404 until created); create, update, delete |
+| PATCH | `/api/portfolio/slug` | Change the public address |
+| POST | `/api/portfolio/publish`, `/api/portfolio/unpublish` | Make it public or private |
+| GET | `/api/portfolio/preview` | The public view, published or not |
+| GET | `/api/portfolio/import?resumeId=` | A draft from one of your resumes |
+| GET | `/api/public/profiles/{slug}` | A published profile (public) |
+
+Web addresses must be http or https; control and text-direction characters are removed, and the page renders everything as text. Table `portfolios` (migration V27).
 
 ### Backup and recovery
 
