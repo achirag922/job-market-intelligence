@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { ApplicationStatus, SavedJob } from '../api/types';
+import type { ApplicationAnalysis, ApplicationStatus, SavedJob } from '../api/types';
+import { ApplicationInsights } from '../components/ApplicationInsights';
 import { formatLocation } from '../components/format';
-import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../components/ui';
+import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable, SkillBadge } from '../components/ui';
 import { useSavedJobs } from '../saved/SavedJobs';
 
 export const PIPELINE: ApplicationStatus[] = ['SAVED', 'APPLIED', 'INTERVIEW', 'OFFER'];
@@ -51,10 +52,26 @@ function matches(saved: SavedJob, filter: Filter): boolean {
 export function SavedJobs() {
   const saved = useSavedJobs();
   const [filter, setFilter] = useState<Filter>('ALL');
+  // V8.5: the match of each tracked job, loaded once; it does not change with status or notes.
+  const [analysis, setAnalysis] = useState<Record<string, ApplicationAnalysis>>({});
 
   useEffect(() => {
     saved?.ensureLoaded();
   }, [saved]);
+
+  const trackedCount = saved?.items?.length ?? 0;
+  useEffect(() => {
+    let active = true;
+    if (trackedCount > 0) {
+      api.applications().then(
+        (rows) => active && setAnalysis(Object.fromEntries(rows.map((row) => [row.id, row]))),
+        () => undefined,
+      );
+    }
+    return () => {
+      active = false;
+    };
+  }, [trackedCount]);
 
   if (!saved) {
     return null;
@@ -105,6 +122,10 @@ export function SavedJobs() {
         </div>
       </Card>
 
+      <ApplicationInsights
+        refreshKey={(items ?? []).map((item) => `${item.id}:${item.status}:${item.followUpOn ?? ''}`).join(',')}
+      />
+
       <Card
         title="Your saved jobs"
         description="Most recently updated first."
@@ -143,7 +164,7 @@ export function SavedJobs() {
           <ul className="saved-list">
             {shown.map((item) => (
               <li key={item.id}>
-                <SavedJobCard item={item} />
+                <SavedJobCard item={item} analysis={analysis[item.id]} />
               </li>
             ))}
           </ul>
@@ -153,9 +174,12 @@ export function SavedJobs() {
   );
 }
 
-function SavedJobCard({ item }: { item: SavedJob }) {
+function SavedJobCard({ item, analysis }: { item: SavedJob; analysis?: ApplicationAnalysis }) {
   const saved = useSavedJobs()!;
   const [notes, setNotes] = useState(item.notes ?? '');
+  const [followUpOn, setFollowUpOn] = useState(item.followUpOn ?? '');
+  const [followUpNote, setFollowUpNote] = useState(item.followUpNote ?? '');
+  const followUpChanged = followUpOn !== (item.followUpOn ?? '') || followUpNote.trim() !== (item.followUpNote ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -187,6 +211,14 @@ function SavedJobCard({ item }: { item: SavedJob }) {
       setNotes(updated.notes ?? '');
     }, 'Notes saved');
 
+  const saveFollowUp = () =>
+    run(async () => {
+      const updated = await api.setSavedJobFollowUp(item.id, followUpOn || null, followUpNote);
+      saved.replace(updated);
+      setFollowUpOn(updated.followUpOn ?? '');
+      setFollowUpNote(updated.followUpNote ?? '');
+    }, followUpOn ? 'Follow-up saved' : 'Follow-up cleared');
+
   const remove = () => {
     if (window.confirm(`Remove “${item.job.title}” from your saved jobs?`)) {
       void run(() => saved.remove(item.id));
@@ -209,6 +241,7 @@ function SavedJobCard({ item }: { item: SavedJob }) {
           Saved {formatDay(item.savedAt)}
           {item.appliedAt ? ` · Applied ${formatDay(item.appliedAt)}` : ''}
         </p>
+        {analysis && <MatchSummary analysis={analysis} />}
       </div>
 
       <div className="saved-card-controls">
@@ -242,6 +275,26 @@ function SavedJobCard({ item }: { item: SavedJob }) {
           <button type="button" className="small" disabled={busy || !notesChanged} onClick={saveNotes}>
             Save notes
           </button>
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label className="field">
+            Follow up on
+            <input type="date" value={followUpOn} disabled={busy} onChange={(event) => setFollowUpOn(event.target.value)} />
+          </label>
+          <label className="field" style={{ flex: '1 1 200px' }}>
+            Reminder
+            <input
+              type="text"
+              maxLength={200}
+              value={followUpNote}
+              disabled={busy || !followUpOn}
+              placeholder="e.g. Email the recruiter"
+              onChange={(event) => setFollowUpNote(event.target.value)}
+            />
+          </label>
+          <button type="button" className="small" disabled={busy || !followUpChanged} onClick={saveFollowUp}>
+            Save follow-up
+          </button>
           {notice && <span className="muted small">{notice}</span>}
           {error && (
             <span className="status status-error small" role="alert">
@@ -251,5 +304,32 @@ function SavedJobCard({ item }: { item: SavedJob }) {
         </div>
       </div>
     </article>
+  );
+}
+
+/** V8.5: the V8.3 match of the current resume with this job, or why there is none. */
+function MatchSummary({ analysis }: { analysis: ApplicationAnalysis }) {
+  if (analysis.overallMatchPercentage === undefined) {
+    return analysis.matchNote ? <p className="muted small" style={{ margin: '4px 0 0' }}>{analysis.matchNote}</p> : null;
+  }
+  return (
+    <div className="stack" style={{ gap: 4, marginTop: 6 }}>
+      <p className="small" style={{ margin: 0 }}>
+        <strong>{analysis.overallMatchPercentage.toFixed(0)}% match</strong>
+        {analysis.skillMatchPercentage !== undefined && (
+          <span className="muted"> · {analysis.skillMatchPercentage.toFixed(0)}% of its skills on your resume</span>
+        )}
+      </p>
+      {((analysis.matchedSkills?.length ?? 0) > 0 || (analysis.missingSkills?.length ?? 0) > 0) && (
+        <ul className="skill-list" aria-label="Matched and missing skills">
+          {(analysis.matchedSkills ?? []).map((skill) => (
+            <SkillBadge key={`m${skill.id}`} name={skill.name} state="matched" />
+          ))}
+          {(analysis.missingSkills ?? []).map((skill) => (
+            <SkillBadge key={`x${skill.id}`} name={skill.name} state="missing" />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

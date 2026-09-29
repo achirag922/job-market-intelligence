@@ -50,6 +50,12 @@ public class JobAlertController {
         return jobAlertService.get(id);
     }
 
+    /** V8.4: the latest jobs this alert recorded and their delivery status. */
+    @GetMapping("/{id}/notifications")
+    public java.util.List<com.jmip.dto.alert.JobAlertNotificationResponse> notifications(@PathVariable UUID id) {
+        return jobAlertService.notifications(id);
+    }
+
     /** Replaces the name, criteria and frequency. The active flag has its own endpoint. */
     @PutMapping("/{id}")
     public JobAlertResponse update(@PathVariable UUID id, @Valid @RequestBody JobAlertRequest request) {

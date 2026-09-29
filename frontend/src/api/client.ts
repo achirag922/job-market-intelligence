@@ -5,8 +5,22 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  AdminDataQuality,
+  AdminOverview,
+  AdminUserDetail,
+  AdminUserSummary,
+  MarketTrends,
+  InterviewQuestion,
+  InterviewSession,
+  ResumeJobComparison,
+  ResumeOptimization,
+  ApplicationAnalysis,
+  ApplicationInsights,
+  JobSource,
+  MatchPreferences,
   JobAlert,
   JobAlertInput,
+  JobAlertNotification,
   ApplicationStatus,
   SavedJob,
   ResumeComparison,
@@ -433,6 +447,18 @@ export const api = {
   /** 404 when the ETL has never run. */
   latestEtlRun: () => request<EtlRun>('/api/etl/runs/latest'),
 
+  /** V8.3: the signed-in user's match preferences; an empty object when none are saved. */
+  matchPreferences: () => request<MatchPreferences>('/api/match-preferences'),
+
+  saveMatchPreferences: (preferences: MatchPreferences) =>
+    send<MatchPreferences>('PUT', '/api/match-preferences', preferences),
+
+  /** V8.1: the sources postings are ingested from, by code. */
+  jobSources: () => request<JobSource[]>('/api/job-sources'),
+
+  /** One source with the latest runs that met it. */
+  jobSource: (id: number) => request<JobSource>(`/api/job-sources/${id}`),
+
   resumeMatch: (resumeId: string, jobId: number) =>
     request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),
 
@@ -467,6 +493,9 @@ export const api = {
 
   deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
 
+  /** V8.4: the latest jobs an alert emailed (or will email), newest first. */
+  jobAlertNotifications: (id: string) => request<JobAlertNotification[]>(`/api/job-alerts/${id}/notifications`),
+
   /** V7.2: the signed-in user's saved jobs, most recently changed first. */
   savedJobs: (status?: ApplicationStatus) => request<SavedJob[]>('/api/saved-jobs', { status }),
 
@@ -479,6 +508,15 @@ export const api = {
     send<SavedJob>('PATCH', `/api/saved-jobs/${id}/status`, { status }),
 
   setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
+
+  /** V8.5: sets the follow-up date (YYYY-MM-DD) and reminder; null clears both. */
+  setSavedJobFollowUp: (id: string, followUpOn: string | null, note: string) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/follow-up`, { followUpOn, note }),
+
+  /** V8.5: every tracked job with its V8.3 match against the current resume. */
+  applications: () => request<ApplicationAnalysis[]>('/api/applications'),
+
+  applicationInsights: () => request<ApplicationInsights>('/api/applications/insights'),
 
   deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
 
@@ -495,6 +533,32 @@ export const api = {
 
   analyzeResumeJob: (resumeId: string, jobId: number) =>
     request<ResumeJobAnalysis>(`/api/resumes/${resumeId}/analyze-job/${jobId}`),
+
+  /** V8.6: keywords, sections and suggestions for one of your resumes against one job. */
+  optimizeResume: (resumeId: string, jobId: number) =>
+    request<ResumeOptimization>(`/api/resumes/${resumeId}/optimize/${jobId}`),
+
+  /** V8.6: two of your versions against one job. */
+  compareResumesForJob: (resumeId1: string, resumeId2: string, jobId: number) =>
+    request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
+
+  /** V8.7: practice interviews; the owner is always the signed-in account. */
+  startInterview: (jobId: number, resumeId?: string) => send<InterviewSession>("POST", "/api/interviews", { jobId, resumeId }),
+  interviewSessions: () => request<InterviewSession[]>("/api/interviews"),
+  interviewSession: (id: string) => request<InterviewSession>(`/api/interviews/${id}`),
+  answerInterviewQuestion: (id: string, position: number, answer: string) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/answer`, { answer }),
+  evaluateInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
+  completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
+
+  /** V8.9: admin only; the server answers 403 to any other account. */
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
+  adminDataQuality: () => request<AdminDataQuality>("/api/admin/data-quality"),
+  adminUsers: (params: { q?: string; role?: string; verified?: string; page: number; size: number }) =>
+    request<PagedResponse<AdminUserSummary>>("/api/admin/users", { ...params }),
+  adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  setJobSourceActive: (id: number, active: boolean) => send<JobSource>("PATCH", `/api/admin/job-sources/${id}`, { active }),
 
   compareResumes: (resumeId1: string, resumeId2: string) =>
     request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),
@@ -517,6 +581,9 @@ export const api = {
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
 
   /** V7.5 market intelligence; every endpoint takes the same filters. */
+  /** V8.8: historical trends for a role (job category) or all roles, with a labelled estimate. */
+  marketTrends: (filters: { category?: string; months?: number }) => request<MarketTrends>("/api/market/trends", { ...filters }),
+
   marketSalary: (filters: MarketFilters) => request<MarketSalary>('/api/market/salary', { ...filters }),
   marketLocations: (filters: MarketFilters) => request<MarketLocations>('/api/market/locations', { ...filters }),
   marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),

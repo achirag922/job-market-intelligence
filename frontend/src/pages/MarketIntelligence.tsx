@@ -13,6 +13,7 @@ import type {
 } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
 import { BarChartPanel, MultiLineChartPanel, PieChartPanel } from '../components/charts';
+import { CareerMarketTrends } from '../components/CareerMarketTrends';
 import { DebouncedInput } from '../components/DebouncedInput';
 import { Badge, Card, PageHeader, StatCard } from '../components/ui';
 import { useApi } from '../hooks/useApi';
@@ -191,6 +192,8 @@ export function MarketIntelligence() {
           {(data) => <SkillSection data={data} />}
         </AsyncPanel>
       </Card>
+
+      <CareerMarketTrends categories={categories.data ?? []} />
     </>
   );
 }

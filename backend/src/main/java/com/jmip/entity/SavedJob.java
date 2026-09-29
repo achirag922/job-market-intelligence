@@ -48,6 +48,13 @@ public class SavedJob {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /** V8.5: when the user means to follow up, and a short reminder of what about. */
+    @Column(name = "follow_up_on")
+    private java.time.LocalDate followUpOn;
+
+    @Column(name = "follow_up_note")
+    private String followUpNote;
+
     public SavedJob(UUID id, UUID userId, Job job, OffsetDateTime now) {
         this.id = id;
         this.userId = userId;
@@ -69,6 +76,13 @@ public class SavedJob {
         }
         status = next;
         updatedAt = now;
+    }
+
+    /** V8.5: sets or, with no date, clears the follow-up; a reminder needs a date. */
+    public void changeFollowUp(java.time.LocalDate on, String note, OffsetDateTime now) {
+        this.followUpOn = on;
+        this.followUpNote = on == null ? null : note;
+        this.updatedAt = now;
     }
 
     public void changeNotes(String notes, OffsetDateTime now) {

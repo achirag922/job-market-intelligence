@@ -92,7 +92,10 @@ public class JsonJobRecordReader implements ItemStreamReader<RawJobRecord> {
                 composeSalary(node),
                 text(node, "posted_date"),
                 text(node, "source"),
-                text(node, "source_url"));
+                text(node, "source_url"),
+                text(node, "source_job_id"),
+                text(node, "expires_at"),
+                text(node, "status"));
     }
 
     /** "Austin, Texas, United States", dropping the parts the source left out. */

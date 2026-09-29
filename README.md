@@ -213,6 +213,15 @@ etl/data
 - [x] V7.8 — observability: request summaries with a request id (X-Request-Id, MDC), JSON logs in prod, Actuator metrics behind a metrics account, liveness/readiness/database health groups, ETL run summaries with the execution id, friendly frontend errors and an error boundary
 - [x] V7.9 — performance: measured statements per request (QueryCountIntegrationTest); per-request memo for the signed-in user and the market window cuts the dashboard from 38 to 25 SQL statements; other endpoints were already constant-query
 - [x] V7.10 — release validation: end-to-end journey test (signup to logout with CSRF, ownership, deletion), migration and cascade checks, production-stack smoke test, dependency rescan, [backup and recovery guide](docs/BACKUP_AND_RECOVERY.md)
+- [x] V8.1 — job sources: `job_sources` registry, per-posting source/first seen/last seen/run id/source job id, inactive sources rejected, per-run source counts in ETL monitoring, read-only `/api/job-sources`
+- [x] V8.2 — deduplication and data quality: match by source job id, then source URL, then content fingerprint (updating last seen); expiry dates and source status (`expires_at`, `active`, never deleted); expired count in ETL monitoring
+- [x] V8.3 — advanced job matching: overall match from skills plus experience, location, work mode and salary (match preferences, `/api/match-preferences`), per-dimension breakdown, recommendations ranked by it
+- [x] V8.4 — job alert digests: scheduled daily/weekly emails of new matching active jobs with match score and link, one record per alert and job (no repeats), delivery status with retries, emailed-jobs view on Job Alerts
+- [x] V8.5 — application intelligence: status history and follow-up dates (V20), per-application V8.3 match with matched/missing skills, funnel, monthly activity, averages and rankings, upcoming/overdue follow-ups on Saved Jobs
+- [x] V8.6 — resume optimization: per-job match, skills, keyword and section analysis with grounded suggestions (no rewriting, no invented skills), and version comparison for a job
+- [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
+- [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
+- [x] V8.9 — admin: ADMIN role (bootstrapped from JMIP_ADMIN_EMAILS, never at signup), admin-only /api/admin (overview, data quality, users, job-source switch), Admin Dashboard for admins
 
 ## API
 
@@ -605,7 +614,7 @@ Saved job searches for the signed-in account. The filters are the job search's o
 is the search's `q`); at least one is required, along with a `name` and a `frequency` of `DAILY`
 or `WEEKLY`. An account can keep up to 25 alerts. The owner always comes from the session: a
 `userId` in the body is ignored, and another account's alert answers 404 like a missing one.
-No notifications are sent yet; the frequency records the user's choice for a later phase.
+Since V8.4 each active alert emails a digest at its frequency (see below).
 
 | Method | Path | Result |
 | --- | --- | --- |
@@ -768,6 +777,200 @@ a 404.
 ```bash
 curl -u "metrics:$JMIP_METRICS_PASSWORD" "http://localhost:8080/actuator/metrics/http.server.requests?tag=outcome:SERVER_ERROR"
 ```
+
+### Job sources (V8.1)
+
+Every posting belongs to a **job source**, keyed by the `source` label its record carries
+(`jobs.source`). The ETL registers a source the first time it meets it, typed by the feed
+(`FILE_JSON`, `FILE_CSV`; `API` is reserved for future connectors). A database trigger links
+postings inserted by any other path, so `jobs.source_id` is never empty.
+
+Each posting records `source_job_id` (the feed's own id: JSON `source_job_id`, CSV
+`sourceJobId`/`jobId`/`externalId`/`postingId`, unique per source), `first_seen_at`,
+`last_seen_at` and `last_seen_run_id`. A posting met again by a later run keeps its first-seen time
+and has its last-seen time and run updated. Records from a source set inactive
+(`UPDATE job_sources SET active = false WHERE code = '...'`) are rejected with the reason
+`source '...' is inactive`.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/job-sources` | All sources: code, name, type, active, created, last ingested, last run, posting count |
+| GET | `/api/job-sources/{id}` | One source with its 10 latest runs (Spring Batch status, times, feed name, loaded, seen again) |
+
+Both are read-only and signed-in only; nothing in the API changes what is ingested. ETL runs
+(`/api/etl/runs`, `/api/etl/runs/latest`) now also show `feedName` (file name only, never the path),
+`feedType` and `sources` (new and seen-again postings per source). The ETL logs one
+`etl.sources` line per run.
+
+### Deduplication and job status (V8.2)
+
+A record is the same posting as an existing job when, in this order, it has the same
+**source job id** in the same source, the same **source URL** in the same source, or the same
+**content fingerprint** (normalised title, company, location and posted date; a shared title
+alone is never a duplicate). A match creates no row: it updates the job's `last_seen_at`,
+`last_seen_run_id` and, when the source gives one, `expires_at`, and counts as a duplicate.
+
+Required fields are title, company, description and source; missing optional fields are
+fine. A present but unreadable value (date, salary, status) or an expiry date before the
+posted date rejects the record with that reason in `etl_rejected_record`.
+
+Feeds may give an expiry date (JSON `expires_at`; CSV `expiresAt`/`expiryDate`/`validThrough`/`closingDate`)
+and a status (JSON `status`; CSV `status`/`jobStatus`: open, active, live, true / closed, expired,
+filled, inactive, false). At the end of every run, jobs past their expiry date are marked
+`active = false`. A posting its source marks closed is marked inactive at once, and becomes active
+again if the source lists it as open later. Only these source-given signals count: a posting
+missing from one feed is not treated as closed. Jobs are never deleted, and job search is unchanged.
+ETL runs report the count as `expired` next to read, valid (processed), loaded, duplicates and rejected.
+
+### Advanced job matching (V8.3)
+
+`GET /api/resumes/{id}/match/{jobId}` and `GET /api/resumes/{id}/recommendations` now include a
+`breakdown`: an `overallPercentage` and, per dimension, a `status` (MATCH, PARTIAL, NO_MATCH,
+UNAVAILABLE), a `score`, its `weight` and a `detail` saying why. Recommendations carry
+`overallMatchPercentage` and are ranked by it (the best skill matches form the candidate pool).
+
+| Dimension | Weight | Rule |
+|---|---|---|
+| Skills | 60 | Share of the job's listed skills on the resume (the V3 score) |
+| Experience | 15 | In range 100; 25 points off per year short of the minimum; above the maximum 75 |
+| Location | 10 | Preferred city, or a whole state/country, 100; same country, other city, 50 |
+| Work mode | 10 | From the posting's words, with the V7.5 market rule; same 100; hybrid vs other 50 |
+| Salary | 5 | Top of the stated range at or above your minimum, same currency only (never converted) |
+
+The overall score is the weighted average of the dimensions that are available. A dimension
+is unavailable when you have not set that preference or the posting does not state it, so with
+no preferences the overall score is exactly the skill match and the ranking is unchanged. It is a
+compatibility measure, not an interview or hiring probability.
+
+Preferences are the signed-in user's own (`GET`/`PUT /api/match-preferences`: `yearsExperience`,
+`preferredLocation`, `workMode` REMOTE/HYBRID/ON_SITE, `minSalary` with `salaryCurrency`), set on
+the Resume Intelligence page.
+
+### Job alert digests (V8.4)
+
+A scheduled pass in the API (`JMIP_ALERTS_CRON`, hourly by default; never part of the ETL) takes
+each **active** alert of a **verified** account whose frequency has come round (daily: 23 hours
+since the last pass, weekly: 167). It finds active postings **first seen** since that pass that match
+the alert's filters (the Job Explorer's own), scores each with the V8.3 overall match against the
+user's current resume and preferences, and emails one plain-text digest: title, company,
+location and work mode, match score, and a link to the job in JMIP.
+
+Every job is recorded once per alert in `job_alert_notifications` (unique on alert and job), so it
+is never sent twice. Each record has a status (PENDING, SENT with `sent_at`, FAILED); a failed
+digest is retried on later passes up to 3 attempts, recording only the error type. Pausing an
+alert stops its digests; resuming it starts from that moment. `GET /api/job-alerts/{id}/notifications`
+(owner only) lists what an alert recorded, shown under "Emailed jobs" on the Job Alerts page.
+
+Delivery is `JMIP_ALERTS_DELIVERY=log` by default: nothing is emailed, a line is logged without
+the recipient. `smtp` uses the `JMIP_MAIL_*` server and credentials; `JMIP_APP_URL` sets the
+link base. The email carries no ids, tokens or account data beyond the user's name.
+
+### Application intelligence (V8.5)
+
+From the signed-in user's own tracked jobs only (the account comes from the session; no user id is
+accepted). "Applications" are tracked jobs that left Saved.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/applications` | Every tracked job: status, saved/applied dates, notes, follow-up, and the V8.3 match of the current resume (overall %, skill %, matched and missing skills) |
+| GET | `/api/applications/insights` | Totals, status counts, funnel (applied, ever interviewed, ever offered; rates from 3 applications), activity by month, average match, top missing skills, companies and roles, upcoming and overdue follow-ups |
+| PATCH | `/api/saved-jobs/{id}/follow-up` | Sets `followUpOn` (a date) and an optional `note` (200 characters); no date clears both |
+
+Every status change is recorded in `saved_job_status_events`, so a job rejected after an interview
+still counts as interviewed. Existing rows were backfilled from what they recorded: saved and applied
+times exactly, a later stage at the row's last update, flagged and left out of the monthly activity.
+A figure without enough data is absent with a note saying what it needs. Follow-ups are shown on the
+Saved Jobs page; no reminder emails are sent.
+
+### Resume optimization (V8.6)
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/resumes/{resumeId}/optimize/{jobId}` | The V8.3 match and breakdown, matched and missing skills, required experience and the gap, the posting's terms present in and missing from the resume, heavily repeated terms, recognised section headings, and suggestions by area (skills, keywords, sections, experience, alignment) |
+| GET | `/api/resumes/compare-for-job?resumeId1=&resumeId2=&jobId=` | Two versions against one job: skills added and removed, each version's match and the change, posting terms gained and lost |
+
+Keywords are the posting's own terms (its title, and words its description uses at least twice),
+without stopwords or skills, which the skill comparison already covers. Sections are headings on
+their own line (Summary, Skills, Experience, Projects, Education, Certifications). Suggestions come only
+from the resume and the posting, and each says to use a term only if it truthfully describes the
+user's experience; a term repeated ten or more times is flagged, never encouraged. Nothing is
+written into the resume, and no AI is used. Without stored resume text, keywords and sections are
+marked unavailable. Resumes are owner-checked: another account's answers 404. On Resume
+Intelligence, after a match, "7. Optimize resume" shows all of this.
+
+### Interview preparation (V8.7)
+
+| Method | Path | Result |
+|---|---|---|
+| POST | `/api/interviews` | 201, a new session for `jobId` (and optionally one of your `resumeId`s; default: your current processed resume) with its questions |
+| GET | `/api/interviews` | Your sessions, newest first (no questions) |
+| GET | `/api/interviews/{id}` | One session with questions, answers and feedback |
+| POST | `/api/interviews/{id}/questions/{position}/answer` | Saves `answer` (up to 4000 characters) and evaluates it |
+| POST | `/api/interviews/{id}/questions/{position}/evaluate` | Evaluates the saved answer again (at most 3 evaluations per question) |
+| POST | `/api/interviews/{id}/complete` | Closes the session with a summary |
+
+**Questions** are generated without AI, from the job and resume data only: technical questions on job
+skills the resume shows, an honest question on a job skill it does not show, role questions on the
+posting's own terms (V8.6) and experience requirement, a resume question on a skill the resume lists
+that the job does not, and two behavioral questions. Up to 8 per session; nothing is invented.
+
+**Evaluation** uses the configured AI provider (`jmip.ai.provider`; the stub in tests) with the
+`interview-evaluation-v1` prompt. The model receives only the job's title, company and skills, the
+resume's skill names, the question and the answer, marked as data; it returns scores (relevance,
+completeness, clarity, technical correctness where it applies, 1 to 5) with short strengths and
+improvements as JSON. It runs nothing and sees no database, schema or resume text. A failed call or
+an unreadable reply leaves the answer saved with feedback UNAVAILABLE, to try again. The completion
+summary is computed from the stored scores, without AI.
+
+Sessions are the signed-in user's own: another account's session or resume answers 404.
+
+### Career market trends (V8.8)
+
+`GET /api/market/trends?category=&months=` (`months` 2 to 36, default 12; `category` is a job category,
+i.e. the role; absent means all roles). Built on the V7.5 market queries and filter; the period ends at
+the newest posting in the data, not today.
+
+- **History.** Postings per posting month, with the role's share of all postings. A month in the period
+  with no postings in JMIP at all is listed in `monthsWithoutData`, drawn as a gap and left out of every
+  calculation, never read as zero.
+- **Trends.** The covered months are split in two (the later half, rounded up, is recent) and compared:
+  counts and salaries by percentage change (under 5% is STABLE), shares in percentage points with the
+  skill trends' one-point stable band. Every trend states the two periods it compares, or
+  `INSUFFICIENT_DATA` with why (fewer than 5 postings, or fewer than two months).
+- **Role insights.** Growing and declining skills (all roles: the stored monthly skill history; one role:
+  that role's postings, same rule), the salary midpoint in the currency most postings state (never
+  converted; needs 3 postings with a salary in each period), the top locations and the remote, hybrid and
+  on-site shares.
+- **Estimate.** Only from 6 months with data and 10 postings: an ordinary least-squares line through
+  monthly postings (months placed by calendar position, so gaps do not bend it), extended 3 months,
+  never below zero, labelled "Estimate, not a prediction", with the slope and R². No probability,
+  hiring prediction, model or external data. Otherwise: "Insufficient data".
+- If the newest posting is more than two months old, the response says the figures describe the
+  market up to then, not today.
+
+On the Market Intelligence page, "Career market trends" has its own role and time-range filters.
+
+### Admin (V8.9)
+
+**Becoming an admin.** Set `JMIP_ADMIN_EMAILS` (comma-separated) and restart: at startup every account with
+one of those emails that has verified it is made ADMIN. Signup always creates USER; a `role` in the
+request is ignored. Nothing demotes an admin automatically. An admin keeps every USER permission, and a
+role change takes effect at the next sign-in.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/admin/overview` | Users (total, verified, admins, new and active in 30 days), jobs (total, active, inactive, new in 7/30 days), latest and recent ETL runs, failed runs in 30 days, job sources, Actuator health statuses, last-7-day activity counts |
+| GET | `/api/admin/data-quality` | V8.2 totals over all ingestion runs (read, valid, rejected, loaded, duplicates, expired), jobs now (active, expired by date, closed by source), top rejection reasons, per-source figures |
+| GET | `/api/admin/users?q=&role=&verified=&page=&size=` | Accounts, newest first, searchable by name or email |
+| GET | `/api/admin/users/{id}` | One account's metadata and how many resumes, saved jobs, applications, alerts, interview sessions and goals it has |
+| PATCH | `/api/admin/job-sources/{id}` | `{"active": false}` stops the ETL loading that source (V8.1); stored jobs stay |
+
+Every `/api/admin/**` path requires ADMIN in the security configuration: a USER gets 403, a signed-out
+caller 401, and CSRF applies as everywhere. Responses carry counts and account metadata only, never a
+password or hash, a session, a verification code, resume contents or a rejected record's raw input.
+"Active users" means accounts that saved, uploaded or changed something in the last 30 days, because
+sign-ins are not recorded. Accounts cannot be deactivated: the user model has no active flag. There is
+no SQL or command execution. The Admin Dashboard page (`/admin`) appears in the menu for admins only.
 
 ### Backup and recovery
 

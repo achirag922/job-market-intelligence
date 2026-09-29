@@ -12,12 +12,16 @@ import org.springframework.stereotype.Repository;
 public class EtlRunMetricsRepository {
 
     private static final String UPSERT = """
-            INSERT INTO etl_run_metrics (job_execution_id, records_loaded, duplicates_skipped, skill_links_created)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO etl_run_metrics (job_execution_id, records_loaded, duplicates_skipped, skill_links_created,
+                                         feed_name, feed_type, jobs_expired)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (job_execution_id) DO UPDATE
                SET records_loaded = EXCLUDED.records_loaded,
                    duplicates_skipped = EXCLUDED.duplicates_skipped,
                    skill_links_created = EXCLUDED.skill_links_created,
+                   feed_name = EXCLUDED.feed_name,
+                   feed_type = EXCLUDED.feed_type,
+                   jobs_expired = EXCLUDED.jobs_expired,
                    recorded_at = now()
             """;
 
@@ -28,7 +32,12 @@ public class EtlRunMetricsRepository {
     }
 
     public void save(long jobExecutionId, EtlMetrics metrics) {
+        save(jobExecutionId, metrics, null, null);
+    }
+
+    /** V8.1: with the feed the run read (file name only) and its format. */
+    public void save(long jobExecutionId, EtlMetrics metrics, String feedName, String feedType) {
         jdbcTemplate.update(UPSERT, jobExecutionId, metrics.jobsLoaded(), metrics.duplicatesSkipped(),
-                metrics.skillLinksCreated());
+                metrics.skillLinksCreated(), feedName, feedType, metrics.jobsExpired());
     }
 }

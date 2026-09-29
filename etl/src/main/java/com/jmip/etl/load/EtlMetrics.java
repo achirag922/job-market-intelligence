@@ -17,11 +17,22 @@ public class EtlMetrics {
     private final AtomicLong jobsLoaded = new AtomicLong();
     private final AtomicLong duplicatesSkipped = new AtomicLong();
     private final AtomicLong skillLinksCreated = new AtomicLong();
+    /** V8.2: jobs this run marked inactive, because they expired or their source closed them. */
+    private final AtomicLong jobsExpired = new AtomicLong();
 
     public void reset() {
         jobsLoaded.set(0);
         duplicatesSkipped.set(0);
         skillLinksCreated.set(0);
+        jobsExpired.set(0);
+    }
+
+    public void recordExpired(long count) {
+        jobsExpired.addAndGet(count);
+    }
+
+    public long jobsExpired() {
+        return jobsExpired.get();
     }
 
     public void recordJobsLoaded(long count) {

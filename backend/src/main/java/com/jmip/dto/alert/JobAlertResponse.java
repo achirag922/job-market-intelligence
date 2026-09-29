@@ -18,11 +18,13 @@ public record JobAlertResponse(
         AlertFrequency frequency,
         boolean active,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        /** V8.4: when the digest pass last checked this alert; absent before the first pass. */
+        OffsetDateTime lastProcessedAt) {
 
     public static JobAlertResponse of(JobAlert alert) {
         return new JobAlertResponse(alert.getId(), alert.getName(), alert.getKeywords(), alert.getCategory(),
                 alert.getLocation(), alert.getExperience(), alert.getSkill(), alert.getFrequency(),
-                alert.isActive(), alert.getCreatedAt(), alert.getUpdatedAt());
+                alert.isActive(), alert.getCreatedAt(), alert.getUpdatedAt(), alert.getLastProcessedAt());
     }
 }

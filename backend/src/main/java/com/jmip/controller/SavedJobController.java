@@ -58,6 +58,13 @@ public class SavedJobController {
         return savedJobService.changeStatus(id, request.status());
     }
 
+    /** V8.5: sets or clears the follow-up date and reminder. */
+    @PatchMapping("/api/saved-jobs/{id}/follow-up")
+    public SavedJobResponse changeFollowUp(@PathVariable UUID id,
+                                           @Valid @RequestBody com.jmip.dto.saved.SavedJobFollowUpRequest request) {
+        return savedJobService.changeFollowUp(id, request.followUpOn(), request.note());
+    }
+
     @PatchMapping("/api/saved-jobs/{id}/notes")
     public SavedJobResponse changeNotes(@PathVariable UUID id, @Valid @RequestBody SavedJobNotesRequest request) {
         return savedJobService.changeNotes(id, request.notes());

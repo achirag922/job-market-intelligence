@@ -93,6 +93,14 @@ public class Job {
     @Column(name = "updated_at", insertable = false, updatable = false)
     private OffsetDateTime updatedAt;
 
+    /** V8.1: when the ETL first met this posting; V8.4 alerts look for postings first seen since their last pass. */
+    @Column(name = "first_seen_at", insertable = false, updatable = false)
+    private OffsetDateTime firstSeenAt;
+
+    /** V8.2: false once expired or closed by its source. Maintained by the ETL. */
+    @Column(name = "active", insertable = false, updatable = false)
+    private boolean active;
+
     /** V4: the rule-based category, null until the posting has been classified. */
     @Column(name = "job_category")
     private String jobCategory;

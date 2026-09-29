@@ -276,6 +276,41 @@ export interface ResumeMatch {
   /** The skill gap: what this job wants that the resume does not show. */
   missingSkills: Skill[];
   resumeOnlySkills: Skill[];
+  /** V8.3: overall score and per-dimension breakdown. */
+  breakdown?: MatchBreakdown;
+}
+
+// ---------------------------------------------------------------- V8.3: match breakdown
+
+export type MatchStatus = 'MATCH' | 'PARTIAL' | 'NO_MATCH' | 'UNAVAILABLE';
+
+export interface MatchDimension {
+  status: MatchStatus;
+  /** 0 to 100; absent when unavailable. */
+  score?: number;
+  /** Share of the overall score when available. */
+  weight: number;
+  detail: string;
+}
+
+/** Deterministic compatibility, not a hiring prediction. */
+export interface MatchBreakdown {
+  /** Absent when the posting lists no skills. */
+  overallPercentage?: number;
+  skills: MatchDimension;
+  experience: MatchDimension;
+  location: MatchDimension;
+  workMode: MatchDimension;
+  salary: MatchDimension;
+}
+
+/** The signed-in user's own match preferences; every field optional. */
+export interface MatchPreferences {
+  yearsExperience?: number;
+  preferredLocation?: string;
+  workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  minSalary?: number;
+  salaryCurrency?: string;
 }
 
 /** A job whose existing required skills overlap with a completed resume. */
@@ -290,6 +325,9 @@ export interface ResumeRecommendation {
   matchPercentage: number;
   matchedSkills: Skill[];
   missingSkills: Skill[];
+  /** V8.3: what the list is ranked by; equals matchPercentage without preferences. */
+  overallMatchPercentage?: number;
+  breakdown?: MatchBreakdown;
 }
 
 /** A category skill, with its V4 demand figures and whether the resume shows it. */
@@ -457,6 +495,48 @@ export interface AssistantResponse {
 /** A Spring Batch status collapsed into what the dashboard shows. */
 export type EtlRunOutcome = 'SUCCEEDED' | 'FAILED' | 'RUNNING' | 'STOPPED';
 
+// ---------------------------------------------------------------- V8.9: admin
+
+export interface AdminOverview {
+  users: { total: number; verified: number; admins: number; newLast30Days: number; activeLast30Days: number; activeDefinition: string };
+  jobs: { total: number; active: number; inactive: number; firstSeenLast7Days: number; firstSeenLast30Days: number; latestPostedDate?: string };
+  etl: { latest?: EtlRun; recent: EtlRun[]; failedLast30Days: number };
+  sources: JobSource[];
+  health: { status: string; components: Record<string, string> };
+  activity: { days: number; signups: number; resumesUploaded: number; jobsSaved: number; applications: number; interviewSessions: number; jobsEmailedInAlerts: number };
+}
+
+export interface AdminDataQuality {
+  totals: { ingestionRuns: number; recordsRead: number; validRecords: number; rejected: number; loaded: number; duplicates: number; expired: number };
+  current: { jobs: number; active: number; inactive: number; expiredByDate: number; closedBySource: number };
+  topRejectionReasons: { reason: string; count: number }[];
+  sources: { sourceId: number; code: string; name: string; sourceType: string; active: boolean; lastIngestedAt?: string; jobs: number; activeJobs: number; inactiveJobs: number; loaded: number; seenAgain: number }[];
+  notes: string[];
+}
+
+/** Account metadata only; there is no password, session or code field. */
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  fullName?: string;
+  role: "USER" | "ADMIN";
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserDetail {
+  account: AdminUserSummary;
+  resumes: number;
+  savedJobs: number;
+  applications: number;
+  jobAlerts: number;
+  interviewSessions: number;
+  careerGoals: number;
+  lastActivityAt?: string;
+  note?: string;
+}
+
 export interface EtlRun {
   executionId: number;
   jobName: string;
@@ -476,6 +556,50 @@ export interface EtlRun {
   recordsLoaded?: number;
   duplicates?: number;
   rejected: number;
+  /** V8.1: the feed's file name (never its path) and format; absent for older runs. */
+  feedName?: string;
+  feedType?: string;
+  /** V8.1: what the run did with each source it met. */
+  sources?: EtlRunSource[];
+  /** V8.2: jobs the run marked inactive (expired, or closed by their source). */
+  expired?: number;
+}
+
+export interface EtlRunSource {
+  sourceId: number;
+  code: string;
+  name: string;
+  recordsLoaded: number;
+  recordsSeenAgain: number;
+}
+
+// ---------------------------------------------------------------- V8.1: job sources
+
+export type JobSourceType = 'FILE_JSON' | 'FILE_CSV' | 'API' | 'OTHER';
+
+/** Where postings come from. Read-only: the ETL registers sources. */
+export interface JobSource {
+  id: number;
+  code: string;
+  name: string;
+  sourceType: JobSourceType;
+  active: boolean;
+  createdAt: string;
+  lastIngestedAt?: string;
+  lastRunExecutionId?: number;
+  jobCount: number;
+  /** Only on the detail view. */
+  recentRuns?: JobSourceRun[];
+}
+
+export interface JobSourceRun {
+  executionId: number;
+  batchStatus: string;
+  startTime?: string;
+  endTime?: string;
+  feedName?: string;
+  recordsLoaded: number;
+  recordsSeenAgain: number;
 }
 
 // ---------------------------------------------------------------- V6.10.2: accounts
@@ -484,7 +608,8 @@ export interface EtlRun {
 export interface AuthUser {
   id: string;
   email: string;
-  role: 'USER';
+  /** V8.9: ADMIN accounts also have every USER permission. Decided by the server, never by the client. */
+  role: 'USER' | 'ADMIN';
   /** Absent for accounts created before names were collected. */
   fullName?: string;
   emailVerified: boolean;
@@ -523,6 +648,20 @@ export interface JobAlert extends JobAlertInput {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** V8.4: when the digest pass last checked this alert. */
+  lastProcessedAt?: string;
+}
+
+/** V8.4: a job an alert recorded, and whether its digest email went out. */
+export interface JobAlertNotification {
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  /** V8.3 overall match with the current resume; absent without one. */
+  matchPercentage?: number;
+  status: 'PENDING' | 'SENT' | 'FAILED';
+  recordedAt: string;
+  sentAt?: string;
 }
 
 /** V7.2: where an application for a saved job stands. */
@@ -537,6 +676,69 @@ export interface SavedJob {
   savedAt: string;
   appliedAt?: string | null;
   updatedAt: string;
+  /** V8.5: follow-up date (YYYY-MM-DD) and reminder. */
+  followUpOn?: string | null;
+  followUpNote?: string | null;
+}
+
+// ---------------------------------------------------------------- V8.5: application intelligence
+
+/** One tracked job with the V8.3 match of the current resume; match fields absent without one. */
+export interface ApplicationAnalysis {
+  id: string;
+  job: JobSummary;
+  status: ApplicationStatus;
+  savedAt: string;
+  appliedAt?: string;
+  notes?: string;
+  followUpOn?: string;
+  followUpNote?: string;
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  matchedSkills?: Skill[];
+  missingSkills?: Skill[];
+  matchNote?: string;
+}
+
+export interface ApplicationInsightsCount {
+  name: string;
+  count: number;
+}
+
+export interface ApplicationFollowUp {
+  id: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  status: ApplicationStatus;
+  followUpOn: string;
+  note?: string;
+}
+
+/** Facts from the user's own tracked jobs; a figure without enough data is absent, with a note. */
+export interface ApplicationInsights {
+  tracked: number;
+  applications: number;
+  statusCounts: Record<ApplicationStatus, number>;
+  funnel: {
+    applied: number;
+    interviewed: number;
+    offers: number;
+    interviewRate?: number;
+    offerRate?: number;
+    minimumForRates: number;
+    note?: string;
+  };
+  activity: { month: string; saved: number; applied: number; interviews: number; offers: number }[];
+  activityNote?: string;
+  averageMatchPercentage?: number;
+  scoredApplications: number;
+  matchNote?: string;
+  topMissingSkills: ApplicationInsightsCount[];
+  topCompanies: ApplicationInsightsCount[];
+  topRoles: ApplicationInsightsCount[];
+  upcomingFollowUps: ApplicationFollowUp[];
+  overdueFollowUps: ApplicationFollowUp[];
 }
 
 /** V7.3: one resume against one job: the V3 match plus experience and data-based suggestions. */
@@ -573,6 +775,103 @@ export interface ResumeVersionSummary {
 }
 
 /** V7.3: two resume versions; "added" and "removed" read from the first to the second. */
+// ---------------------------------------------------------------- V8.6: resume optimization
+
+export interface ResumeKeyword {
+  term: string;
+  jobMentions: number;
+  resumeMentions: number;
+}
+
+/** One resume against one job, from the resume and posting only; keyword fields absent without stored text. */
+export interface ResumeOptimization {
+  resumeId: string;
+  resumeTitle?: string;
+  resumeVersionLabel?: string;
+  jobId: number;
+  jobTitle: string;
+  companyName: string;
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  breakdown?: MatchBreakdown;
+  matchedSkills: Skill[];
+  missingSkills: Skill[];
+  otherResumeSkills: Skill[];
+  requiredExperience?: unknown;
+  experienceGap: string;
+  presentKeywords?: ResumeKeyword[];
+  missingKeywords?: ResumeKeyword[];
+  overusedKeywords?: ResumeKeyword[];
+  keywordNote?: string;
+  sectionsFound?: string[];
+  sectionsMissing?: string[];
+  suggestions: { area: string; text: string }[];
+  disclaimer: string;
+}
+
+export interface ResumeJobComparisonScore {
+  overallMatchPercentage?: number;
+  skillMatchPercentage?: number;
+  matchedSkillCount: number;
+  missingSkillCount: number;
+}
+
+export interface ResumeJobComparison {
+  versions: ResumeComparison;
+  jobId: number;
+  jobTitle: string;
+  first: ResumeJobComparisonScore;
+  second: ResumeJobComparisonScore;
+  overallChange?: number;
+  skillChange?: number;
+  keywordsGained?: string[];
+  keywordsLost?: string[];
+}
+
+// ---------------------------------------------------------------- V8.7: interview preparation
+
+export interface InterviewFeedback {
+  relevance: number;
+  completeness: number;
+  clarity: number;
+  technicalCorrectness?: number;
+  score: number;
+  strengths: string[];
+  improvements: string[];
+  evaluatedAt?: string;
+}
+
+export interface InterviewQuestion {
+  position: number;
+  category: "TECHNICAL" | "ROLE" | "RESUME" | "BEHAVIORAL";
+  question: string;
+  focus?: string;
+  answer?: string;
+  answeredAt?: string;
+  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE";
+  feedback?: InterviewFeedback;
+  feedbackNote?: string;
+  evaluationAttempts: number;
+}
+
+/** A practice session; questions only on the detail view. */
+export interface InterviewSession {
+  id: string;
+  jobId?: number;
+  jobTitle: string;
+  companyName: string;
+  resumeId?: string;
+  status: "IN_PROGRESS" | "COMPLETED";
+  createdAt: string;
+  completedAt?: string;
+  summary?: string;
+  averageScore?: number;
+  answered: number;
+  evaluated: number;
+  total: number;
+  questions?: InterviewQuestion[];
+}
+
 export interface ResumeComparison {
   first: ResumeVersionSummary;
   second: ResumeVersionSummary;
@@ -647,6 +946,83 @@ export interface Roadmap {
 }
 
 /** V7.5 market intelligence. Every figure is counted from postings; nothing is estimated. */
+// ---------------------------------------------------------------- V8.8: career market trends
+
+/** A comparison of the earlier and recent halves of the covered months. */
+export interface MarketTrend {
+  direction: "INCREASING" | "DECREASING" | "STABLE" | "INSUFFICIENT_DATA";
+  change?: number;
+  unit?: "PERCENT" | "PERCENTAGE_POINTS";
+  earlierFrom?: string;
+  earlierTo?: string;
+  recentFrom?: string;
+  recentTo?: string;
+  earlierValue?: number;
+  recentValue?: number;
+  basis?: string;
+  note?: string;
+}
+
+export interface MarketSkillMove {
+  skillId: number;
+  skill: string;
+  category?: string;
+  postings: number;
+  earlierSharePercentage: number;
+  recentSharePercentage: number;
+  changeInPercentagePoints: number;
+  direction: string;
+}
+
+/** Historical trends for a role or the whole market, and a separately labelled estimate. */
+export interface MarketTrends {
+  category?: string;
+  period: {
+    requestedMonths: number;
+    fromMonth?: string;
+    toMonth?: string;
+    coveredMonths: number;
+    monthsWithoutData: string[];
+    latestPostedDate?: string;
+    source: string;
+  };
+  volume: { month: string; postings?: number; allPostings?: number; sharePercentage?: number }[];
+  volumeTrend: MarketTrend;
+  shareTrend?: MarketTrend;
+  skills: {
+    source?: string;
+    earlierFrom?: string;
+    earlierTo?: string;
+    recentFrom?: string;
+    recentTo?: string;
+    growing: MarketSkillMove[];
+    declining: MarketSkillMove[];
+    note?: string;
+  };
+  salary?: {
+    currency: string;
+    series: { month: string; currency: string; postings: number; averageMin?: number; averageMax?: number; reliable: boolean }[];
+    trend: MarketTrend;
+    note?: string;
+  };
+  locations: { locationId: number; location: string; postings: number; trend: MarketTrend }[];
+  workModes: { month: string; total: number; remote: number; hybrid: number; onSite: number; notStated: number }[];
+  workModeTrends: { mode: string; trend: MarketTrend }[];
+  forecast: {
+    status: "ESTIMATE" | "INSUFFICIENT_DATA";
+    label: string;
+    method: string;
+    basedOnMonths?: number;
+    fromMonth?: string;
+    toMonth?: string;
+    slopePerMonth?: number;
+    rSquared?: number;
+    estimates: { month: string; estimatedPostings: number }[];
+    note?: string;
+  };
+  notes: string[];
+}
+
 export interface MarketFilters {
   category?: string;
   location?: string;

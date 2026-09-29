@@ -153,6 +153,47 @@ public class MarketIntelligenceRepository {
         return jdbcTemplate.query(query.sql(), MarketIntelligenceRepository::countRow, query.args());
     }
 
+    /** V8.8: dated postings per posting month. */
+    public List<CountRow> postingsByMonth(MarketFilter filter) {
+        Query query = query(filter, """
+                SELECT NULL::bigint AS id, NULL AS name, NULL AS extra, month, count(*) AS postings
+                FROM filtered
+                WHERE month IS NOT NULL
+                GROUP BY month
+                ORDER BY month
+                """);
+        return jdbcTemplate.query(query.sql(), MarketIntelligenceRepository::countRow, query.args());
+    }
+
+    /** V8.8: postings per month for the given locations. */
+    public List<CountRow> locationsByMonth(MarketFilter filter, List<Long> locationIds) {
+        if (locationIds.isEmpty()) {
+            return List.of();
+        }
+        Query query = query(filter, """
+                SELECT f.location_id AS id, NULL AS name, NULL AS extra, f.month, count(*) AS postings
+                FROM filtered f
+                WHERE f.month IS NOT NULL AND f.location_id IN (%s)
+                GROUP BY f.location_id, f.month
+                ORDER BY f.month
+                """.formatted(String.join(",", locationIds.stream().map(id -> "?").toList())));
+        List<Object> args = new ArrayList<>(List.of(query.args()));
+        args.addAll(locationIds);
+        return jdbcTemplate.query(query.sql(), MarketIntelligenceRepository::countRow, args.toArray());
+    }
+
+    /** V8.8: postings asking for each skill, per posting month (extra = skill category). */
+    public List<CountRow> skillsByMonth(MarketFilter filter) {
+        Query query = query(filter, """
+                SELECT s.id, s.name, s.category AS extra, f.month, count(*) AS postings
+                FROM filtered f JOIN job_skills js ON js.job_id = f.id JOIN skills s ON s.id = js.skill_id
+                WHERE f.month IS NOT NULL
+                GROUP BY s.id, s.name, s.category, f.month
+                ORDER BY s.name, f.month
+                """);
+        return jdbcTemplate.query(query.sql(), MarketIntelligenceRepository::countRow, query.args());
+    }
+
     // ------------------------------------------------------------------ filter
 
     private record Query(String sql, Object[] args) {

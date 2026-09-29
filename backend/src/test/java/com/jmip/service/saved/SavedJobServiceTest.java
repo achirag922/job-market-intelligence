@@ -37,8 +37,9 @@ class SavedJobServiceTest {
     private final SavedJobRepository repository = mock(SavedJobRepository.class);
     private final JobRepository jobRepository = mock(JobRepository.class);
     private final CurrentUser currentUser = mock(CurrentUser.class);
+    private final com.jmip.repository.ApplicationEventRepository events = mock(com.jmip.repository.ApplicationEventRepository.class);
     private final SavedJobService service =
-            new SavedJobService(repository, jobRepository, mock(JobMapper.class), currentUser, CLOCK);
+            new SavedJobService(repository, jobRepository, mock(JobMapper.class), currentUser, CLOCK, events);
 
     private static SavedJob saved() {
         return new SavedJob(UUID.randomUUID(), OWNER, mock(Job.class), OffsetDateTime.now(CLOCK));
@@ -111,5 +112,19 @@ class SavedJobServiceTest {
         assertThatThrownBy(() -> service.changeNotes(id, "x")).isInstanceOf(ResourceNotFoundException.class);
         assertThatThrownBy(() -> service.delete(id)).isInstanceOf(ResourceNotFoundException.class);
         verify(repository, never()).delete(any());
+    }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("V8.5: a status change is recorded in the history; setting the same status again is not")
+    void statusHistory() {
+        SavedJob job = saved();
+        when(currentUser.requireId()).thenReturn(OWNER);
+        when(repository.findByIdAndUserId(job.getId(), OWNER)).thenReturn(java.util.Optional.of(job));
+
+        service.changeStatus(job.getId(), com.jmip.entity.ApplicationStatus.APPLIED);
+        service.changeStatus(job.getId(), com.jmip.entity.ApplicationStatus.APPLIED);
+
+        verify(events, org.mockito.Mockito.times(1)).record(eq(job.getId()), eq(OWNER),
+                eq(com.jmip.entity.ApplicationStatus.APPLIED), org.mockito.ArgumentMatchers.any());
     }
 }

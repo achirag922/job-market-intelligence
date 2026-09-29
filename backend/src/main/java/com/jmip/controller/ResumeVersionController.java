@@ -33,10 +33,13 @@ public class ResumeVersionController {
 
     private final ResumeService resumeService;
     private final ResumeAnalysisService analysisService;
+    private final com.jmip.service.resume.ResumeOptimizationService optimizationService;
 
-    public ResumeVersionController(ResumeService resumeService, ResumeAnalysisService analysisService) {
+    public ResumeVersionController(ResumeService resumeService, ResumeAnalysisService analysisService,
+                                   com.jmip.service.resume.ResumeOptimizationService optimizationService) {
         this.resumeService = resumeService;
         this.analysisService = analysisService;
+        this.optimizationService = optimizationService;
     }
 
     /** The caller's resumes, newest first. */
@@ -66,5 +69,20 @@ public class ResumeVersionController {
     @GetMapping("/compare")
     public ResumeComparisonResponse compare(@RequestParam UUID resumeId1, @RequestParam UUID resumeId2) {
         return analysisService.compare(resumeId1, resumeId2);
+    }
+
+    /** V8.6: match, skills, keywords, sections and suggestions for one of your resumes against one job. */
+    @GetMapping("/{resumeId}/optimize/{jobId}")
+    public com.jmip.dto.resume.ResumeOptimizationResponse optimize(@PathVariable UUID resumeId,
+                                                                   @PathVariable @Positive Long jobId) {
+        return optimizationService.optimize(resumeId, jobId);
+    }
+
+    /** V8.6: two of your resume versions against one job: skill changes, match change, terms gained and lost. */
+    @GetMapping("/compare-for-job")
+    public com.jmip.dto.resume.ResumeJobComparisonResponse compareForJob(@RequestParam UUID resumeId1,
+                                                                         @RequestParam UUID resumeId2,
+                                                                         @RequestParam @Positive Long jobId) {
+        return optimizationService.compareForJob(resumeId1, resumeId2, jobId);
     }
 }

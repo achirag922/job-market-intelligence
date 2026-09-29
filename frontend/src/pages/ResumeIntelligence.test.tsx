@@ -9,6 +9,7 @@ const uploadResume = vi.fn();
 const resumeRecommendations = vi.fn();
 const jobs = vi.fn();
 const resumeMatch = vi.fn();
+const saveMatchPreferences = vi.fn();
 
 vi.mock('../api/client', async () => {
   const actual = await vi.importActual<typeof import('../api/client')>('../api/client');
@@ -25,6 +26,9 @@ vi.mock('../api/client', async () => {
       jobCategories: () => Promise.resolve([]),
       // V7.3 version list; no stored resumes, so these flows start from an upload as before.
       resumes: () => Promise.resolve([]),
+      // V8.3 preferences form; none saved.
+      matchPreferences: () => Promise.resolve({}),
+      saveMatchPreferences: (...args: unknown[]) => saveMatchPreferences(...args),
     },
   };
 });
@@ -130,5 +134,50 @@ describe('ResumeIntelligence recommendations', () => {
     await uploadCompletedResume();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Cannot reach the API.');
+  });
+});
+
+describe('ResumeIntelligence match breakdown (V8.3)', () => {
+  const breakdown = {
+    overallPercentage: 80,
+    skills: { status: 'PARTIAL' as const, score: 66.7, weight: 60, detail: '1 of 2 required skills on your resume' },
+    experience: { status: 'MATCH' as const, score: 100, weight: 15, detail: '4 years fits the 3–5 years asked' },
+    location: { status: 'NO_MATCH' as const, score: 0, weight: 10, detail: 'Austin, Texas, United States is not Paris' },
+    workMode: { status: 'UNAVAILABLE' as const, weight: 10, detail: 'The posting does not say whether it is remote, hybrid or on-site' },
+    salary: { status: 'UNAVAILABLE' as const, weight: 5, detail: 'The posting states no salary' },
+  };
+
+  beforeEach(() => {
+    uploadResume.mockReset().mockResolvedValue(resume);
+    resumeRecommendations.mockReset().mockResolvedValue([{ ...recommendation, overallMatchPercentage: 80, breakdown }]);
+    jobs.mockReset().mockResolvedValue(emptyJobs());
+    resumeMatch.mockReset().mockResolvedValue({ ...match(), breakdown });
+    saveMatchPreferences.mockReset().mockResolvedValue({ workMode: 'REMOTE' });
+  });
+
+  afterEach(cleanup);
+
+  it('ranks by the overall match and explains every dimension, marking missing data unavailable', async () => {
+    render(<MemoryRouter><ResumeIntelligence /></MemoryRouter>);
+    await uploadCompletedResume();
+
+    expect(await screen.findByText('Overall match')).toBeInTheDocument();
+    expect(screen.getByText('80%')).toBeInTheDocument();
+    expect(screen.getByText('Partial · 67%')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByText('The posting states no salary')).toBeInTheDocument();
+  });
+
+  it('saves preferences and reloads the recommendations with them', async () => {
+    render(<MemoryRouter><ResumeIntelligence /></MemoryRouter>);
+    await uploadCompletedResume();
+    await screen.findByText('Overall match');
+
+    fireEvent.change(screen.getByLabelText('Work mode'), { target: { value: 'REMOTE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save preferences' }));
+
+    await waitFor(() => expect(saveMatchPreferences).toHaveBeenCalledWith(expect.objectContaining({ workMode: 'REMOTE' })));
+    expect(await screen.findByText('Preferences saved. Scores below now use them.')).toBeInTheDocument();
+    await waitFor(() => expect(resumeRecommendations).toHaveBeenCalledTimes(2));
   });
 });

@@ -20,6 +20,13 @@ vi.mock('../api/client', async () => {
       marketRemote: (...args: unknown[]) => marketRemote(...args),
       marketCompanies: (...args: unknown[]) => marketCompanies(...args),
       marketSkills: (...args: unknown[]) => marketSkills(...args),
+      // V8.8 trends section; covered in CareerMarketTrends.test.tsx.
+      marketTrends: () => Promise.resolve({
+        period: { requestedMonths: 12, coveredMonths: 0, monthsWithoutData: [], source: "All postings" },
+        volume: [], volumeTrend: { direction: "INSUFFICIENT_DATA" },
+        skills: { growing: [], declining: [] }, locations: [], workModes: [], workModeTrends: [],
+        forecast: { status: "INSUFFICIENT_DATA", label: "", method: "", estimates: [] }, notes: [],
+      }),
     },
   };
 });
@@ -117,7 +124,8 @@ describe('MarketIntelligence', () => {
   it('sends the filters to every view', async () => {
     render(<MarketIntelligence />);
     await screen.findByText('4 of 5 postings state a salary.');
-    await screen.findByRole('option', { name: 'Backend Developer' });
+    // V8.8: the trends section has its own role filter, so the option appears twice.
+    await screen.findAllByRole('option', { name: 'Backend Developer' });
 
     const filters = screen.getByRole('group', { name: 'Market filters' });
     fireEvent.change(within(filters).getByLabelText('Job category'), { target: { value: 'Backend Developer' } });

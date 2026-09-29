@@ -1,5 +1,6 @@
 package com.jmip.service.resume;
 
+import com.jmip.dto.resume.MatchPreferences;
 import com.jmip.common.exception.ResourceNotFoundException;
 import com.jmip.dto.SkillResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
@@ -43,11 +44,19 @@ public class ResumeMatchService {
     private final ResumeService resumeService;
     private final JobRepository jobRepository;
     private final JobMapper jobMapper;
+    private final JobMatchScorer scorer;
+    private final com.jmip.repository.MatchPreferencesRepository preferencesRepository;
 
-    public ResumeMatchService(ResumeService resumeService, JobRepository jobRepository, JobMapper jobMapper) {
+    /** V8.3: candidates re-ranked by the full score are drawn from this many times the limit. */
+    static final int CANDIDATE_POOL_FACTOR = 5;
+
+    public ResumeMatchService(ResumeService resumeService, JobRepository jobRepository, JobMapper jobMapper,
+                              JobMatchScorer scorer, com.jmip.repository.MatchPreferencesRepository preferencesRepository) {
         this.resumeService = resumeService;
         this.jobRepository = jobRepository;
         this.jobMapper = jobMapper;
+        this.scorer = scorer;
+        this.preferencesRepository = preferencesRepository;
     }
 
     @Transactional(readOnly = true)
@@ -65,7 +74,7 @@ public class ResumeMatchService {
         Job job = jobRepository.findDetailById(jobId)
                 .orElseThrow(() -> ResourceNotFoundException.of("Job", jobId));
 
-        return new MatchContext(resume, job, compare(resume, job));
+        return new MatchContext(resume, job, compare(resume, job, preferencesOf(resume)));
     }
 
     /**
@@ -81,7 +90,9 @@ public class ResumeMatchService {
             return List.of();
         }
 
-        List<Long> rankedIds = jobRepository.findRecommendationJobIds(resumeSkillIds, PageRequest.of(0, limit));
+        // V8.3: the best skill matches form the candidate pool, which the full score then ranks.
+        List<Long> rankedIds = jobRepository.findRecommendationJobIds(resumeSkillIds,
+                PageRequest.of(0, limit * CANDIDATE_POOL_FACTOR));
         if (rankedIds.isEmpty()) {
             return List.of();
         }
@@ -89,17 +100,38 @@ public class ResumeMatchService {
         Map<Long, Job> jobsById = jobRepository.findRecommendationDetailsByIdIn(rankedIds).stream()
                 .collect(Collectors.toMap(Job::getId, job -> job));
 
-        // SQL establishes the rank. An IN clause is unordered, so retain that order here
+        // SQL establishes the skill rank. An IN clause is unordered, so retain that order here
         // rather than accidentally turning equal scores into database-dependent results.
+        // V8.3: the overall score then ranks, and the stable sort keeps the skill order for ties,
+        // so without preferences the result is exactly the V6.3 ranking.
+        MatchPreferences preferences = preferencesOf(resume);
         return rankedIds.stream()
                 .map(jobsById::get)
                 .filter(java.util.Objects::nonNull)
-                .map(job -> toRecommendation(job, compare(resume, job)))
+                .map(job -> toRecommendation(job, compare(resume, job, preferences)))
+                .sorted(Comparator.comparing(ResumeRecommendationResponse::overallMatchPercentage,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(limit)
                 .toList();
     }
 
+    /**
+     * V8.5: the same comparison of one of the signed-in user's resumes against several jobs at
+     * once, by job id, in one detail query. Used by application intelligence.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, ResumeMatchResponse> matchJobs(UUID resumeId, java.util.Collection<Long> jobIds) {
+        if (jobIds.isEmpty()) {
+            return Map.of();
+        }
+        Resume resume = resumeService.requireCompletedResume(resumeId);
+        MatchPreferences preferences = preferencesOf(resume);
+        return jobRepository.findRecommendationDetailsByIdIn(jobIds).stream()
+                .collect(Collectors.toMap(Job::getId, job -> compare(resume, job, preferences)));
+    }
+
     /** The one V3 comparison implementation shared by direct matches and recommendations. */
-    private ResumeMatchResponse compare(Resume resume, Job job) {
+    private ResumeMatchResponse compare(Resume resume, Job job, MatchPreferences preferences) {
 
         Set<Long> resumeSkillIds = idsOf(resume.getSkills());
         Set<Long> jobSkillIds = idsOf(job.getSkills());
@@ -139,7 +171,13 @@ public class ResumeMatchService {
                 missing.size(),
                 toSortedResponses(matched),
                 toSortedResponses(missing),
-                toSortedResponses(resumeOnly));
+                toSortedResponses(resumeOnly),
+                scorer.score(matched.size(), totalJobSkills, job, preferences));
+    }
+
+    /** The resume owner's preferences: the resume is already owner-checked, so this is the signed-in user's. */
+    private MatchPreferences preferencesOf(Resume resume) {
+        return resume.getUserId() == null ? MatchPreferences.NONE : preferencesRepository.find(resume.getUserId());
     }
 
     private ResumeRecommendationResponse toRecommendation(Job job, ResumeMatchResponse match) {
@@ -156,7 +194,9 @@ public class ResumeMatchService {
                 match.jobCategory(),
                 match.matchPercentage(),
                 match.matchedSkills(),
-                match.missingSkills());
+                match.missingSkills(),
+                match.breakdown().overallPercentage(),
+                match.breakdown());
     }
 
     private static Set<Long> idsOf(Set<Skill> skills) {

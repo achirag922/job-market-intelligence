@@ -60,6 +60,10 @@ public class JobValidator {
         }
 
         validateDate(job, reasons);
+        // V8.2: optional, but when both dates are given they must be in order.
+        if (job.expiresAt() != null && job.postedDate() != null && job.expiresAt().isBefore(job.postedDate())) {
+            reasons.add("expiry date " + job.expiresAt() + " is before the posted date " + job.postedDate());
+        }
         validateExperience(job, reasons);
         validateSalary(job, reasons);
         validateLocation(job, reasons);

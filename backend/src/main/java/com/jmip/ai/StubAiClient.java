@@ -72,7 +72,38 @@ public class StubAiClient implements AiClient {
         return switch (request.task()) {
             case INTENT_EXTRACTION -> extractIntent(request.user());
             case ANSWER_GENERATION -> describe(request.user());
+            case INTERVIEW_EVALUATION -> evaluate(request.user());
         };
+    }
+
+    /**
+     * V8.7: a deterministic score from the answer's length, structure and whether it names the
+     * question's focus. Enough to exercise parsing, storage and the interface; it judges nothing.
+     */
+    private String evaluate(String payload) {
+        int start = payload.indexOf("ANSWER:\n");
+        String answer = start < 0 ? "" : payload.substring(start + "ANSWER:\n".length()).trim();
+        String focus = lineValue(payload, "QUESTION FOCUS:");
+        boolean technical = "TECHNICAL".equals(lineValue(payload, "QUESTION CATEGORY:"));
+        String lower = answer.toLowerCase(Locale.ROOT);
+        int words = answer.isBlank() ? 0 : answer.split("\\s+").length;
+        int relevance = focus == null || focus.isBlank() ? 3 : lower.contains(focus.toLowerCase(Locale.ROOT)) ? 4 : 2;
+        int completeness = words >= 60 ? 4 : words >= 25 ? 3 : 2;
+        int clarity = answer.split("[.!?]\\s").length > 1 ? 4 : 3;
+        return """
+                {"relevance":%d,"completeness":%d,"clarity":%d,"technicalCorrectness":%s,\
+                "strengths":["The answer addresses the question directly."],\
+                "improvements":["Add a concrete example with the result you achieved."]}"""
+                .formatted(relevance, completeness, clarity, technical ? String.valueOf(relevance) : "null");
+    }
+
+    private static String lineValue(String payload, String label) {
+        for (String line : payload.split("\n")) {
+            if (line.startsWith(label)) {
+                return line.substring(label.length()).trim();
+            }
+        }
+        return null;
     }
 
     /**

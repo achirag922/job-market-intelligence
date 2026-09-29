@@ -58,6 +58,10 @@ public class JobAlert {
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
 
+    /** V8.4: end of the window the last digest pass covered. Written by that pass, never from here. */
+    @Column(name = "last_processed_at", insertable = false, updatable = false)
+    private OffsetDateTime lastProcessedAt;
+
     public JobAlert(UUID id, UUID userId, Criteria criteria, OffsetDateTime now) {
         this.id = id;
         this.userId = userId;

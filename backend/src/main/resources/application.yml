@@ -111,6 +111,18 @@ management:
       application: ${spring.application.name}
 
 jmip:
+  # V8.9: verified accounts with these emails (comma-separated) are made ADMIN at startup.
+  # Nobody can sign up as an admin; unset means no account is promoted.
+  admin:
+    bootstrap-emails: ${JMIP_ADMIN_EMAILS:}
+  # V8.4: job alert digests. delivery=log (the default) never sends email; smtp uses spring.mail
+  # above (JMIP_MAIL_HOST/PORT/USERNAME/PASSWORD). No credential is ever set here.
+  alerts:
+    enabled: ${JMIP_ALERTS_ENABLED:true}
+    delivery: ${JMIP_ALERTS_DELIVERY:log}
+    cron: ${JMIP_ALERTS_CRON:0 0 * * * *}
+    app-url: ${JMIP_APP_URL:http://localhost:5173}
+    mail-from: ${JMIP_ALERTS_MAIL_FROM:${JMIP_MAIL_FROM:}}
   observability:
     # HTTP Basic account for /actuator/metrics. No password, no metrics endpoint for anyone.
     metrics-username: ${JMIP_METRICS_USERNAME:metrics}

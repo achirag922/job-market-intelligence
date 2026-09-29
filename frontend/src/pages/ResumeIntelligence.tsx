@@ -15,6 +15,8 @@ import { CareerInsights } from '../components/CareerInsights';
 import { formatLocation } from '../components/format';
 import { useApi } from '../hooks/useApi';
 import { JobAnalysisPanel, ResumeVersions } from '../components/ResumeVersions';
+import { MatchBreakdownList, MatchPreferencesCard } from '../components/MatchBreakdown';
+import { ResumeOptimizer } from '../components/ResumeOptimizer';
 
 const JOB_RESULTS = 8;
 
@@ -237,10 +239,21 @@ export function ResumeIntelligence() {
       )}
 
       {readyToMatch && (
+        <MatchPreferencesCard
+          onSaved={() => {
+            setRecommendationAttempt((count) => count + 1);
+            if (match) {
+              void runMatch(match.jobId);
+            }
+          }}
+        />
+      )}
+
+      {readyToMatch && (
         <div ref={recommendationsSection} className="match-section">
           <Card
             title="Recommended jobs"
-            description="Ranked by the share of each job's listed skills that your resume covers. This is a skills-overlap measure, not a hiring prediction."
+            description="Ranked by overall match: your skill coverage, plus experience, location, work mode and salary where you set preferences and the posting states them. A compatibility measure, not a hiring prediction."
             actions={<Badge tone="brand">Top matches</Badge>}
           >
             <AsyncPanel
@@ -256,9 +269,14 @@ export function ResumeIntelligence() {
                 <div className="recommendation-list" aria-label="Recommended jobs">
                   {data.map((recommendation) => (
                     <article className="recommendation-card" key={recommendation.jobId}>
-                      <div className="recommendation-score" aria-label={`${recommendation.matchPercentage.toFixed(0)} percent skill match`}>
-                        <strong>{recommendation.matchPercentage.toFixed(0)}%</strong>
-                        <span>Skill match</span>
+                      <div
+                        className="recommendation-score"
+                        aria-label={recommendation.breakdown
+                          ? `${(recommendation.overallMatchPercentage ?? recommendation.matchPercentage).toFixed(0)} percent overall match`
+                          : `${recommendation.matchPercentage.toFixed(0)} percent skill match`}
+                      >
+                        <strong>{(recommendation.overallMatchPercentage ?? recommendation.matchPercentage).toFixed(0)}%</strong>
+                        <span>{recommendation.breakdown ? 'Overall match' : 'Skill match'}</span>
                       </div>
                       <div className="recommendation-main">
                         <div className="recommendation-heading">
@@ -288,6 +306,12 @@ export function ResumeIntelligence() {
                             </ul>
                           </div>
                         </div>
+                        {recommendation.breakdown && (
+                          <details>
+                            <summary>Match breakdown</summary>
+                            <MatchBreakdownList breakdown={recommendation.breakdown} />
+                          </details>
+                        )}
                         <div className="recommendation-actions">
                           <Link className="button-link" to={`/jobs/${recommendation.jobId}`}>View job</Link>
                           <button
@@ -412,6 +436,12 @@ export function ResumeIntelligence() {
                   <span className="match-figure-value">{match.matchPercentage.toFixed(0)}%</span>
                   <span className="match-figure-label">Skill match</span>
                 </div>
+                {match.breakdown?.overallPercentage !== undefined && (
+                  <div className="match-figure">
+                    <span className="match-figure-value">{match.breakdown.overallPercentage.toFixed(0)}%</span>
+                    <span className="match-figure-label">Overall match</span>
+                  </div>
+                )}
                 <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                   <div className="stat-grid" style={{ marginBottom: 12 }}>
                     <StatCard label="Skills you have" value={match.matchedSkillCount} />
@@ -428,9 +458,18 @@ export function ResumeIntelligence() {
                   >
                     <div className="match-meter-fill" style={{ width: `${match.matchPercentage}%` }} />
                   </div>
-                  <p className="card-description" style={{ marginTop: 8 }}>
-                    Skills only. This is not a prediction about being hired.
-                  </p>
+                  {match.breakdown ? (
+                    <div style={{ marginTop: 12 }}>
+                      <MatchBreakdownList breakdown={match.breakdown} />
+                      <p className="card-description" style={{ marginTop: 8 }}>
+                        Overall is the weighted average of the available dimensions. This is not a prediction about being hired.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="card-description" style={{ marginTop: 8 }}>
+                      Skills only. This is not a prediction about being hired.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -492,6 +531,7 @@ export function ResumeIntelligence() {
           </Card>
 
           <JobAnalysisPanel key={`${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
+          <ResumeOptimizer key={`opt-${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
         </>
       )}
       </div>
