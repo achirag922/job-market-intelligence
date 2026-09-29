@@ -221,6 +221,7 @@ etl/data
 - [x] V8.6 — resume optimization: per-job match, skills, keyword and section analysis with grounded suggestions (no rewriting, no invented skills), and version comparison for a job
 - [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
 - [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
+- [x] V8.9 — admin: ADMIN role (bootstrapped from JMIP_ADMIN_EMAILS, never at signup), admin-only /api/admin (overview, data quality, users, job-source switch), Admin Dashboard for admins
 
 ## API
 
@@ -948,6 +949,28 @@ the newest posting in the data, not today.
   market up to then, not today.
 
 On the Market Intelligence page, "Career market trends" has its own role and time-range filters.
+
+### Admin (V8.9)
+
+**Becoming an admin.** Set `JMIP_ADMIN_EMAILS` (comma-separated) and restart: at startup every account with
+one of those emails that has verified it is made ADMIN. Signup always creates USER; a `role` in the
+request is ignored. Nothing demotes an admin automatically. An admin keeps every USER permission, and a
+role change takes effect at the next sign-in.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/admin/overview` | Users (total, verified, admins, new and active in 30 days), jobs (total, active, inactive, new in 7/30 days), latest and recent ETL runs, failed runs in 30 days, job sources, Actuator health statuses, last-7-day activity counts |
+| GET | `/api/admin/data-quality` | V8.2 totals over all ingestion runs (read, valid, rejected, loaded, duplicates, expired), jobs now (active, expired by date, closed by source), top rejection reasons, per-source figures |
+| GET | `/api/admin/users?q=&role=&verified=&page=&size=` | Accounts, newest first, searchable by name or email |
+| GET | `/api/admin/users/{id}` | One account's metadata and how many resumes, saved jobs, applications, alerts, interview sessions and goals it has |
+| PATCH | `/api/admin/job-sources/{id}` | `{"active": false}` stops the ETL loading that source (V8.1); stored jobs stay |
+
+Every `/api/admin/**` path requires ADMIN in the security configuration: a USER gets 403, a signed-out
+caller 401, and CSRF applies as everywhere. Responses carry counts and account metadata only, never a
+password or hash, a session, a verification code, resume contents or a rejected record's raw input.
+"Active users" means accounts that saved, uploaded or changed something in the last 30 days, because
+sign-ins are not recorded. Accounts cannot be deactivated: the user model has no active flag. There is
+no SQL or command execution. The Admin Dashboard page (`/admin`) appears in the menu for admins only.
 
 ### Backup and recovery
 

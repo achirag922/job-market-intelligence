@@ -96,6 +96,9 @@ public class SecurityConfig {
                         // Container and load-balancer health checks carry no session.
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info")
                         .permitAll()
+                        // V8.9: platform administration, decided here on the server from the session's
+                        // authorities; a USER gets 403. Must come before the general /api rule.
+                        .requestMatchers("/api/admin/**").hasRole(UserRole.ADMIN.name())
                         // Everything else in the API is for signed-in users.
                         .requestMatchers("/api/**").hasRole(UserRole.USER.name())
                         // Anything else still needs a signed-in user; unknown paths then 404 as before.

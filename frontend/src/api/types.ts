@@ -495,6 +495,48 @@ export interface AssistantResponse {
 /** A Spring Batch status collapsed into what the dashboard shows. */
 export type EtlRunOutcome = 'SUCCEEDED' | 'FAILED' | 'RUNNING' | 'STOPPED';
 
+// ---------------------------------------------------------------- V8.9: admin
+
+export interface AdminOverview {
+  users: { total: number; verified: number; admins: number; newLast30Days: number; activeLast30Days: number; activeDefinition: string };
+  jobs: { total: number; active: number; inactive: number; firstSeenLast7Days: number; firstSeenLast30Days: number; latestPostedDate?: string };
+  etl: { latest?: EtlRun; recent: EtlRun[]; failedLast30Days: number };
+  sources: JobSource[];
+  health: { status: string; components: Record<string, string> };
+  activity: { days: number; signups: number; resumesUploaded: number; jobsSaved: number; applications: number; interviewSessions: number; jobsEmailedInAlerts: number };
+}
+
+export interface AdminDataQuality {
+  totals: { ingestionRuns: number; recordsRead: number; validRecords: number; rejected: number; loaded: number; duplicates: number; expired: number };
+  current: { jobs: number; active: number; inactive: number; expiredByDate: number; closedBySource: number };
+  topRejectionReasons: { reason: string; count: number }[];
+  sources: { sourceId: number; code: string; name: string; sourceType: string; active: boolean; lastIngestedAt?: string; jobs: number; activeJobs: number; inactiveJobs: number; loaded: number; seenAgain: number }[];
+  notes: string[];
+}
+
+/** Account metadata only; there is no password, session or code field. */
+export interface AdminUserSummary {
+  id: string;
+  email: string;
+  fullName?: string;
+  role: "USER" | "ADMIN";
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminUserDetail {
+  account: AdminUserSummary;
+  resumes: number;
+  savedJobs: number;
+  applications: number;
+  jobAlerts: number;
+  interviewSessions: number;
+  careerGoals: number;
+  lastActivityAt?: string;
+  note?: string;
+}
+
 export interface EtlRun {
   executionId: number;
   jobName: string;
@@ -566,7 +608,8 @@ export interface JobSourceRun {
 export interface AuthUser {
   id: string;
   email: string;
-  role: 'USER';
+  /** V8.9: ADMIN accounts also have every USER permission. Decided by the server, never by the client. */
+  role: 'USER' | 'ADMIN';
   /** Absent for accounts created before names were collected. */
   fullName?: string;
   emailVerified: boolean;

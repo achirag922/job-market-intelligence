@@ -5,6 +5,10 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  AdminDataQuality,
+  AdminOverview,
+  AdminUserDetail,
+  AdminUserSummary,
   MarketTrends,
   InterviewQuestion,
   InterviewSession,
@@ -547,6 +551,14 @@ export const api = {
   evaluateInterviewQuestion: (id: string, position: number) =>
     send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
   completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
+
+  /** V8.9: admin only; the server answers 403 to any other account. */
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
+  adminDataQuality: () => request<AdminDataQuality>("/api/admin/data-quality"),
+  adminUsers: (params: { q?: string; role?: string; verified?: string; page: number; size: number }) =>
+    request<PagedResponse<AdminUserSummary>>("/api/admin/users", { ...params }),
+  adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  setJobSourceActive: (id: number, active: boolean) => send<JobSource>("PATCH", `/api/admin/job-sources/${id}`, { active }),
 
   compareResumes: (resumeId1: string, resumeId2: string) =>
     request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),

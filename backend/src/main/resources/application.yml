@@ -111,6 +111,10 @@ management:
       application: ${spring.application.name}
 
 jmip:
+  # V8.9: verified accounts with these emails (comma-separated) are made ADMIN at startup.
+  # Nobody can sign up as an admin; unset means no account is promoted.
+  admin:
+    bootstrap-emails: ${JMIP_ADMIN_EMAILS:}
   # V8.4: job alert digests. delivery=log (the default) never sends email; smtp uses spring.mail
   # above (JMIP_MAIL_HOST/PORT/USERNAME/PASSWORD). No credential is ever set here.
   alerts:

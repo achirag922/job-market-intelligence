@@ -12,7 +12,7 @@ import java.util.Optional;
 
 /**
  * V8.1: read-only access to the job sources the ETL registers. Sources are created and
- * updated by the ETL (and by database administrators); nothing here writes.
+ * updated by the ETL; the one write here is an admin's on/off switch (V8.9).
  */
 @Repository
 public class JobSourceRepository {
@@ -41,6 +41,16 @@ public class JobSourceRepository {
 
     public Optional<JobSourceResponse> findById(long id) {
         return jdbcTemplate.query(SELECT + " WHERE s.id = ? GROUP BY s.id", ROW, id).stream().findFirst();
+    }
+
+    /**
+     * V8.9: an admin turns a source on or off; the ETL then rejects an inactive source's records
+     * (V8.1). The only write here, and it changes nothing but the flag.
+     *
+     * @return whether the source exists
+     */
+    public boolean setActive(long id, boolean active) {
+        return jdbcTemplate.update("UPDATE job_sources SET active = ? WHERE id = ?", active, id) == 1;
     }
 
     /** The latest runs that met the source, with Spring Batch's own status and timing. */

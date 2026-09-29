@@ -72,6 +72,12 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
   },
 ];
 
+/** V8.9: shown only to ADMIN accounts; the admin APIs refuse everyone else regardless. */
+const ADMIN_GROUP: { label: string; items: NavItem[] } = {
+  label: 'Admin',
+  items: [{ to: '/admin', label: 'Admin Dashboard', icon: IconDatabase }],
+};
+
 /** The page title shown in the header, matched longest-prefix-first. */
 const PAGE_TITLES: [string, string][] = [
   ['/jobs/', 'Job Details'],
@@ -87,6 +93,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/market', 'Market Intelligence'],
   ['/alerts', 'Job Alerts'],
   ['/interview-prep', 'Interview Preparation'],
+  ['/admin', 'Admin Dashboard'],
   ['/saved-jobs', 'Saved Jobs'],
   ['/career-goals', 'Career Goals'],
   ['/etl', 'ETL Monitoring'],
@@ -109,6 +116,7 @@ function titleFor(pathname: string): string {
 export function AppShell({ children }: { children: ReactNode }) {
   const [navOpen, setNavOpen] = useState(false);
   const { theme, toggle } = useTheme();
+  const isAdmin = useAuth().user?.role === 'ADMIN';
   const location = useLocation();
 
   // A drawer that survives navigation covers the page you just asked for.
@@ -184,7 +192,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Brand />
         </div>
         <nav aria-label="Main">
-          {NAV_GROUPS.map((group) => (
+          {(isAdmin ? [...NAV_GROUPS, ADMIN_GROUP] : NAV_GROUPS).map((group) => (
             <div className="nav-group" key={group.label}>
               <p className="nav-group-label">{group.label}</p>
               {group.items.map((item) => (

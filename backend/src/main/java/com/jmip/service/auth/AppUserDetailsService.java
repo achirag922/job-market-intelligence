@@ -23,6 +23,15 @@ public class AppUserDetailsService implements UserDetailsService {
         this.userService = userService;
     }
 
+    /** V8.9: an admin is also a user, so every signed-in API stays open to them. */
+    static List<SimpleGrantedAuthority> authoritiesOf(com.jmip.entity.UserRole role) {
+        if (role == com.jmip.entity.UserRole.ADMIN) {
+            return List.of(new SimpleGrantedAuthority(com.jmip.entity.UserRole.ADMIN.authority()),
+                    new SimpleGrantedAuthority(com.jmip.entity.UserRole.USER.authority()));
+        }
+        return List.of(new SimpleGrantedAuthority(role.authority()));
+    }
+
     @Override
     public UserDetails loadUserByUsername(String email) {
         User user = userService.findByEmail(email)
@@ -30,7 +39,7 @@ public class AppUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
         return org.springframework.security.core.userdetails.User.withUsername(user.getEmail())
                 .password(user.getPasswordHash())
-                .authorities(List.of(new SimpleGrantedAuthority(user.getRole().authority())))
+                .authorities(authoritiesOf(user.getRole()))
                 .build();
     }
 }
