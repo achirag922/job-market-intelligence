@@ -249,6 +249,7 @@ etl/data
 - [x] V9.5 — learning plan: learning items per skill prioritised by the career-goal roadmap, own resources, progress and target dates, completion synced to the roadmap, career impact without editing the resume, and a Learning & Skills page
 - [x] V9.6 — interview simulation: mock interviews by type (technical, behavioral, mixed), difficulty and question count, one question at a time with skip and end, communication score and a suggested approach per answer, and a final report with technical/behavioral scores and learning-plan recommendations (V26)
 - [x] V9.7 — professional portfolio: a profile built from your resume (builder sections reused), skills and career goals, with section visibility, private/public publishing, a unique changeable slug and a read-only public page at /profile/{slug} (V27)
+- [x] V9.8 — advanced user analytics: 7D/30D/90D/1Y/All history of job-search activity, the application funnel, resume-version match and skill-gap trends, interview scores and learning progress, with factual insights and no forecasts
 
 ## API
 
@@ -1122,6 +1123,16 @@ The **Portfolio** page (`/portfolio`) builds a professional profile: display nam
 | GET | `/api/public/profiles/{slug}` | A published profile (public) |
 
 Web addresses must be http or https; control and text-direction characters are removed, and the page renders everything as text. Table `portfolios` (migration V27).
+
+### My analytics (V9.8)
+
+**My Analytics** (`/my-analytics`, API `GET /api/dashboard/analytics?range=7D|30D|90D|1Y|ALL`, default 30D) shows how things changed over time; the V7.7 dashboard still shows where they stand. Everything is the signed-in user's own and computed from data JMIP already keeps; no table was added.
+
+- **Activity:** jobs saved, applied, moved to interview and to offer per day (7D, 30D), week (90D) or month (1Y), from the V8.5 status history.
+- **Funnel:** applications started in the range (first applied, interview or offer change) and how many reached an interview and an offer, with conversion rates when there is a base.
+- **Resume and skills:** each resume version from the range scored now against all saved jobs with the existing skill match (average match, skills, missing skills), and the skills the current resume lacks most often among the range's saved jobs. Past match scores are not stored, so this is labelled as computed now.
+- **Interviews and learning:** completed V9.6 interviews with overall, technical and behavioral scores; V9.5 learning items started and completed, completion rate and roadmap coverage when there is an active goal. Portfolio status and dates (V9.7).
+- **Insights** are fixed sentences filled from these figures (application volume against the previous equal period, funnel conversion, match change between resume versions, the most frequent missing skill, interview score first to latest, learning completion). A figure that cannot be computed is absent, never zero or estimated.
 
 ### Backup and recovery
 

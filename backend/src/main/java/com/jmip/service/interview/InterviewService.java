@@ -346,7 +346,7 @@ public class InterviewService {
     }
 
     /** Everything in the report except the learning plan; a strong answer scores 4 or more, a weak one under 3. */
-    static Report scores(List<QuestionRow> questions) {
+    public static Report scores(List<QuestionRow> questions) {
         List<QuestionRow> evaluated = questions.stream().filter(q -> "EVALUATED".equals(q.feedbackStatus())).toList();
         List<String> strong = evaluated.stream().filter(q -> scoreOf(q) >= 4).map(InterviewService::area).distinct().toList();
         List<String> weak = evaluated.stream().filter(q -> scoreOf(q) < 3).map(InterviewService::area).distinct().toList();

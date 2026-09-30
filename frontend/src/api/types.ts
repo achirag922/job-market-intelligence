@@ -1422,3 +1422,50 @@ export interface PortfolioImport {
   learnedSkills: string[];
   source: 'BUILDER' | 'UPLOAD';
 }
+
+/** V9.8: the signed-in user's career analytics over a time range; absent figures could not be computed. */
+export type AnalyticsRange = '7D' | '30D' | '90D' | '1Y' | 'ALL';
+
+export interface UserAnalytics {
+  range: AnalyticsRange;
+  from?: string;
+  to: string;
+  bucket: 'DAY' | 'WEEK' | 'MONTH';
+  kpis: {
+    jobsSaved: number;
+    applications: number;
+    interviews: number;
+    offers: number;
+    averageMatch?: number;
+    interviewsCompleted: number;
+    averageInterviewScore?: number;
+    learningCompleted: number;
+  };
+  activity: { label: string; saved: number; applied: number; interviews: number; offers: number }[];
+  funnel: { applied: number; interviewed: number; offers: number; applyToInterviewRate?: number; interviewToOfferRate?: number };
+  statusBreakdown: Record<string, number>;
+  resumeTrend: { title: string; date: string; skills: number; averageMatch?: number; missingSkills: number; jobsCompared: number }[];
+  missingSkills: { skill: string; jobs: number }[];
+  interviews: {
+    completed: number;
+    averageScore?: number;
+    firstScore?: number;
+    latestScore?: number;
+    sessions: { date: string; jobTitle: string; interviewType?: string; overall?: number; technical?: number; behavioral?: number }[];
+  };
+  learning: {
+    items: number;
+    completed: number;
+    inProgress: number;
+    notStarted: number;
+    startedInRange: number;
+    completedInRange: number;
+    completionRate?: number;
+    targetSkills?: number;
+    targetSkillsCovered?: number;
+    activity: { label: string; started: number; completed: number }[];
+  };
+  portfolio: { exists: boolean; visibility?: 'PRIVATE' | 'PUBLIC'; createdAt?: string; updatedAt?: string; publishedAt?: string };
+  insights: string[];
+  notes: string[];
+}

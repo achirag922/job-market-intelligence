@@ -29,6 +29,7 @@ import { ForYou } from './pages/ForYou';
 import { ResumeBuilder } from './pages/ResumeBuilder';
 import { Learning } from './pages/Learning';
 import { PortfolioPage } from './pages/Portfolio';
+import { MyAnalytics } from './pages/MyAnalytics';
 import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
@@ -52,6 +53,7 @@ export default function App() {
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/my-career" element={<MyCareer />} />
+          <Route path="/my-analytics" element={<MyAnalytics />} />
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/categories" element={<JobIntelligence />} />

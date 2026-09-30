@@ -41,6 +41,8 @@ import type {
   Roadmap,
   LearningItem,
   Portfolio,
+  AnalyticsRange,
+  UserAnalytics,
   PortfolioImport,
   PortfolioInput,
   PublicProfile,
@@ -658,6 +660,9 @@ export const api = {
 
   /** V7.7: the signed-in user's career dashboard; optionally for one of their goals. */
   dashboard: (goalId?: string) => request<PersonalDashboard>('/api/dashboard', { goalId }),
+
+  /** V9.8: how your job search, resume, interviews and learning changed over a range. */
+  userAnalytics: (range: AnalyticsRange) => request<UserAnalytics>('/api/dashboard/analytics', { range }),
 };
 
 export { BASE_URL };
