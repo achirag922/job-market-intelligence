@@ -89,6 +89,7 @@ services:
       JMIP_ALERTS_ENABLED: ${JMIP_ALERTS_ENABLED:-true}
       JMIP_ALERTS_DELIVERY: ${JMIP_ALERTS_DELIVERY:-log}
       JMIP_ALERTS_CRON: ${JMIP_ALERTS_CRON:-0 0 * * * *}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
       JMIP_APP_URL: ${JMIP_APP_URL:-http://localhost:3000}
     volumes:
       - resume-data:/app/data/resumes
@@ -98,6 +99,10 @@ services:
       - "127.0.0.1:${JMIP_BACKEND_PORT:-8080}:8080"
     # Flyway runs on startup; if the database is still settling the process exits and is retried.
     restart: on-failure:5
+    # V9.9: longer than the application's own 20 s graceful shutdown, so docker stop never cuts
+    # off in-flight requests or a running scheduled job. The JVM sizes its heap from this limit.
+    stop_grace_period: 40s
+    mem_limit: ${JMIP_BACKEND_MEMORY:-1g}
 
   frontend:
     build:

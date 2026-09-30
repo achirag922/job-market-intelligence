@@ -250,6 +250,7 @@ etl/data
 - [x] V9.6 — interview simulation: mock interviews by type (technical, behavioral, mixed), difficulty and question count, one question at a time with skip and end, communication score and a suggested approach per answer, and a final report with technical/behavioral scores and learning-plan recommendations (V26)
 - [x] V9.7 — professional portfolio: a profile built from your resume (builder sections reused), skills and career goals, with section visibility, private/public publishing, a unique changeable slug and a read-only public page at /profile/{slug} (V27)
 - [x] V9.8 — advanced user analytics: 7D/30D/90D/1Y/All history of job-search activity, the application funnel, resume-version match and skill-gap trends, interview scores and learning progress, with factual insights and no forecasts
+- [x] V9.9 — production reliability: analytics N+1 removed (37 → 24 statements), scheduled jobs run once across instances with job ids, durations and a metric, ETL single-run lock and transient-database retry, AI retry setting and status logging, graceful stop and OOM exit in Docker
 
 ## API
 
@@ -1133,6 +1134,15 @@ Web addresses must be http or https; control and text-direction characters are r
 - **Resume and skills:** each resume version from the range scored now against all saved jobs with the existing skill match (average match, skills, missing skills), and the skills the current resume lacks most often among the range's saved jobs. Past match scores are not stored, so this is labelled as computed now.
 - **Interviews and learning:** completed V9.6 interviews with overall, technical and behavioral scores; V9.5 learning items started and completed, completion rate and roadmap coverage when there is an active goal. Portfolio status and dates (V9.7).
 - **Insights** are fixed sentences filled from these figures (application volume against the previous equal period, funnel conversion, match change between resume versions, the most frequent missing skill, interview score first to latest, learning completion). A figure that cannot be computed is absent, never zero or estimated.
+
+### Production reliability (V9.9)
+
+- **Query counts** (`QueryCountIntegrationTest` prints them) now cover the V8/V9 endpoints too. My Analytics issued one query per completed interview and matched the current resume twice: 37 statements, now 24, independent of history size. The other newer endpoints were already bounded and now have ceilings.
+- **Scheduled jobs** (job alerts, skill snapshots, resume retention) go through `ScheduledJobRunner`: a PostgreSQL advisory lock per job means a second backend instance skips instead of repeating the work (or the alert emails); a crashed instance releases its lock with its connection. Each run logs `scheduled.job name=… status=COMPLETED|FAILED|SKIPPED durationMs=…` with a `jobId` in every line, records the `jmip.scheduled.job` timer, and never throws at the scheduler. Two scheduler threads; on shutdown a running job may finish (30 s).
+- **ETL:** one run at a time (advisory lock `jmip:etl`; a concurrent run fails before reading and can simply be started again). Transient database failures (deadlock, lock timeout, dropped connection) are retried up to 3 attempts with 0.5–5 s backoff; rejections are still skipped and never retried, and any other failure fails the step for a normal restart.
+- **AI:** `AI_MAX_RETRIES` (default 2) is passed to the SDK, which retries timeouts, 408/409/429 and 5xx with backoff and never other 4xx; failures log the provider status code, never the request.
+- **Docker:** `-XX:+ExitOnOutOfMemoryError` so an out-of-memory JVM restarts instead of limping; backend `stop_grace_period: 40s` (longer than the 20 s graceful shutdown) and `mem_limit: ${JMIP_BACKEND_MEMORY:-1g}`, which the heap percentage follows.
+- **Checked, unchanged:** no new index (every new query hits an existing one: status events by user and time, sessions by user, questions by session, learning items by user); no cache (market endpoints measure 3 statements and ~20 ms; user data is per user and changes often); resume processing stays in the upload request (bounded by the upload size limit, and the user needs the result), alert emails already run on the scheduler, AI calls keep their timeout.
 
 ### Backup and recovery
 

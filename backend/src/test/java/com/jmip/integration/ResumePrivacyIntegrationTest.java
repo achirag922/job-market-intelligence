@@ -81,6 +81,9 @@ class ResumePrivacyIntegrationTest {
     @Autowired
     private ResumeService resumeService;
 
+    @Autowired
+    private com.jmip.config.ScheduledJobRunner runner;
+
     @BeforeEach
     void seed() throws Exception {
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes, skills, users RESTART IDENTITY CASCADE");
@@ -177,11 +180,11 @@ class ResumePrivacyIntegrationTest {
         jdbcTemplate.update("UPDATE resumes SET uploaded_at = now() - interval '400 days' WHERE id = ?::uuid", old);
 
         ResumePrivacyProperties off = new ResumePrivacyProperties(KEY, Duration.ZERO, "0 30 3 * * *");
-        assertThat(new ResumeRetentionJob(resumeService, off, Clock.systemUTC()).sweep()).isZero();
+        assertThat(new ResumeRetentionJob(resumeService, off, Clock.systemUTC(), runner).sweep()).isZero();
         assertThat(count("resumes")).isEqualTo(2);
 
         ResumePrivacyProperties yearly = new ResumePrivacyProperties(KEY, Duration.ofDays(365), "0 30 3 * * *");
-        assertThat(new ResumeRetentionJob(resumeService, yearly, Clock.systemUTC()).sweep()).isEqualTo(1);
+        assertThat(new ResumeRetentionJob(resumeService, yearly, Clock.systemUTC(), runner).sweep()).isEqualTo(1);
 
         assertThat(jdbcTemplate.queryForList("SELECT id::text FROM resumes", String.class)).containsExactly(recent);
         assertThat(storedFile(old)).doesNotExist();

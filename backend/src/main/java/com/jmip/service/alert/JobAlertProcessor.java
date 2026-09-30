@@ -59,12 +59,14 @@ public class JobAlertProcessor {
     private final TransactionTemplate transaction;
     private final Clock clock;
     private final com.jmip.service.resume.MatchGoals goals;
+    private final com.jmip.config.ScheduledJobRunner runner;
 
     public JobAlertProcessor(AlertNotificationRepository notifications, JobAlertRepository alerts, JobRepository jobs,
                              JobService jobService, JobMatchScorer scorer, MatchPreferencesRepository preferences,
                              AlertEmailSender sender, AlertProperties properties, TransactionTemplate transaction,
-                             Clock clock, com.jmip.service.resume.MatchGoals goals) {
+                             Clock clock, com.jmip.service.resume.MatchGoals goals, com.jmip.config.ScheduledJobRunner runner) {
         this.goals = goals;
+        this.runner = runner;
         this.notifications = notifications;
         this.alerts = alerts;
         this.jobs = jobs;
@@ -84,7 +86,8 @@ public class JobAlertProcessor {
     @Scheduled(cron = "${jmip.alerts.cron:0 0 * * * *}")
     public void onSchedule() {
         if (properties.enabled()) {
-            processDue();
+            // V9.9: once across instances, with its duration and failures reported.
+            runner.run("job-alerts", this::processDue);
         }
     }
 

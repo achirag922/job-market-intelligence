@@ -106,7 +106,7 @@ class RequestLimitFilterTest {
     @Test
     @DisplayName("the AI settings never print the API key")
     void aiKeyNeverPrinted() {
-        AiProperties properties = new AiProperties("anthropic", "sk-test-do-not-print", "model", null, 10, null);
+        AiProperties properties = new AiProperties("anthropic", "sk-test-do-not-print", "model", null, 10, null, 2);
 
         assertThat(properties.toString()).doesNotContain("sk-test-do-not-print").contains("apiKey=****");
     }

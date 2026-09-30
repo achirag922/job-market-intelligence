@@ -80,6 +80,25 @@ class EtlJobIntegrationTest {
                 "TRUNCATE job_skills, jobs, skills, companies, locations, etl_rejected_record RESTART IDENTITY CASCADE");
     }
 
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
+    @Test
+    @DisplayName("V9.9: a run started while another holds the ETL lock fails before loading; the next run succeeds")
+    void refusesConcurrentRun() throws Exception {
+        try (java.sql.Connection other = dataSource.getConnection(); java.sql.Statement statement = other.createStatement()) {
+            statement.execute("SELECT pg_advisory_lock(hashtext('" + EtlRunLock.KEY + "'))");
+            JobExecution refused = jobLauncherTestUtils.launchJob(jobParameters());
+            assertThat(refused.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(refused.getAllFailureExceptions()).anySatisfy(failure ->
+                    assertThat(failure).hasMessageContaining("Another ETL run is in progress"));
+            assertThat(count("jobs")).isZero();
+            statement.execute("SELECT pg_advisory_unlock(hashtext('" + EtlRunLock.KEY + "'))");
+        }
+        assertThat(jobLauncherTestUtils.launchJob(jobParameters()).getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(count("jobs")).isEqualTo(5);
+    }
+
     @Test
     @DisplayName("ingests the sample dataset, rejecting bad records and collapsing duplicates")
     void ingestsSampleDataset() throws Exception {

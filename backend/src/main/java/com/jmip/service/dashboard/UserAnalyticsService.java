@@ -203,12 +203,14 @@ public class UserAnalyticsService {
 
         // Resume versions and skill gaps, scored now against the saved jobs
         List<Long> jobIds = saved.stream().map(s -> s.getJob().getId()).distinct().limit(MAX_JOBS_COMPARED).toList();
-        List<ResumePoint> resumeTrend = resumeTrend(resumes, window, jobIds);
+        // V9.9: each resume is matched once, even when it is both a version in the range and the current one.
+        Map<UUID, Map<Long, ResumeMatchResponse>> matched = new HashMap<>();
+        List<ResumePoint> resumeTrend = resumeTrend(resumes, window, jobIds, matched);
         Double averageMatch = null;
         List<SkillGap> missing = List.of();
         UUID current = resumeService.currentProcessedResumeId().orElse(null);
         if (current != null && !jobIds.isEmpty()) {
-            Map<Long, ResumeMatchResponse> matches = matchService.matchJobs(current, jobIds);
+            Map<Long, ResumeMatchResponse> matches = matched.computeIfAbsent(current, id -> matchService.matchJobs(id, jobIds));
             averageMatch = average(matches.values().stream().map(ResumeMatchResponse::matchPercentage));
             Set<Long> rangeJobs = savedInRange.stream().map(s -> s.getJob().getId()).collect(Collectors.toSet());
             missing = missingSkills(matches.entrySet().stream().filter(e -> rangeJobs.contains(e.getKey()))
@@ -290,7 +292,8 @@ public class UserAnalyticsService {
 
     // ------------------------------------------------------------------ resume and skills
 
-    private List<ResumePoint> resumeTrend(List<ResumeResponse> resumes, Window window, List<Long> jobIds) {
+    private List<ResumePoint> resumeTrend(List<ResumeResponse> resumes, Window window, List<Long> jobIds,
+                                          Map<UUID, Map<Long, ResumeMatchResponse>> matched) {
         List<ResumeResponse> versions = resumes.stream().filter(r -> window.contains(resumeDate(r)))
                 .sorted(Comparator.comparing(UserAnalyticsService::resumeDate)).toList();
         if (versions.size() > MAX_RESUME_VERSIONS) {
@@ -299,7 +302,7 @@ public class UserAnalyticsService {
         List<ResumePoint> points = new ArrayList<>();
         for (ResumeResponse resume : versions) {
             Collection<ResumeMatchResponse> matches = jobIds.isEmpty() ? List.of()
-                    : matchService.matchJobs(resume.id(), jobIds).values();
+                    : matched.computeIfAbsent(resume.id(), id -> matchService.matchJobs(id, jobIds)).values();
             int missing = (int) matches.stream().flatMap(m -> m.missingSkills().stream()).map(SkillResponse::name)
                     .distinct().count();
             points.add(new ResumePoint(resume.title() != null ? resume.title() : resume.fileName(), day(resumeDate(resume)),
@@ -325,8 +328,11 @@ public class UserAnalyticsService {
     // ------------------------------------------------------------------ interviews and learning
 
     private Interviews interviews(List<SessionRow> completed, Window window) {
-        List<InterviewPoint> points = completed.stream().filter(s -> window.contains(s.completedAt())).map(s -> {
-            Report scores = InterviewService.scores(interviews.questions(s.id()));
+        List<SessionRow> sessions = completed.stream().filter(s -> window.contains(s.completedAt())).toList();
+        // V9.9: all their questions in one statement rather than one per session.
+        Map<UUID, List<InterviewRepository.QuestionRow>> questions = interviews.questions(sessions.stream().map(SessionRow::id).toList());
+        List<InterviewPoint> points = sessions.stream().map(s -> {
+            Report scores = InterviewService.scores(questions.getOrDefault(s.id(), List.of()));
             return new InterviewPoint(day(s.completedAt()), s.jobTitle(), s.interviewType(), scores.overallScore(),
                     scores.technicalScore(), scores.behavioralScore());
         }).toList();

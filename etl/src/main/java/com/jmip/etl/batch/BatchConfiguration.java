@@ -44,9 +44,10 @@ import java.time.Clock;
  * which combined with the duplicate constraints means re-running after a failure resumes
  * safely rather than double loading.
  *
- * <p>Retry is deliberately not configured. Nothing in this pipeline is transiently
- * failing yet — a bad record is bad every time — and retry without a genuine transient
- * failure just multiplies work.
+ * <p>V9.9: only transient database failures (a deadlock, a lock timeout, a dropped connection)
+ * are retried, a few times with backoff; the chunk is rolled back and written again, which the
+ * duplicate constraints make safe. A bad record is bad every time, so rejections are skipped,
+ * never retried, and anything else still fails the step for a restart.
  */
 @Configuration
 public class BatchConfiguration {
@@ -55,6 +56,17 @@ public class BatchConfiguration {
     public static final String STEP_NAME = "ingestJobPostingsStep";
     public static final String REPROCESS_JOB_NAME = "reprocessJobPostings";
     public static final String REPROCESS_STEP_NAME = "reprocessJobPostingsStep";
+    /** Attempts per item for a transient database failure, the first included. */
+    static final int TRANSIENT_RETRY_LIMIT = 3;
+
+    /** 0.5 s, then 1 s, capped at 5 s: long enough for a deadlock or failover to clear. */
+    static org.springframework.retry.backoff.BackOffPolicy transientBackOff() {
+        org.springframework.retry.backoff.ExponentialBackOffPolicy backOff = new org.springframework.retry.backoff.ExponentialBackOffPolicy();
+        backOff.setInitialInterval(500);
+        backOff.setMultiplier(2.0);
+        backOff.setMaxInterval(5000);
+        return backOff;
+    }
 
     /** Injected rather than called statically, so validation can be tested against a fixed date. */
     @Bean
@@ -101,6 +113,10 @@ public class BatchConfiguration {
                 // the evidence, and carry on. Anything else still fails the step.
                 .skip(RecordRejectedException.class)
                 .skipLimit(properties.skipLimit())
+                .retry(org.springframework.dao.TransientDataAccessException.class)
+                .retry(org.springframework.dao.RecoverableDataAccessException.class)
+                .retryLimit(TRANSIENT_RETRY_LIMIT)
+                .backOffPolicy(transientBackOff())
                 .listener((SkipListener<RawJobRecord, TransformedJob>) rejectedRecordListener)
                 .listener((StepExecutionListener) rejectedRecordListener)
                 .listener(referenceDataPrimer(referenceDataCache))
@@ -144,6 +160,11 @@ public class BatchConfiguration {
                 .reader(storedJobReader)
                 .processor(jobReprocessingProcessor)
                 .writer(jobReprocessingWriter)
+                .faultTolerant()
+                .retry(org.springframework.dao.TransientDataAccessException.class)
+                .retry(org.springframework.dao.RecoverableDataAccessException.class)
+                .retryLimit(TRANSIENT_RETRY_LIMIT)
+                .backOffPolicy(transientBackOff())
                 .listener(referenceDataPrimer(referenceDataCache))
                 .build();
     }

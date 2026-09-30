@@ -7,7 +7,10 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -74,18 +77,40 @@ public class InterviewRepository {
                 this::session, userId);
     }
 
+    private static final String QUESTION_COLUMNS = """
+            position, category, question, focus, answer, answered_at, feedback_status, evaluation_attempts,
+            relevance, completeness, clarity, technical_correctness, strengths, improvements, evaluated_at,
+            communication, suggested_approach, skipped_at
+            """;
+
     public List<QuestionRow> questions(UUID sessionId) {
-        return jdbcTemplate.query("""
-                SELECT position, category, question, focus, answer, answered_at, feedback_status, evaluation_attempts,
-                       relevance, completeness, clarity, technical_correctness, strengths, improvements, evaluated_at,
-                       communication, suggested_approach, skipped_at
-                  FROM interview_questions WHERE session_id = ? ORDER BY position
-                """, (rs, row) -> new QuestionRow(rs.getInt(1), rs.getString(2), rs.getString(3), rs.getString(4),
-                rs.getString(5), rs.getObject(6, OffsetDateTime.class), rs.getString(7), rs.getInt(8),
-                rs.getObject(9, Integer.class), rs.getObject(10, Integer.class), rs.getObject(11, Integer.class),
-                rs.getObject(12, Integer.class), rs.getString(13), rs.getString(14),
-                rs.getObject(15, OffsetDateTime.class), rs.getObject(16, Integer.class), rs.getString(17),
-                rs.getObject(18, OffsetDateTime.class)), sessionId);
+        return jdbcTemplate.query("SELECT " + QUESTION_COLUMNS + " FROM interview_questions WHERE session_id = ? ORDER BY position",
+                (rs, row) -> question(rs, 0), sessionId);
+    }
+
+    /** V9.9: the questions of several sessions in one statement, keyed by session, in position order. */
+    public Map<UUID, List<QuestionRow>> questions(Collection<UUID> sessionIds) {
+        Map<UUID, List<QuestionRow>> bySession = new LinkedHashMap<>();
+        if (sessionIds.isEmpty()) {
+            return bySession;
+        }
+        jdbcTemplate.query("SELECT session_id, " + QUESTION_COLUMNS + " FROM interview_questions WHERE session_id = ANY (?) "
+                        + "ORDER BY session_id, position",
+                (java.sql.ResultSet rs) -> {
+                    bySession.computeIfAbsent(rs.getObject(1, UUID.class), id -> new java.util.ArrayList<>()).add(question(rs, 1));
+                },
+                (Object) sessionIds.toArray(new UUID[0]));
+        return bySession;
+    }
+
+    private static QuestionRow question(java.sql.ResultSet rs, int offset) throws java.sql.SQLException {
+        return new QuestionRow(rs.getInt(offset + 1), rs.getString(offset + 2), rs.getString(offset + 3),
+                rs.getString(offset + 4), rs.getString(offset + 5), rs.getObject(offset + 6, OffsetDateTime.class),
+                rs.getString(offset + 7), rs.getInt(offset + 8), rs.getObject(offset + 9, Integer.class),
+                rs.getObject(offset + 10, Integer.class), rs.getObject(offset + 11, Integer.class),
+                rs.getObject(offset + 12, Integer.class), rs.getString(offset + 13), rs.getString(offset + 14),
+                rs.getObject(offset + 15, OffsetDateTime.class), rs.getObject(offset + 16, Integer.class),
+                rs.getString(offset + 17), rs.getObject(offset + 18, OffsetDateTime.class));
     }
 
     /** A new answer replaces the old one and its feedback. */

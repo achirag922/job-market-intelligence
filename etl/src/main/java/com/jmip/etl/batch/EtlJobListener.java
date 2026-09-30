@@ -29,9 +29,12 @@ public class EtlJobListener implements JobExecutionListener {
     private final JobSourceRegistry sources;
     private final com.jmip.etl.load.JobExpiry jobExpiry;
     private final com.jmip.etl.connector.JobSourceConnectors connectors;
+    private final EtlRunLock runLock;
 
     public EtlJobListener(EtlMetrics metrics, EtlRunMetricsRepository runMetricsRepository, JobSourceRegistry sources,
-                          com.jmip.etl.load.JobExpiry jobExpiry, com.jmip.etl.connector.JobSourceConnectors connectors) {
+                          com.jmip.etl.load.JobExpiry jobExpiry, com.jmip.etl.connector.JobSourceConnectors connectors,
+                          EtlRunLock runLock) {
+        this.runLock = runLock;
         this.metrics = metrics;
         this.runMetricsRepository = runMetricsRepository;
         this.sources = sources;
@@ -47,6 +50,11 @@ public class EtlJobListener implements JobExecutionListener {
         // V8.1: which feed this run reads; its sources are registered as their records arrive.
         // V9.1: through which connector. The reprocessing job reads no source.
         beginRun(jobExecution);
+        // V9.9: one run at a time; a concurrent run fails here, before reading anything.
+        if (!runLock.acquire()) {
+            log.error("etl.run executionId={} status=REFUSED reason=another-run-in-progress", jobExecution.getId());
+            throw new IllegalStateException("Another ETL run is in progress; start this one when it has finished");
+        }
         log.info("ETL job '{}' started (execution {}), parameters: {}",
                 jobExecution.getJobInstance().getJobName(),
                 jobExecution.getId(),
@@ -125,6 +133,7 @@ public class EtlJobListener implements JobExecutionListener {
                 elapsed.toMillis(), read, processed, metrics.jobsLoaded(), metrics.duplicatesSkipped(), rejected,
                 metrics.jobsExpired(), sources.connector());
         persistRunMetrics(jobExecution);
+        runLock.release();
         MDC.remove(MDC_JOB_EXECUTION_ID);
     }
 
