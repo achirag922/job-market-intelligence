@@ -251,6 +251,7 @@ etl/data
 - [x] V9.7 — professional portfolio: a profile built from your resume (builder sections reused), skills and career goals, with section visibility, private/public publishing, a unique changeable slug and a read-only public page at /profile/{slug} (V27)
 - [x] V9.8 — advanced user analytics: 7D/30D/90D/1Y/All history of job-search activity, the application funnel, resume-version match and skill-gap trends, interview scores and learning progress, with factual insights and no forecasts
 - [x] V9.9 — production reliability: analytics N+1 removed (37 → 24 statements), scheduled jobs run once across instances with job ids, durations and a metric, ETL single-run lock and transient-database retry, AI retry setting and status logging, graceful stop and OOM exit in Docker
+- [x] V9.10 — release validation: full test, build, migration and Docker smoke run (27 end-to-end checks); interview answer/re-evaluation AI calls now share the assistant's per-minute rate limit
 
 ## API
 

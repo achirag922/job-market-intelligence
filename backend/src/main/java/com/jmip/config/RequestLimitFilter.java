@@ -42,6 +42,13 @@ public class RequestLimitFilter extends OncePerRequestFilter {
     static final String SIGNUP_PATH = "/api/auth/signup";
     static final String VERIFY_PATH = "/api/auth/verify-email";
     static final String RESEND_PATH = "/api/auth/resend-verification";
+    /**
+     * V9.10: interview answers and re-evaluations each call the AI provider, like the assistant, so
+     * they share its per-minute allowance (a separate bucket) instead of being unlimited.
+     */
+    static final String INTERVIEW_AI_ENDPOINT = "/api/interviews/*/questions/*/answer|evaluate";
+    private static final java.util.regex.Pattern INTERVIEW_AI_PATH =
+            java.util.regex.Pattern.compile("^/api/interviews/[^/]+/questions/[^/]+/(answer|evaluate)/?$");
     private static final long WINDOW_MILLIS = 60_000;
     /** Expired windows are swept once the table grows past this, so it cannot grow unbounded. */
     private static final int SWEEP_THRESHOLD = 10_000;
@@ -81,7 +88,7 @@ public class RequestLimitFilter extends OncePerRequestFilter {
 
         if (properties.rateLimitEnabled()) {
             int limit = switch (endpoint) {
-                case ASSISTANT_PATH -> properties.assistantPerMinute();
+                case ASSISTANT_PATH, INTERVIEW_AI_ENDPOINT -> properties.assistantPerMinute();
                 case AUTH_ENDPOINT -> properties.authPerMinute();
                 default -> properties.uploadsPerMinute();
             };
@@ -117,6 +124,9 @@ public class RequestLimitFilter extends OncePerRequestFilter {
         }
         if (path.equals(UPLOAD_PATH) || path.equals(UPLOAD_PATH + "/")) {
             return UPLOAD_PATH;
+        }
+        if (INTERVIEW_AI_PATH.matcher(path).matches()) {
+            return INTERVIEW_AI_ENDPOINT;
         }
         return null;
     }
