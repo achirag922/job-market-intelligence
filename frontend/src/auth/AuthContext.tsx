@@ -25,6 +25,8 @@ interface AuthValue {
   verifyEmail: (code: string) => Promise<'signedIn' | 'needsLogin'>;
   resendVerification: () => Promise<VerificationStatus>;
   logout: () => Promise<void>;
+  /** V9.17: the account as the server returned it after a change in Settings. */
+  replaceUser: (user: AuthUser) => void;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -141,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ status, user, pendingVerification, login, signup, verifyEmail, resendVerification, logout }),
+    () => ({ status, user, pendingVerification, login, signup, verifyEmail, resendVerification, logout, replaceUser: setUser }),
     [status, user, pendingVerification, login, signup, verifyEmail, resendVerification, logout],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
