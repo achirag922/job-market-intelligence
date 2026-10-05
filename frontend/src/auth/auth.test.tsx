@@ -52,6 +52,7 @@ function renderApp(path: string) {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/welcome" element={<p>Landing page</p>} />
           <Route element={<RequireAuth />}>
             <Route path="/" element={<AppShell><p>Dashboard home</p></AppShell>} />
             <Route path="/jobs" element={<AppShell><p>Jobs page</p></AppShell>} />
@@ -299,6 +300,11 @@ describe('authentication screens', () => {
   });
 
   // ------------------------------------------------------------------ guard and session (unchanged behaviour)
+
+  it('V9.15: sends a signed-out visitor at the root to the landing page', async () => {
+    renderApp('/');
+    expect(await screen.findByText('Landing page')).toBeInTheDocument();
+  });
 
   it('sends a signed-out visitor from a protected page to Login, and back after signing in', async () => {
     renderApp('/jobs');

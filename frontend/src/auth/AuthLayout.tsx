@@ -24,6 +24,7 @@ export function AuthLayout({ title, subtitle, tone, children }: {
           JMIP
           <span className="auth-brand-name">Job Market Intelligence</span>
         </p>
+        <p className="auth-about"><a href="/welcome">What is JMIP?</a></p>
         <h1 id="auth-title" className={tone === 'success' ? 'auth-title is-success' : 'auth-title'}>
           {title}
         </h1>

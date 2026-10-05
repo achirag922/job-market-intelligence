@@ -86,7 +86,7 @@ export function SavedJobs() {
   return (
     <>
       <PageHeader
-        title="Saved Jobs"
+        title="Applications"
         description="Jobs you bookmarked, and where each application stands. Your status and notes are visible only to you."
       />
 

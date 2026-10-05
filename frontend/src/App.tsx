@@ -33,6 +33,7 @@ import { MyAnalytics } from './pages/MyAnalytics';
 import { Onboarding } from './pages/Onboarding';
 import { CareerProgressPage } from './pages/CareerProgress';
 import { JobWorkspacePage } from './pages/JobWorkspace';
+import { Landing } from './pages/Landing';
 import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
@@ -48,6 +49,8 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      {/* V9.15: what JMIP is, for visitors; signed-out visits to / start here. */}
+      <Route path="/welcome" element={<Landing />} />
       {/* V9.7: a published profile, readable without signing in. */}
       <Route path="/profile/:slug" element={<PublicProfilePage />} />
 

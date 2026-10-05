@@ -14,6 +14,7 @@ import { AsyncPanel } from '../components/AsyncPanel';
 import { BarChartPanel, LineChartPanel, PieChartPanel } from '../components/charts';
 import { Card, PageHeader, StatCard } from '../components/ui';
 import { OnboardingPrompt } from '../components/OnboardingPrompt';
+import { NextSteps } from '../components/NextSteps';
 import { useApi } from '../hooks/useApi';
 
 const CHART_SIZE = 8;
@@ -52,17 +53,8 @@ export function Dashboard() {
       {/* V9.12: new accounts start onboarding; a skipped one is offered here until it is finished. */}
       <OnboardingPrompt />
 
-      {/* V9.11: the most common next steps, one click from the landing page. */}
-      <nav className="quick-actions" aria-label="Quick actions">
-        <Link className="quick-action" to="/jobs">Search jobs</Link>
-        <Link className="quick-action" to="/workspace">Job workspace</Link>
-        <Link className="quick-action" to="/resume">Analyse my resume</Link>
-        <Link className="quick-action" to="/resume-builder">Build a resume</Link>
-        <Link className="quick-action" to="/interview-prep">Practise an interview</Link>
-        <Link className="quick-action" to="/learning">Plan my learning</Link>
-        <Link className="quick-action" to="/my-analytics">My analytics</Link>
-        <Link className="quick-action" to="/progress">My progress</Link>
-      </nav>
+      {/* V9.15: only the actions still worth doing, from the career readiness score. */}
+      <NextSteps />
 
       <AsyncPanel state={overview} skeleton="cards">
         {(data) => (

@@ -41,12 +41,41 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/', label: 'Dashboard', icon: IconDashboard, end: true },
       { to: '/my-career', label: 'My Career', icon: IconFlag },
+      { to: '/progress', label: 'Career Progress', icon: IconFlag },
+      { to: '/my-analytics', label: 'My Analytics', icon: IconTrend },
     ],
   },
   {
-    label: 'Job market',
+    label: 'Jobs',
     items: [
       { to: '/jobs', label: 'Job Explorer', icon: IconBriefcase },
+      { to: '/for-you', label: 'Recommended for You', icon: IconSpark },
+      { to: '/workspace', label: 'Job Workspace', icon: IconBookmark },
+      { to: '/saved-jobs', label: 'Applications', icon: IconBookmark },
+      { to: '/alerts', label: 'Job Alerts', icon: IconBell },
+    ],
+  },
+  {
+    label: 'Resume & profile',
+    items: [
+      { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
+      { to: '/resume-builder', label: 'Resume Builder', icon: IconFile },
+      { to: '/portfolio', label: 'Portfolio', icon: IconFile },
+      { to: '/onboarding', label: 'Profile & Preferences', icon: IconFlag },
+    ],
+  },
+  {
+    label: 'Growth',
+    items: [
+      { to: '/career-goals', label: 'Career Goals', icon: IconFlag },
+      { to: '/learning', label: 'Learning & Skills', icon: IconSpark },
+      { to: '/interview-prep', label: 'Interview Prep', icon: IconChat },
+      { to: '/assistant', label: 'AI Assistant', icon: IconChat },
+    ],
+  },
+  {
+    label: 'Market insights',
+    items: [
       { to: '/market', label: 'Market Intelligence', icon: IconTrend },
       { to: '/analytics/skills', label: 'Skills', icon: IconSpark },
       { to: '/analytics/trends', label: 'Skill Trends', icon: IconTrend },
@@ -55,34 +84,18 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/analytics/categories', label: 'Job Categories', icon: IconLayers },
     ],
   },
-  {
-    label: 'Career',
-    items: [
-      { to: '/for-you', label: 'For You', icon: IconSpark },
-      { to: '/my-analytics', label: 'My Analytics', icon: IconTrend },
-      { to: '/progress', label: 'Career Progress', icon: IconFlag },
-      { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
-      { to: '/resume-builder', label: 'Resume Builder', icon: IconFile },
-      { to: '/workspace', label: 'Job Workspace', icon: IconBookmark },
-      { to: '/saved-jobs', label: 'Saved Jobs', icon: IconBookmark },
-      { to: '/career-goals', label: 'Career Goals', icon: IconFlag },
-      { to: '/learning', label: 'Learning & Skills', icon: IconSpark },
-      { to: '/portfolio', label: 'Portfolio', icon: IconFile },
-      { to: '/alerts', label: 'Job Alerts', icon: IconBell },
-      { to: '/interview-prep', label: 'Interview Prep', icon: IconChat },
-      { to: '/assistant', label: 'AI Assistant', icon: IconChat },
-    ],
-  },
-  {
-    label: 'System',
-    items: [{ to: '/etl', label: 'ETL Monitoring', icon: IconDatabase }],
-  },
 ];
 
-/** V8.9: shown only to ADMIN accounts; the admin APIs refuse everyone else regardless. */
+/**
+ * V8.9: shown only to ADMIN accounts; the admin APIs refuse everyone else regardless. V9.15: ETL
+ * monitoring is an operator's page, so it lives here rather than in everyone's navigation.
+ */
 const ADMIN_GROUP: { label: string; items: NavItem[] } = {
   label: 'Admin',
-  items: [{ to: '/admin', label: 'Admin Dashboard', icon: IconDatabase }],
+  items: [
+    { to: '/admin', label: 'Admin Dashboard', icon: IconDatabase },
+    { to: '/etl', label: 'ETL Monitoring', icon: IconDatabase },
+  ],
 };
 
 /** The page title shown in the header, matched longest-prefix-first. */
@@ -101,10 +114,10 @@ const PAGE_TITLES: [string, string][] = [
   ['/alerts', 'Job Alerts'],
   ['/interview-prep', 'Interview Preparation'],
   ['/admin', 'Admin Dashboard'],
-  ['/saved-jobs', 'Saved Jobs'],
-  ['/for-you', 'For You'],
+  ['/saved-jobs', 'Applications'],
+  ['/for-you', 'Recommended for You'],
   ['/my-analytics', 'My Analytics'],
-  ['/onboarding', 'Get started'],
+  ['/onboarding', 'Profile & Preferences'],
   ['/progress', 'Career Progress'],
   ['/workspace', 'Job Workspace'],
   ['/resume-builder', 'Resume Builder'],
@@ -294,11 +307,13 @@ function UserMenu() {
           disabled={signingOut}
           onClick={async () => {
             setSigningOut(true);
+            // V9.15: leave the protected pages first, so signing out lands on Log in rather than
+            // the landing page a signed-out visit to the dashboard now shows.
+            navigate('/login');
             try {
               await logout();
             } finally {
               setSigningOut(false);
-              navigate('/login');
             }
           }}
         >

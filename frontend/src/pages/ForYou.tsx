@@ -31,7 +31,7 @@ export function ForYou() {
   return (
     <>
       <PageHeader
-        title="For You"
+        title="Recommended for You"
         description="Jobs ranked by your resume match, career goal, preferences and applications, with why each one is here. Jobs you applied to or excluded are left out."
         actions={<Link className="button-link" to="/jobs">Search all jobs</Link>}
       />

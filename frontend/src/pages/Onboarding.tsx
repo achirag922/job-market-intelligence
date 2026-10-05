@@ -21,6 +21,8 @@ const CURRENCIES = ['EUR', 'USD', 'GBP', 'INR', 'CAD', 'AUD'];
 
 function stepFor(status: OnboardingStatus): Step {
   if (status.completedSteps === 0 && status.status === 'PENDING') return 'welcome';
+  // V9.15: after onboarding this page is where the profile and preferences are edited.
+  if (status.status === 'COMPLETED') return 'profile';
   return ({ PROFILE: 'profile', RESUME: 'resume', PREFERENCES: 'preferences', CAREER_GOAL: 'goal', DONE: 'done' } as const)[status.nextStep];
 }
 
@@ -91,8 +93,10 @@ export function Onboarding() {
   return (
     <div className="onboarding">
       <PageHeader
-        title="Set up JMIP"
-        description="A few answers personalize your job matches, skill gaps and dashboard. Everything can be changed later."
+        title={status.status === 'COMPLETED' ? 'Profile & Preferences' : 'Set up JMIP'}
+        description={status.status === 'COMPLETED'
+          ? 'Change your career profile, resume, job preferences or goal; recommendations and matches update with them.'
+          : 'A few answers personalize your job matches, skill gaps and dashboard. Everything can be changed later.'}
         actions={step !== 'done' && (
           <button type="button" className="ghost small" disabled={leaving} onClick={skipAll}>
             {leaving ? 'Leaving…' : 'Skip for now'}
