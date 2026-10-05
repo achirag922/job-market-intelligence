@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
 import type { JobSummary, JobWorkspace, SavedJob } from '../api/types';
 import { useConfirm, useToast } from '../components/feedback';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonCards } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 
@@ -43,6 +44,9 @@ export function JobWorkspacePage() {
       <PageHeader title="Job Workspace"
         description="Your job search in one place: follow-ups due, jobs picked for you, what you saved, applied to, viewed and hid."
         actions={<Link className="button-link primary" to="/jobs">Search jobs</Link>} />
+      <PageGuide id="workspace" title="Your job search in one place" helpAnchor="jobs">
+        Saved jobs, priorities, follow-up dates, saved searches and hidden jobs live here. Set a follow-up date to get a reminder.
+      </PageGuide>
       {state.error ? (
         <ErrorState message={state.error} onRetry={reload} />
       ) : !state.data ? (
@@ -128,7 +132,8 @@ function WorkspaceView({ data, onChanged }: { data: JobWorkspace; onChanged: () 
       <div className="builder-layout">
         <Section title="Recommended for you" description="From your resume, preferences and goal; jobs you hid are left out.">
           {data.recommended.length === 0 ? (
-            <EmptyState title="No recommendations yet" message="Upload a resume and set your preferences to get recommendations." />
+            <EmptyState title="No recommendations yet" message="Upload a resume and set your preferences to get recommendations."
+              action={<Link to="/resume">Add a resume</Link>} />
           ) : (
             <ul className="workspace-list" aria-label="Recommended jobs">
               {data.recommended.map((item) => (

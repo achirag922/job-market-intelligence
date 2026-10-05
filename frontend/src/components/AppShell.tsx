@@ -65,6 +65,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/portfolio', label: 'Portfolio', icon: IconFile },
       { to: '/onboarding', label: 'Profile & Preferences', icon: IconFlag },
       { to: '/settings', label: 'Settings', icon: IconLayers },
+      { to: '/help', label: 'Help & FAQ', icon: IconChat },
     ],
   },
   {
@@ -125,6 +126,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/workspace', 'Job Workspace'],
   ['/notifications', 'Notifications'],
   ['/settings', 'Settings'],
+  ['/help', 'Help & FAQ'],
   ['/resume-builder', 'Resume Builder'],
   ['/career-goals', 'Career Goals'],
   ['/learning', 'Learning & Skills'],
@@ -334,6 +336,7 @@ function UserMenu() {
   if (status === 'signedIn' && user) {
     return (
       <div className="header-user">
+        <Link to="/help" className="header-help" aria-label="Help and FAQ" title="Help & FAQ">?</Link>
         <Link to="/settings" className="header-user-email" title={`${user.email} · Settings`}>
           {/* The name when we have it; accounts from before names were collected show the email. */}
           {user.fullName ?? user.email}

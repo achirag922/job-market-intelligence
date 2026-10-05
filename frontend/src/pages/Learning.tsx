@@ -8,6 +8,7 @@ import type {
   LearningResourceType,
   LearningStatus,
 } from '../api/types';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 
@@ -66,6 +67,9 @@ export function Learning() {
         title="Learning & Skills"
         description="Plan what to learn next from your career goal's roadmap, track progress and keep your own resources."
       />
+      <PageGuide id="learning" title="Close your skill gap" helpAnchor="growth">
+        Plan the skills your target role asks for most, track progress, and mark them done. Learning a skill does not change your resume by itself.
+      </PageGuide>
       {actionError && (
         <p className="status status-error" role="alert">
           {actionError}

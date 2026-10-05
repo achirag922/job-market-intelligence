@@ -9,6 +9,8 @@ import type {
   Resume,
   SavedJob,
 } from '../api/types';
+import { PageGuide } from '../components/guidance';
+import { Link } from 'react-router-dom';
 import { Badge, Card, EmptyState, ErrorState, PageHeader } from '../components/ui';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -103,12 +105,16 @@ export function InterviewPrep() {
         title="Interview Preparation"
         description="Run a mock interview for a job you saved: one question at a time, with feedback on each answer and a final report."
       />
+      <PageGuide id="interview-prep" title="Practise for a real job" helpAnchor="growth">
+        Choose a saved job to generate questions for it, answer them, and get scored feedback with a suggested approach.
+      </PageGuide>
 
       <Card title="Start a mock interview" description="Questions use only the job's and your resume's data. Nothing is invented about you.">
         {jobs === null ? (
           <p className="muted small">Loading your saved jobs…</p>
         ) : jobs.length === 0 ? (
-          <EmptyState title="No saved jobs" message="Save a job from the Job Explorer to prepare for it here." />
+          <EmptyState title="No saved jobs" message="Save a job from the Job Explorer to prepare for it here."
+            action={<Link to="/jobs">Browse jobs</Link>} />
         ) : (
           <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <label className="field" style={{ flex: '1 1 260px' }}>

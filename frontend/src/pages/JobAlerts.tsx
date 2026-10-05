@@ -271,7 +271,7 @@ export function JobAlerts() {
         ) : alerts === null ? (
           <SkeletonTable rows={3} columns={3} />
         ) : alerts.length === 0 ? (
-          <EmptyState title="No alerts yet" message="Create your first alert above." />
+          <EmptyState title="No alerts yet" message="Create your first alert above. You are emailed when new jobs match it." />
         ) : (
           <ul className="alert-list">
             {alerts.map((alert) => (

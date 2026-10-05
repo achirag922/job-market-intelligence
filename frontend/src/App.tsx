@@ -36,6 +36,7 @@ import { JobWorkspacePage } from './pages/JobWorkspace';
 import { Landing } from './pages/Landing';
 import { NotificationsPage } from './pages/Notifications';
 import { SettingsPage } from './pages/Settings';
+import { HelpPage } from './pages/Help';
 import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/workspace" element={<JobWorkspacePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/help" element={<HelpPage />} />
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/categories" element={<JobIntelligence />} />

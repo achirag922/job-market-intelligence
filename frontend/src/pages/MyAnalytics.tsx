@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { api } from '../api/client';
 import type { AnalyticsRange, UserAnalytics } from '../api/types';
 import { BarChartPanel, MultiLineChartPanel } from '../components/charts';
+import { PageGuide } from '../components/guidance';
+import { Link } from 'react-router-dom';
 import { Card, EmptyState, ErrorState, PageHeader, StatCard } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 
@@ -46,6 +48,9 @@ export function MyAnalytics() {
           </div>
         }
       />
+      <PageGuide id="my-analytics" title="Your progress in numbers" helpAnchor="growth">
+        Pick a date range to see your activity, application funnel, match trend and interview scores. Use the ? buttons for what each figure means.
+      </PageGuide>
       {state.error ? (
         <ErrorState message={state.error} onRetry={() => setAttempt((count) => count + 1)} />
       ) : (
@@ -56,8 +61,10 @@ export function MyAnalytics() {
             <StatCard label="Moved to interview" value={data?.kpis.interviews} loading={state.loading} />
             <StatCard label="Offers" value={data?.kpis.offers} loading={state.loading} />
             <StatCard label="Average skill match" value={percent(data?.kpis.averageMatch)} loading={state.loading}
+              info="For each job you saved, the share of its listed skills your current resume shows, averaged."
               hint="Current resume vs. your saved jobs" />
             <StatCard label="Interview score" value={outOfFive(data?.kpis.averageInterviewScore)} loading={state.loading}
+              info="The average overall score of mock interviews you finished in this range, from 1 to 5."
               hint={data ? `${data.kpis.interviewsCompleted} completed in range` : undefined} />
             <StatCard label="Learning completed" value={data?.kpis.learningCompleted} loading={state.loading} hint="Items completed in range" />
           </div>
@@ -101,9 +108,11 @@ function Details({ data }: { data: UserAnalytics }) {
       </Card>
 
       <div className="builder-layout">
-        <Card title="Application funnel" description="Applications started in this range and how far they got.">
+        <Card title="Application funnel" description="Applications started in this range and how far they got."
+          info="Each stage counts applications that reached it or went further, so a rejection after an interview still counts as an interview.">
           {funnel.applied === 0 ? (
-            <EmptyState title="No applications in this range" message="Mark a saved job as applied to start the funnel." />
+            <EmptyState title="No applications in this range" message="Mark a saved job as applied to start the funnel."
+              action={<Link to="/saved-jobs">Open Applications</Link>} />
           ) : (
             <section aria-label="Application funnel">
               <ul className="stack" style={{ gap: 6, listStyle: 'none', padding: 0, margin: 0 }}>
@@ -141,7 +150,8 @@ function Details({ data }: { data: UserAnalytics }) {
                 { key: 'gaps', label: 'Missing skills' }]} />
           )}
         </Card>
-        <Card title="Skill gaps" description="Skills your current resume lacks, by how many jobs saved in this range ask for them.">
+        <Card title="Skill gaps" description="Skills your current resume lacks, by how many jobs saved in this range ask for them."
+          info="Skills are recognised from the skills dictionary; a skill written differently on your resume may not be counted.">
           <BarChartPanel data={data.missingSkills.map((gap) => ({ label: gap.skill, value: gap.jobs }))} valueLabel="Jobs"
             emptyMessage="No gaps: either no jobs were saved in this range or your resume covers them." />
         </Card>
@@ -150,7 +160,8 @@ function Details({ data }: { data: UserAnalytics }) {
       <div className="builder-layout">
         <Card title="Interview performance" description="Completed mock interviews, scored 1 to 5.">
           {data.interviews.sessions.length === 0 ? (
-            <EmptyState title="No completed interviews in this range" message="Finish a mock interview to track your scores." />
+            <EmptyState title="No completed interviews in this range" message="Finish a mock interview to track your scores."
+              action={<Link to="/interview-prep">Practise an interview</Link>} />
           ) : (
             <MultiLineChartPanel
               rows={data.interviews.sessions.map((session, index) => ({ label: `${index + 1}. ${session.date}`,
@@ -161,7 +172,8 @@ function Details({ data }: { data: UserAnalytics }) {
         </Card>
         <Card title="Learning progress" description="Your learning plan against your career goal's skills.">
           {data.learning.items === 0 ? (
-            <EmptyState title="No learning items yet" message="Plan a skill on the Learning & Skills page." />
+            <EmptyState title="No learning items yet" message="Plan a skill on the Learning & Skills page."
+              action={<Link to="/learning">Plan a skill</Link>} />
           ) : (
             <>
               <p className="small">

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { IconAlert, IconInbox } from './icons';
+import { InfoTip } from './guidance';
 
 /**
  * The shared building blocks every page is assembled from.
@@ -38,6 +39,8 @@ interface StatCardProps {
   value: number | string | null | undefined;
   hint?: string;
   loading?: boolean;
+  /** V9.18: what the figure means, from a ? button beside the label. */
+  info?: ReactNode;
 }
 
 /**
@@ -46,7 +49,7 @@ interface StatCardProps {
  * <p>A null value renders as an em dash rather than a zero: "we do not have this" and
  * "this is zero" are different facts, and showing the second for the first is a quiet lie.
  */
-export function StatCard({ label, value, hint, loading }: StatCardProps) {
+export function StatCard({ label, value, hint, loading, info }: StatCardProps) {
   if (loading) {
     return (
       <div className="stat-card" aria-busy="true">
@@ -62,7 +65,7 @@ export function StatCard({ label, value, hint, loading }: StatCardProps) {
 
   return (
     <div className="stat-card">
-      <span className="stat-label">{label}</span>
+      <span className="stat-label">{label}{info && <InfoTip label={label}>{info}</InfoTip>}</span>
       <span className={isNumber ? 'stat-value' : 'stat-value is-text'}>{shown}</span>
       {hint && <span className="stat-hint">{hint}</span>}
     </div>
@@ -72,19 +75,21 @@ export function StatCard({ label, value, hint, loading }: StatCardProps) {
 interface CardProps {
   title?: string;
   description?: string;
+  /** V9.18: a short explanation shown from a ? button beside the title. */
+  info?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;
 }
 
 /** A titled surface. Used for charts, tables and any grouped content. */
-export function Card({ title, description, actions, children, className }: CardProps) {
+export function Card({ title, description, info, actions, children, className }: CardProps) {
   return (
     <section className={className ? `card ${className}` : 'card'}>
       {(title || actions) && (
         <div className="card-header">
           <div>
-            {title && <h2 className="card-title">{title}</h2>}
+            {title && <h2 className="card-title">{title}{info && <InfoTip label={title}>{info}</InfoTip>}</h2>}
             {description && <p className="card-description">{description}</p>}
           </div>
           {actions}
@@ -147,6 +152,10 @@ export function ErrorState({ message, onRetry }: ErrorStateProps) {
           Try again
         </button>
       )}
+      {/* V9.18: a way forward when retrying does not help. A plain link, so it works outside the router too. */}
+      <p className="state-panel-hint">
+        Still not working? Check your connection and reload the page, or see <a href="/help#troubleshooting">Help</a>.
+      </p>
     </div>
   );
 }

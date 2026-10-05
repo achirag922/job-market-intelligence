@@ -259,6 +259,7 @@ etl/data
 - [x] V9.15 — showcase: a public landing page (/welcome; signed-out visits to / start there) with features, the workflow and how JMIP uses your data; dashboard next steps chosen from what is still incomplete in career readiness; navigation regrouped (Overview, Jobs, Resume & profile, Growth, Market insights; ETL under Admin) with Applications and Profile & Preferences entries
 - [x] V9.16 — notification center: job-alert matches, follow-up, interview, learning and achievement notifications derived from existing data (each once, by key), read/unread, mark all read, per-kind preferences, header bell with unread count (V30)
 - [x] V9.17 — Settings (/settings): profile name, job preferences and notification preferences (existing cards), public-profile privacy, theme, password change and account deletion (both need the current password; /api/account)
+- [x] V9.18 — Help & Guidance: searchable Help & FAQ page (/help, header ? link), ? tooltips explaining key metrics, dismissible first-visit tips on key pages, empty states with next-step links, and error panels with a troubleshooting link
 
 ## API
 

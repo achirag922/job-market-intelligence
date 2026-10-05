@@ -7,6 +7,7 @@ import { DebouncedInput } from '../components/DebouncedInput';
 import { FilterDrawer } from '../components/FilterDrawer';
 import { JobFilterPanel } from '../components/JobFilterPanel';
 import { Pagination } from '../components/Pagination';
+import { PageGuide } from '../components/guidance';
 import { Badge, EmptyState, ErrorState, PageHeader, Skeleton } from '../components/ui';
 import { IconClose, IconFile, IconSearch } from '../components/icons';
 import { formatDate, formatExperience, formatLocation, formatSalary } from '../components/format';
@@ -173,6 +174,9 @@ function JobExplorerView() {
         title="Job Explorer"
         description="Search every posting, combine filters, and share the result — the whole search is kept in the page address."
       />
+      <PageGuide id="jobs" title="Find jobs that fit" helpAnchor="jobs">
+        Filter by skill, location or work mode, and sort by match to see the jobs your resume fits best first. Save a job to track it, or hide ones you do not want.
+      </PageGuide>
 
       <section className="card job-search" aria-label="Search and filters">
         <label className="row small" style={{ gap: 6, marginBottom: 8 }}>

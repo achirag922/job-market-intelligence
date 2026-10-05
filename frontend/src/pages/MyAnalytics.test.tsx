@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { UserAnalytics } from '../api/types';
@@ -40,7 +41,7 @@ afterEach(() => {
 
 describe('MyAnalytics', () => {
   it('shows KPIs, insights, the funnel, learning and portfolio for the default 30-day range', async () => {
-    render(<MyAnalytics />);
+    render(<MemoryRouter><MyAnalytics /></MemoryRouter>);
     expect(await screen.findByText('You applied to 2 jobs in this period, up from 1 in the period before.')).toBeTruthy();
     expect(userAnalytics).toHaveBeenCalledWith('30D');
     expect(screen.getByText('83.3%')).toBeTruthy();
@@ -52,7 +53,7 @@ describe('MyAnalytics', () => {
   });
 
   it('reloads for another time range', async () => {
-    render(<MyAnalytics />);
+    render(<MemoryRouter><MyAnalytics /></MemoryRouter>);
     await screen.findByText('83.3%');
     fireEvent.click(screen.getByRole('button', { name: '90D' }));
     await waitFor(() => expect(userAnalytics).toHaveBeenCalledWith('90D'));
@@ -67,7 +68,7 @@ describe('MyAnalytics', () => {
       learning: { items: 0, completed: 0, inProgress: 0, notStarted: 0, startedInRange: 0, completedInRange: 0, activity: [] },
       portfolio: { exists: false }, insights: [],
     }));
-    render(<MyAnalytics />);
+    render(<MemoryRouter><MyAnalytics /></MemoryRouter>);
     expect(await screen.findByText('No activity in this range')).toBeTruthy();
     expect(screen.getByText('No applications in this range')).toBeTruthy();
     expect(screen.getByText('No resume versions in this range')).toBeTruthy();

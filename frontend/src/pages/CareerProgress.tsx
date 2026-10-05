@@ -73,7 +73,8 @@ function ProgressView({ data }: { data: CareerProgress }) {
 
   return (
     <>
-      <Card title="Career readiness" description="The score is the sum of the parts below; each part is capped, so only real progress counts.">
+      <Card title="Career readiness" description="The score is the sum of the parts below; each part is capped, so only real progress counts."
+        info="Seven parts add up to 100: profile, resume, skill gap, learning, interviews, job search and portfolio. It is a guide to what to do next, not a prediction of hiring.">
         <div className="progress-hero">
           <ScoreRing score={readiness.score} level={readiness.level} />
           <ul className="score-components" aria-label="Score components">

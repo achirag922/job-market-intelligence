@@ -10,6 +10,7 @@ import type {
   Roadmap,
   SkillProgressStatus,
 } from '../api/types';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 import { EXPERIENCE_OPTIONS } from './jobSearchState';
@@ -157,6 +158,9 @@ export function CareerGoals() {
         title="Career Goals"
         description="Pick a role to work towards and get a skill roadmap from your resume and real job-market demand."
       />
+      <PageGuide id="career-goals" title="Set a direction" helpAnchor="growth">
+        Pick a target role. Your skill gap and learning suggestions come from real job postings for that role.
+      </PageGuide>
 
       <Card
         title={editingId ? 'Edit goal' : 'New goal'}

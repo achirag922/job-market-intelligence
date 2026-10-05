@@ -9,6 +9,7 @@ import type {
   PublicProfile,
   Resume,
 } from '../api/types';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, ErrorState, PageHeader } from '../components/ui';
 import { ProfileView } from '../components/ProfileView';
 import { Entries, Entry } from './ResumeBuilder';
@@ -162,6 +163,9 @@ export function PortfolioPage() {
           </button>
         )}
       />
+      <PageGuide id="portfolio" title="Share your work" helpAnchor="privacy">
+        Build a portfolio from your projects and skills. It stays private until you publish it, and you choose which sections are shown.
+      </PageGuide>
       {message && <p className="status" role="status">{message}</p>}
       {error && <p className="status status-error" role="alert">{error}</p>}
 
