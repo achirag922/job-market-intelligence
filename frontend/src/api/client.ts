@@ -41,6 +41,8 @@ import type {
   Roadmap,
   LearningItem,
   Portfolio,
+  NotificationInbox,
+  NotificationPreferences,
   JobMatches,
   JobWorkspace,
   SavedSearch,
@@ -631,6 +633,21 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.17: the signed-in account's own settings. */
+  updateAccountName: (fullName: string) => send<AuthUser>('PATCH', '/api/account/profile', { fullName }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    send<void>('POST', '/api/account/password', { currentPassword, newPassword }),
+  deleteAccount: (password: string) => send<void>('DELETE', '/api/account', { password }),
+
+  /** V9.16: the notification center. */
+  notifications: (unreadOnly = false) => request<NotificationInbox>('/api/notifications', unreadOnly ? { unreadOnly: 'true' } : {}),
+  unreadNotifications: () => request<{ unreadCount: number }>('/api/notifications/unread-count'),
+  markNotificationRead: (id: string) => send<void>('POST', `/api/notifications/${id}/read`),
+  markAllNotificationsRead: () => send<{ unreadCount: number }>('POST', '/api/notifications/read-all'),
+  notificationPreferences: () => request<NotificationPreferences>('/api/notifications/preferences'),
+  saveNotificationPreferences: (preferences: NotificationPreferences) =>
+    send<NotificationPreferences>('PUT', '/api/notifications/preferences', preferences),
 
   /** V9.14: the job-search workspace; hidden and viewed jobs, saved searches and match hints. */
   workspace: () => request<JobWorkspace>('/api/workspace'),

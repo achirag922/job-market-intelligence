@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import {
@@ -43,6 +44,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/my-career', label: 'My Career', icon: IconFlag },
       { to: '/progress', label: 'Career Progress', icon: IconFlag },
       { to: '/my-analytics', label: 'My Analytics', icon: IconTrend },
+      { to: '/notifications', label: 'Notifications', icon: IconBell },
     ],
   },
   {
@@ -62,6 +64,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
       { to: '/resume-builder', label: 'Resume Builder', icon: IconFile },
       { to: '/portfolio', label: 'Portfolio', icon: IconFile },
       { to: '/onboarding', label: 'Profile & Preferences', icon: IconFlag },
+      { to: '/settings', label: 'Settings', icon: IconLayers },
     ],
   },
   {
@@ -120,6 +123,8 @@ const PAGE_TITLES: [string, string][] = [
   ['/onboarding', 'Profile & Preferences'],
   ['/progress', 'Career Progress'],
   ['/workspace', 'Job Workspace'],
+  ['/notifications', 'Notifications'],
+  ['/settings', 'Settings'],
   ['/resume-builder', 'Resume Builder'],
   ['/career-goals', 'Career Goals'],
   ['/learning', 'Learning & Skills'],
@@ -216,6 +221,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
 
         <div className="header-actions">
+          <NotificationBell />
           <UserMenu />
           <button
             type="button"
@@ -285,6 +291,37 @@ function Brand() {
   );
 }
 
+/**
+ * V9.16: the bell with the unread count, for signed-in users. Refreshed on navigation, when the
+ * notifications page changes something, and every two minutes; a failure simply hides the count.
+ */
+function NotificationBell() {
+  const { status } = useAuth();
+  const location = useLocation();
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (status !== 'signedIn' || !api.unreadNotifications) return;
+    let active = true;
+    const load = () => api.unreadNotifications().then((r) => active && setUnread(r.unreadCount), () => undefined);
+    void load();
+    const timer = window.setInterval(load, 120_000);
+    window.addEventListener('jmip:notifications', load);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('jmip:notifications', load);
+    };
+  }, [status, location.pathname]);
+  if (status !== 'signedIn') return null;
+  return (
+    <Link to="/notifications" className="icon-button ghost notification-bell"
+      aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}>
+      <IconBell />
+      {unread > 0 && <span className="notification-count" aria-hidden="true">{unread > 99 ? '99+' : unread}</span>}
+    </Link>
+  );
+}
+
 /** Signed-in email and Log out, or Log in and Sign up links. Nothing while it is still checking. */
 function UserMenu() {
   const { status, user, logout } = useAuth();
@@ -297,10 +334,10 @@ function UserMenu() {
   if (status === 'signedIn' && user) {
     return (
       <div className="header-user">
-        <span className="header-user-email" title={user.email}>
+        <Link to="/settings" className="header-user-email" title={`${user.email} · Settings`}>
           {/* The name when we have it; accounts from before names were collected show the email. */}
           {user.fullName ?? user.email}
-        </span>
+        </Link>
         <button
           type="button"
           className="ghost small"

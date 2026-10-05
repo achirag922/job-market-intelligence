@@ -4175,3 +4175,77 @@ button.danger:hover:not(:disabled) {
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------- V9.16 notifications */
+.notification-bell {
+  position: relative;
+}
+
+.notification-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 17px;
+  text-align: center;
+}
+
+.notification-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notification {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.notification.is-unread {
+  border-color: var(--brand-border);
+  background: var(--brand-subtle);
+}
+
+.notification-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 8px;
+  border-radius: 50%;
+}
+
+.notification.is-unread .notification-dot {
+  background: var(--brand);
+}
+
+.notification-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .notification {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .notification > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+}

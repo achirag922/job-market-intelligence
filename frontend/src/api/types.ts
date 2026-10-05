@@ -1591,3 +1591,27 @@ export interface JobWorkspace {
   hidden: { job: JobSummary; hiddenAt: string }[];
   savedSearches: SavedSearch[];
 }
+
+/** V9.16: the notification center. */
+export interface AppNotification {
+  id: string;
+  type: 'JOB_MATCH' | 'FOLLOW_UP' | 'INTERVIEW' | 'LEARNING' | 'CAREER';
+  title: string;
+  body?: string;
+  link?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export interface NotificationInbox {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
+export interface NotificationPreferences {
+  jobMatches: boolean;
+  followUps: boolean;
+  interviews: boolean;
+  learning: boolean;
+  career: boolean;
+}
