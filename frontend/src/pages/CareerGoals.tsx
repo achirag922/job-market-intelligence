@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from '../components/feedback';
 import type { FormEvent } from 'react';
 import { ApiError, api } from '../api/client';
 import type {
@@ -131,12 +132,16 @@ export function CareerGoals() {
   const changeStatus = (goal: CareerGoal, status: CareerGoalStatus) =>
     run(async () => replace(await api.setCareerGoalStatus(goal.id, status)));
 
-  const remove = (goal: CareerGoal) => {
-    if (!window.confirm(`Delete the goal “${goal.targetRole}” and its roadmap progress?`)) {
+  const confirmAction = useConfirm();
+  const toast = useToast();
+  const remove = async (goal: CareerGoal) => {
+    if (!(await confirmAction({ title: `Delete the goal “${goal.targetRole}”?`, message: 'Its roadmap progress is deleted too.',
+      confirmLabel: 'Delete goal', tone: 'danger' }))) {
       return;
     }
     void run(async () => {
       await api.deleteCareerGoal(goal.id);
+      toast('Goal deleted.');
       setGoals((list) => (list ?? []).filter((item) => item.id !== goal.id));
       if (openGoal === goal.id) setOpenGoal(null);
       if (editingId === goal.id) resetForm();

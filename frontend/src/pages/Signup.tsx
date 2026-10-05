@@ -23,6 +23,7 @@ export function Signup() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [confirm, setConfirm] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -96,9 +97,13 @@ export function Signup() {
                input={input('email', email, setEmail, 'email', 'email')} />
         <Field id="signup-password" label="Password" error={show('password', password)}
                hint={`${MIN_PASSWORD}–${MAX_PASSWORD} characters. A few unrelated words make a strong password.`}
-               input={input('password', password, setPassword, 'password', 'new-password')} />
+               input={input('password', password, setPassword, showPassword ? 'text' : 'password', 'new-password')} />
         <Field id="signup-confirm" label="Confirm Password" error={show('confirm', confirm)}
-               input={input('confirm', confirm, setConfirm, 'password', 'new-password')} />
+               input={input('confirm', confirm, setConfirm, showPassword ? 'text' : 'password', 'new-password')} />
+        <label className="auth-show-password">
+          <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
+          Show passwords
+        </label>
 
         {error && (
           <p className="auth-alert" role="alert">

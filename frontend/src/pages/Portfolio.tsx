@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from '../components/feedback';
 import { ApiError, api } from '../api/client';
 import type {
   CareerGoal,
@@ -116,7 +117,10 @@ export function PortfolioPage() {
     setMessage(null);
     try {
       await action();
-      if (done) setMessage(done);
+      if (done) {
+        setMessage(done);
+        toast(done);
+      }
     } catch (cause) {
       setError(messageOf(cause));
     } finally {
@@ -124,8 +128,10 @@ export function PortfolioPage() {
     }
   };
 
+  const confirmAction = useConfirm();
+  const toast = useToast();
   const importResume = () => act(async () => {
-    if (draft && portfolio && !window.confirm('Replace the editor with sections from this resume? Nothing is saved until you save.')) return;
+    if (draft && portfolio && !(await confirmAction({ title: 'Replace the editor with this resume?', message: 'Nothing is saved until you save.', confirmLabel: 'Replace' }))) return;
     const imported = await api.portfolioImport(resumeId || undefined);
     setDraft({ displayName: imported.displayName, content: { ...EMPTY, ...imported.content },
       sections: draft?.sections ?? DEFAULT_SECTIONS });

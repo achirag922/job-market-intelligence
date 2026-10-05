@@ -48,6 +48,16 @@ export function Dashboard() {
         description="Understand job demand, skills, companies and career trends across the dataset."
       />
 
+      {/* V9.11: the most common next steps, one click from the landing page. */}
+      <nav className="quick-actions" aria-label="Quick actions">
+        <Link className="quick-action" to="/jobs">Search jobs</Link>
+        <Link className="quick-action" to="/resume">Analyse my resume</Link>
+        <Link className="quick-action" to="/resume-builder">Build a resume</Link>
+        <Link className="quick-action" to="/interview-prep">Practise an interview</Link>
+        <Link className="quick-action" to="/learning">Plan my learning</Link>
+        <Link className="quick-action" to="/my-analytics">My analytics</Link>
+      </nav>
+
       <AsyncPanel state={overview} skeleton="cards">
         {(data) => (
           <div className="stat-grid">

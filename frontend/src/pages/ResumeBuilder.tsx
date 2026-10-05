@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useConfirm, useToast } from '../components/feedback';
 import { ApiError, api } from '../api/client';
 import type { BuilderContent, Resume, SavedJob } from '../api/types';
 import { ResumeOptimizer } from '../components/ResumeOptimizer';
@@ -48,6 +49,8 @@ const lines = (text: string) => text.split('\n').map((line) => line.trim()).filt
  * resumes are ordinary resumes: they can be matched, optimised and used everywhere an upload can.
  */
 export function ResumeBuilder() {
+  const confirmAction = useConfirm();
+  const toast = useToast();
   const [resumes, setResumes] = useState<Resume[] | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [title, setTitle] = useState('');
@@ -110,9 +113,9 @@ export function ResumeBuilder() {
                     <button type="button" className="small ghost" disabled={busy} onClick={() => run(async () => { await api.setDefaultResume(resume.id); })}>Set default</button>
                   )}
                   <button type="button" className="small ghost" disabled={busy} onClick={() => run(() => downloadPdf(resume.id))}>Download PDF</button>
-                  <button type="button" className="small ghost" disabled={busy} onClick={() => {
-                    if (window.confirm(`Delete “${resume.title}”? This cannot be undone.`)) {
-                      void run(async () => { await api.deleteResume(resume.id); });
+                  <button type="button" className="small ghost" disabled={busy} onClick={async () => {
+                    if (await confirmAction({ title: `Delete “${resume.title}”?`, message: 'This cannot be undone.', confirmLabel: 'Delete', tone: 'danger' })) {
+                      void run(async () => { await api.deleteResume(resume.id); toast('Resume deleted.'); });
                     }
                   }}>Delete</button>
                 </div>
@@ -136,6 +139,7 @@ async function downloadPdf(id: string) {
 }
 
 function ResumeEditor({ id, onClose }: { id: string; onClose: () => void }) {
+  const confirmAction = useConfirm();
   const [resume, setResume] = useState<Resume | null>(null);
   const [draft, setDraft] = useState<BuilderContent | null>(null);
   const [saved, setSaved] = useState('');
@@ -215,7 +219,9 @@ function ResumeEditor({ id, onClose }: { id: string; onClose: () => void }) {
             <button type="button" onClick={save} disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save'}</button>
             <button type="button" className="ghost" disabled={dirty} title={dirty ? 'Save first' : undefined}
               onClick={() => { void downloadPdf(id).catch((cause) => setMessage(messageOf(cause))); }}>Export PDF</button>
-            <button type="button" className="ghost" onClick={() => { if (!dirty || window.confirm('Leave without saving?')) onClose(); }}>Back to list</button>
+            <button type="button" className="ghost" onClick={async () => {
+              if (!dirty || await confirmAction({ title: 'Leave without saving?', message: 'Your unsaved changes will be lost.', confirmLabel: 'Leave', tone: 'danger' })) onClose();
+            }}>Back to list</button>
           </div>
         }
       />

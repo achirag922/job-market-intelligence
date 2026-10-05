@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from '../components/feedback';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
 import type { ApplicationAnalysis, ApplicationStatus, SavedJob } from '../api/types';
@@ -219,8 +220,9 @@ function SavedJobCard({ item, analysis }: { item: SavedJob; analysis?: Applicati
       setFollowUpNote(updated.followUpNote ?? '');
     }, followUpOn ? 'Follow-up saved' : 'Follow-up cleared');
 
-  const remove = () => {
-    if (window.confirm(`Remove “${item.job.title}” from your saved jobs?`)) {
+  const confirmAction = useConfirm();
+  const remove = async () => {
+    if (await confirmAction({ title: `Remove “${item.job.title}” from your saved jobs?`, confirmLabel: 'Remove', tone: 'danger' })) {
       void run(() => saved.remove(item.id));
     }
   };

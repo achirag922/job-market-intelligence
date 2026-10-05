@@ -116,6 +116,20 @@ function titleFor(pathname: string): string {
   return PAGE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'Dashboard';
 }
 
+/** V9.11: the sidebar group a page belongs to, for the breadcrumb; the longest matching link wins. */
+function sectionFor(pathname: string): string | null {
+  let best: { label: string; length: number } | null = null;
+  for (const group of [...NAV_GROUPS, ADMIN_GROUP]) {
+    for (const item of group.items) {
+      const matches = item.to === '/' ? pathname === '/' : pathname === item.to || pathname.startsWith(item.to + '/');
+      if (matches && (!best || item.to.length > best.length)) {
+        best = { label: group.label, length: item.to.length };
+      }
+    }
+  }
+  return best?.label ?? null;
+}
+
 /**
  * The application frame: brand, header, sidebar, content.
  *
@@ -134,6 +148,13 @@ export function AppShell({ children }: { children: ReactNode }) {
     setNavOpen(false);
   }, [location.pathname]);
 
+  // V9.11: the browser tab and screen readers announce which page this is.
+  const pageTitle = titleFor(location.pathname);
+  const section = sectionFor(location.pathname);
+  useEffect(() => {
+    document.title = `${pageTitle} · JMIP`;
+  }, [pageTitle]);
+
   // Escape closes it, which is what every other overlay on the web does.
   useEffect(() => {
     if (!navOpen) {
@@ -150,6 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <div className="app-brandbar">
         <Brand />
       </div>
@@ -167,11 +189,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             {navOpen ? <IconClose /> : <IconMenu />}
           </button>
           <nav aria-label="Breadcrumb" className="breadcrumb">
-            <span className="desktop-only">Job Market Intelligence</span>
+            <span className="desktop-only">{section ?? 'Job Market Intelligence'}</span>
             <span className="desktop-only" aria-hidden="true">
               /
             </span>
-            <span className="breadcrumb-current">{titleFor(location.pathname)}</span>
+            <span className="breadcrumb-current" aria-current="page">{pageTitle}</span>
           </nav>
         </div>
 
@@ -221,8 +243,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </aside>
 
-      <main className="app-main">
-        {children}
+      <main className="app-main" id="main-content" tabIndex={-1}>
+        <div className="page-enter" key={location.pathname}>
+          {children}
+        </div>
         <footer className="app-footer">
           Data is synthetic and for development only. It does not describe the real job
           market.

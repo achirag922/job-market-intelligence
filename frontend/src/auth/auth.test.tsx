@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError, EmailNotVerifiedError, UNAUTHORIZED_EVENT } from '../api/client';
@@ -102,6 +102,25 @@ describe('authentication screens', () => {
     expect(await screen.findByText('Dashboard home')).toBeInTheDocument();
     expect(login).toHaveBeenCalledWith(EMAIL, PASSWORD);
     expect(screen.getByText('Chirag Agarwal')).toBeInTheDocument();
+  });
+
+  it('V9.11: toggles the password, then shows the section in the breadcrumb, names the tab and offers a skip link', async () => {
+    renderApp('/login');
+    const password = screen.getByLabelText('Password');
+    expect(password).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByLabelText('Show password'));
+    expect(password).toHaveAttribute('type', 'text');
+
+    type('Email', EMAIL);
+    type('Password', PASSWORD);
+    click('Login');
+    expect(await screen.findByText('Dashboard home')).toBeInTheDocument();
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(breadcrumb).toHaveTextContent('Overview');
+    expect(within(breadcrumb).getByText('Dashboard')).toHaveAttribute('aria-current', 'page');
+    expect(document.title).toBe('Dashboard · JMIP');
+    expect(screen.getByRole('link', { name: 'Skip to main content' })).toHaveAttribute('href', '#main-content');
+    expect(document.getElementById('main-content')).toHaveTextContent('Dashboard home');
   });
 
   it('validates the login form before calling the API', async () => {

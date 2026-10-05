@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from './feedback';
 import { ApiError, api } from '../api/client';
 import type { Resume, ResumeComparison, ResumeJobAnalysis, Skill } from '../api/types';
 import { Badge, Card, EmptyState, ErrorState } from './ui';
@@ -107,12 +108,16 @@ export function ResumeVersions({ selectedId, refreshKey, onSelect, onLoaded, onD
 
   const makeDefault = (id: string) => run(async () => replace(await api.setDefaultResume(id), true));
 
-  const remove = (resume: Resume) => {
-    if (!window.confirm(`Delete “${versionName(resume)}”? The file, its text and its skills are removed for good.`)) {
+  const confirmAction = useConfirm();
+  const toast = useToast();
+  const remove = async (resume: Resume) => {
+    if (!(await confirmAction({ title: `Delete “${versionName(resume)}”?`, message: 'The file, its text and its skills are removed for good.',
+      confirmLabel: 'Delete', tone: 'danger' }))) {
       return;
     }
     void run(async () => {
       await api.deleteResume(resume.id);
+      toast('Resume deleted.');
       setComparison(null);
       onDeleted(resume.id);
       // The server may have moved the default to another resume; reload to show it.
