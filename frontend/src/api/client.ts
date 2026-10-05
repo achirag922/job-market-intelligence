@@ -41,6 +41,9 @@ import type {
   Roadmap,
   LearningItem,
   Portfolio,
+  OnboardingPreferencesInput,
+  OnboardingProfileInput,
+  OnboardingStatus,
   AnalyticsRange,
   UserAnalytics,
   PortfolioImport,
@@ -624,6 +627,14 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.12: first-time onboarding; the resume and goal steps use the existing resume and career-goal calls. */
+  onboarding: () => request<OnboardingStatus>('/api/onboarding'),
+  saveOnboardingProfile: (input: OnboardingProfileInput) => send<OnboardingStatus>('PUT', '/api/onboarding/profile', input),
+  saveOnboardingPreferences: (input: OnboardingPreferencesInput) =>
+    send<OnboardingStatus>('PUT', '/api/onboarding/preferences', input),
+  skipOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/skip'),
+  completeOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/complete'),
 
   /** V9.7: the signed-in user's portfolio (404 until created) and published public profiles. */
   portfolio: () => request<Portfolio>('/api/portfolio'),

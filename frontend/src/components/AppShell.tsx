@@ -102,6 +102,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/saved-jobs', 'Saved Jobs'],
   ['/for-you', 'For You'],
   ['/my-analytics', 'My Analytics'],
+  ['/onboarding', 'Get started'],
   ['/resume-builder', 'Resume Builder'],
   ['/career-goals', 'Career Goals'],
   ['/learning', 'Learning & Skills'],

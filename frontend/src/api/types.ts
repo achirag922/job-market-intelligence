@@ -1469,3 +1469,38 @@ export interface UserAnalytics {
   insights: string[];
   notes: string[];
 }
+
+/** V9.12: first-time onboarding progress; answers live in the existing preferences, resumes and goals. */
+export type OnboardingStep = 'PROFILE' | 'RESUME' | 'PREFERENCES' | 'CAREER_GOAL' | 'DONE';
+
+export interface OnboardingStatus {
+  status: 'PENDING' | 'SKIPPED' | 'COMPLETED';
+  steps: { profile: boolean; resume: boolean; preferences: boolean; careerGoal: boolean };
+  completedSteps: number;
+  totalSteps: number;
+  nextStep: OnboardingStep;
+  profile: { targetRole?: string; yearsExperience?: number; skills?: string[] };
+  preferences: {
+    preferredLocation?: string;
+    workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+    minSalary?: number;
+    salaryCurrency?: string;
+    preferredCategories?: string[];
+  };
+  completedAt?: string;
+  skippedAt?: string;
+}
+
+export interface OnboardingProfileInput {
+  targetRole: string;
+  yearsExperience: number;
+  skills: string[];
+}
+
+export interface OnboardingPreferencesInput {
+  preferredLocation?: string;
+  workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  minSalary?: number;
+  salaryCurrency?: string;
+  preferredCategories?: string[];
+}

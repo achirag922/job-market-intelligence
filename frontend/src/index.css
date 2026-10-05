@@ -3641,3 +3641,103 @@ button.danger:hover:not(:disabled) {
     transition: none;
   }
 }
+
+/* ---------------------------------------------------------------- V9.12 onboarding */
+.onboarding {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.onboarding-step:focus {
+  outline: none;
+}
+
+.onboarding-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 4px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-progress li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+.onboarding-progress li + li::before {
+  content: '→';
+  margin: 0 6px 0 -2px;
+  color: var(--text-muted);
+}
+
+.onboarding-progress li.is-done {
+  border-color: var(--success);
+  color: var(--text);
+}
+
+.onboarding-progress li[aria-current='step'] {
+  border-color: var(--brand);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.onboarding-check {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.onboarding-nav {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.onboarding-nav-end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onboarding-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.onboarding-field-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.onboarding-prompt {
+  border-color: var(--brand-border);
+  background: var(--brand-subtle);
+}
+
+@media (max-width: 640px) {
+  .onboarding-progress li + li::before {
+    display: none;
+  }
+
+  .onboarding-nav,
+  .onboarding-nav-end {
+    width: 100%;
+  }
+
+  .onboarding-nav button,
+  .onboarding-nav a {
+    flex: 1 1 auto;
+  }
+}
