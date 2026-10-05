@@ -257,6 +257,19 @@ function SavedJobCard({ item, analysis }: { item: SavedJob; analysis?: Applicati
             ))}
           </select>
         </label>
+        <label className="field">
+          Priority
+          <select value={item.priority ?? ''} disabled={busy}
+            onChange={(event) => run(async () => {
+              const value = (event.target.value || null) as 'HIGH' | 'MEDIUM' | 'LOW' | null;
+              saved.replace(await api.setSavedJobPriority(item.id, value));
+            }, 'Priority saved')}>
+            <option value="">None</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </label>
         <button type="button" className="small ghost" disabled={busy} onClick={remove}>
           Remove
         </button>

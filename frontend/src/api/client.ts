@@ -41,6 +41,9 @@ import type {
   Roadmap,
   LearningItem,
   Portfolio,
+  JobMatches,
+  JobWorkspace,
+  SavedSearch,
   CareerProgress,
   OnboardingPreferencesInput,
   OnboardingProfileInput,
@@ -628,6 +631,18 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.14: the job-search workspace; hidden and viewed jobs, saved searches and match hints. */
+  workspace: () => request<JobWorkspace>('/api/workspace'),
+  jobMatches: (jobIds: number[]) => request<JobMatches>('/api/workspace/matches', { jobIds: jobIds.join(',') }),
+  savedSearches: () => request<SavedSearch[]>('/api/workspace/searches'),
+  saveSearch: (name: string, filters: Record<string, string>) => send<SavedSearch>('POST', '/api/workspace/searches', { name, filters }),
+  deleteSavedSearch: (id: string) => send<void>('DELETE', `/api/workspace/searches/${id}`),
+  hideJob: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/hide`),
+  unhideJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/hide`),
+  recordJobView: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/viewed`),
+  setSavedJobPriority: (id: string, priority: 'HIGH' | 'MEDIUM' | 'LOW' | null) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/priority`, { priority }),
 
   /** V9.13: readiness score, progress, achievements and streaks, all computed on the server. */
   careerProgress: () => request<CareerProgress>('/api/career-progress'),

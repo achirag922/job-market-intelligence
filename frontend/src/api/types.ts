@@ -125,6 +125,8 @@ export interface ApiErrorBody {
 export interface JobFilters {
   /** V9.2: fill empty filters from the signed-in user's preferences (explicit filters win). */
   usePreferences?: 'true';
+  /** V9.14: leave out the jobs the user marked not interested. */
+  excludeHidden?: 'true';
   q?: string;
   category?: string;
   title?: string;
@@ -153,7 +155,9 @@ export type JobOrder =
   | 'salary-high'
   | 'salary-low'
   | 'title'
-  | 'company';
+  | 'company'
+  /** V9.14: by the existing skill match with the current resume. */
+  | 'match';
 
 /** One currency salaries are stated in, and the range seen in it. */
 export interface SalaryRange {
@@ -741,6 +745,8 @@ export interface SavedJob {
   /** V8.5: follow-up date (YYYY-MM-DD) and reminder. */
   followUpOn?: string | null;
   followUpNote?: string | null;
+  /** V9.14: application priority. */
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW' | null;
 }
 
 // ---------------------------------------------------------------- V8.5: application intelligence
@@ -1555,4 +1561,33 @@ export interface CareerProgress {
   nextMilestones: Achievement[];
   streaks: Streak[];
   notes: string[];
+}
+
+/** V9.14: the job-search workspace. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  filters: Record<string, string>;
+  createdAt: string;
+}
+
+export interface MatchHint {
+  percentage?: number;
+  matched: string[];
+  missing: string[];
+}
+
+export interface JobMatches {
+  matches: Record<string, MatchHint>;
+  note?: string;
+}
+
+export interface JobWorkspace {
+  recommended: PersonalizedFeedItem[];
+  saved: SavedJob[];
+  applied: SavedJob[];
+  followUps: SavedJob[];
+  recentlyViewed: { job: JobSummary; viewedAt: string }[];
+  hidden: { job: JobSummary; hiddenAt: string }[];
+  savedSearches: SavedSearch[];
 }

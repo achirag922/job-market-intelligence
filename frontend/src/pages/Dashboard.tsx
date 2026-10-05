@@ -55,6 +55,7 @@ export function Dashboard() {
       {/* V9.11: the most common next steps, one click from the landing page. */}
       <nav className="quick-actions" aria-label="Quick actions">
         <Link className="quick-action" to="/jobs">Search jobs</Link>
+        <Link className="quick-action" to="/workspace">Job workspace</Link>
         <Link className="quick-action" to="/resume">Analyse my resume</Link>
         <Link className="quick-action" to="/resume-builder">Build a resume</Link>
         <Link className="quick-action" to="/interview-prep">Practise an interview</Link>

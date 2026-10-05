@@ -85,6 +85,40 @@ public class JobService {
         return search(criteria, pageable, order, null);
     }
 
+    /** V9.14: the same search without the given jobs (the user's hidden ones). */
+    public PagedResponse<JobSummaryResponse> searchExcluding(JobSearchCriteria criteria, Pageable pageable, JobOrder order,
+                                                             java.util.Collection<Long> excludedIds) {
+        return search(criteria, pageable, order, excluding(excludedIds));
+    }
+
+    /** V9.14: the ids of up to {@code limit} matching jobs, newest first, for ranking elsewhere. */
+    public List<Long> matchingIds(JobSearchCriteria criteria, java.util.Collection<Long> excludedIds, int limit) {
+        validate(criteria, null);
+        Specification<Job> specification = toSpecification(criteria).and(JobSpecifications.newestFirst());
+        Specification<Job> without = excluding(excludedIds);
+        if (without != null) {
+            specification = specification.and(without);
+        }
+        return jobRepository.findAll(specification, PageRequest.of(0, limit)).getContent().stream().map(Job::getId).toList();
+    }
+
+    /** V9.14: summaries for the given jobs, in the given order, skipping any that no longer exist. */
+    public List<JobSummaryResponse> summaries(List<Long> ids) {
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Job> byId = new LinkedHashMap<>();
+        jobRepository.findAllById(ids).forEach(job -> byId.put(job.getId(), job));
+        Map<Long, List<SkillResponse>> skillsByJob = loadSkills(new ArrayList<>(byId.values()));
+        return ids.stream().filter(byId::containsKey)
+                .map(id -> jobMapper.toSummary(byId.get(id), skillsByJob.getOrDefault(id, List.of()))).toList();
+    }
+
+    private static Specification<Job> excluding(java.util.Collection<Long> excludedIds) {
+        return excludedIds == null || excludedIds.isEmpty() ? null
+                : (root, query, cb) -> cb.not(root.get("id").in(excludedIds));
+    }
+
     private PagedResponse<JobSummaryResponse> search(JobSearchCriteria criteria, Pageable pageable, JobOrder order,
                                                      Specification<Job> extra) {
         validate(criteria, order);

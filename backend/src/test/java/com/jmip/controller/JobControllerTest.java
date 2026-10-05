@@ -53,6 +53,10 @@ class JobControllerTest {
     @MockitoBean
     private SalaryAnalyticsService salaryAnalyticsService;
 
+    /** V9.14: match ordering and hidden-job filtering; unused by these tests. */
+    @MockitoBean
+    private com.jmip.service.workspace.WorkspaceService workspaceService;
+
     @Test
     @DisplayName("returns 200 and the paging envelope")
     void returnsPagedJobs() throws Exception {

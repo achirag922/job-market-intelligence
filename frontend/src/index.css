@@ -3914,3 +3914,52 @@ button.danger:hover:not(:disabled) {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------- V9.14 job workspace */
+.job-card-match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.saved-search-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.workspace-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+}
+
+.workspace-item.is-overdue {
+  border-color: var(--danger-border);
+  background: var(--danger-subtle);
+}
+
+.workspace-item-main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}

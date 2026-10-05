@@ -70,6 +70,13 @@ public class SavedJobController {
         return savedJobService.changeNotes(id, request.notes());
     }
 
+    /** V9.14: HIGH, MEDIUM, LOW, or no value to clear it. */
+    @PatchMapping("/api/saved-jobs/{id}/priority")
+    public SavedJobResponse changePriority(@PathVariable UUID id,
+                                           @Valid @RequestBody com.jmip.dto.workspace.WorkspaceDtos.PriorityRequest request) {
+        return savedJobService.changePriority(id, request.priority());
+    }
+
     @DeleteMapping("/api/saved-jobs/{id}")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         savedJobService.delete(id);

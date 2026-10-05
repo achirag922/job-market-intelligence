@@ -33,6 +33,9 @@ vi.mock('../api/client', async () => {
       skills: (...args: unknown[]) => skills(...(args as [])),
       companies: (...args: unknown[]) => companies(...(args as [])),
       locations: (...args: unknown[]) => locations(...(args as [])),
+      // V9.14: match hints, saved searches and hiding; quiet defaults for these tests.
+      jobMatches: () => Promise.resolve({ matches: {} }),
+      savedSearches: () => Promise.resolve([]),
     },
   };
 });
@@ -99,6 +102,8 @@ function commitText(input: HTMLElement, value: string) {
 
 describe('JobExplorer', () => {
   beforeEach(() => {
+    // V9.14: the last search is remembered in localStorage; each test starts without one.
+    localStorage.clear();
     skills.mockClear();
     companies.mockClear();
     locations.mockClear();
@@ -264,6 +269,8 @@ describe('JobExplorer', () => {
         skill: 'Java',
         location: 'Bengaluru',
         experience: '2-5',
+        // V9.14: jobs the user marked not interested are left out.
+        excludeHidden: 'true',
       }),
     );
   });

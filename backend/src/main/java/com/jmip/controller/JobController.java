@@ -35,10 +35,13 @@ public class JobController {
 
     private final JobService jobService;
     private final SalaryAnalyticsService salaryAnalyticsService;
+    private final com.jmip.service.workspace.WorkspaceService workspace;
 
-    public JobController(JobService jobService, SalaryAnalyticsService salaryAnalyticsService) {
+    public JobController(JobService jobService, SalaryAnalyticsService salaryAnalyticsService,
+                         com.jmip.service.workspace.WorkspaceService workspace) {
         this.jobService = jobService;
         this.salaryAnalyticsService = salaryAnalyticsService;
+        this.workspace = workspace;
     }
 
     /**
@@ -52,19 +55,29 @@ public class JobController {
      * {@code order} wins.
      *
      * <p>With neither, results are newest first with undated postings last.
+     *
+     * <p>V9.14: {@code order=match} ranks by the existing skill match with your current resume, and
+     * {@code excludeHidden=true} leaves out the jobs you marked not interested. Both are opt-in.
      */
     @GetMapping
     public ResponseEntity<PagedResponse<JobSummaryResponse>> search(
             @Valid JobSearchCriteria criteria,
             @RequestParam(required = false) String order,
             @RequestParam(defaultValue = "false") boolean usePreferences,
+            @RequestParam(defaultValue = "false") boolean excludeHidden,
             @PageableDefault(size = 20) Pageable pageable) {
+        if ("match".equalsIgnoreCase(order)) {
+            return ResponseEntity.ok(workspace.searchByMatch(criteria, pageable, excludeHidden));
+        }
         JobOrder resolved = resolveOrder(order);
         log.info("GET /api/jobs page={} size={} order={} filters={} usePreferences={}",
                 pageable.getPageNumber(), pageable.getPageSize(), resolved, criteria, usePreferences);
         // V9.2: off by default, so a plain search is exactly what it always was.
-        return ResponseEntity.ok(usePreferences
-                ? jobService.searchWithPreferences(criteria, pageable, resolved)
+        if (usePreferences) {
+            return ResponseEntity.ok(jobService.searchWithPreferences(criteria, pageable, resolved));
+        }
+        return ResponseEntity.ok(excludeHidden
+                ? jobService.searchExcluding(criteria, pageable, resolved, workspace.hiddenIds())
                 : jobService.search(criteria, pageable, resolved));
     }
 

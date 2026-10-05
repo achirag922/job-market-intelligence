@@ -32,6 +32,7 @@ import { PortfolioPage } from './pages/Portfolio';
 import { MyAnalytics } from './pages/MyAnalytics';
 import { Onboarding } from './pages/Onboarding';
 import { CareerProgressPage } from './pages/CareerProgress';
+import { JobWorkspacePage } from './pages/JobWorkspace';
 import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/my-analytics" element={<MyAnalytics />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/progress" element={<CareerProgressPage />} />
+          <Route path="/workspace" element={<JobWorkspacePage />} />
           <Route path="/jobs" element={<JobExplorer />} />
           <Route path="/jobs/:id" element={<JobDetails />} />
           <Route path="/analytics/categories" element={<JobIntelligence />} />

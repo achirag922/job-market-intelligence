@@ -255,6 +255,7 @@ etl/data
 - [x] V9.11 — UI polish: accessible confirm dialogs (focus trap, Escape, focus restore) instead of browser confirms, toasts, section breadcrumb and page titles, skip link, show-password toggles, dashboard quick actions, two-column KPIs on phones, subtle motion that honours reduced-motion
 - [x] V9.12 — onboarding: after sign-up and email verification, Welcome → Career profile → Resume → Preferences → Career goal → personalized dashboard, each skippable and resumable; answers go to the existing match preferences, resume parser and career goals (V28 tracks progress; existing accounts marked complete)
 - [x] V9.13 — career progress: a transparent 100-point readiness score (profile, resume, skill gap, learning, interviews, job search, portfolio; each capped), progress toward the target role, one-time achievements with a dated timeline and weekly streaks, all computed server-side from existing data (GET /api/career-progress, page /progress)
+- [x] V9.14 — job search workspace: Best-match ordering and per-job match explanations from the existing skill match, not-interested (hidden) jobs left out of search and recommendations, saved searches, remembered last search, recently viewed, application priority, a Job Workspace page (follow-ups, recommended, saved, applied, viewed, hidden) and once-per-date follow-up reminder emails through the alert delivery (V29)
 
 ## API
 

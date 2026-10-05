@@ -70,11 +70,13 @@ public class PersonalizedFeedService {
     private final SavedJobRepository savedJobs;
     private final CurrentUser currentUser;
     private final Clock clock;
+    private final com.jmip.repository.WorkspaceRepository workspace;
 
     public PersonalizedFeedService(JobRepository jobs, JobMapper jobMapper, ResumeService resumeService,
                                    ResumeMatchService matchService, MatchPreferencesRepository preferences,
                                    CareerGoalRepository goals, SavedJobRepository savedJobs, CurrentUser currentUser,
-                                   Clock clock) {
+                                   Clock clock, com.jmip.repository.WorkspaceRepository workspace) {
+        this.workspace = workspace;
         this.jobs = jobs;
         this.jobMapper = jobMapper;
         this.resumeService = resumeService;
@@ -88,6 +90,7 @@ public class PersonalizedFeedService {
 
     public PersonalizedFeedResponse feed(int limit) {
         UUID owner = currentUser.requireId();
+        Set<Long> hidden = new java.util.HashSet<>(workspace.hiddenIds(owner));
         MatchPreferences prefs = preferences.find(owner);
         Optional<CareerGoal> goal = goals.findByUserIdAndStatusOrderByUpdatedAtDesc(owner, CareerGoalStatus.ACTIVE)
                 .stream().findFirst();
@@ -128,7 +131,8 @@ public class PersonalizedFeedService {
             }
             if (applied.contains(id)) {
                 excludedApplied++;
-            } else if (excluded(job, prefs)) {
+            } else if (hidden.contains(id) || excluded(job, prefs)) {
+                // V9.14: a job marked not interested is excluded by the user like an excluded company.
                 excludedByPreference++;
             } else {
                 candidates.add(job);

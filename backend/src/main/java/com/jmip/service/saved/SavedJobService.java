@@ -106,6 +106,14 @@ public class SavedJobService {
         return toResponse(saved);
     }
 
+    /** V9.14: sets or clears the application priority. */
+    @Transactional
+    public SavedJobResponse changePriority(UUID id, String priority) {
+        SavedJob saved = requireOwn(id);
+        saved.changePriority(priority, now());
+        return toResponse(saved);
+    }
+
     @Transactional
     public SavedJobResponse changeNotes(UUID id, String notes) {
         SavedJob saved = requireOwn(id);
@@ -134,7 +142,8 @@ public class SavedJobService {
     private SavedJobResponse toResponse(SavedJob saved) {
         // Skills are left out: the list shows the posting's identity, and the details page has the rest.
         return new SavedJobResponse(saved.getId(), jobMapper.toSummary(saved.getJob(), List.of()), saved.getStatus(),
-                saved.getNotes(), saved.getSavedAt(), saved.getAppliedAt(), saved.getUpdatedAt(), saved.getFollowUpOn(), saved.getFollowUpNote());
+                saved.getNotes(), saved.getSavedAt(), saved.getAppliedAt(), saved.getUpdatedAt(), saved.getFollowUpOn(), saved.getFollowUpNote(),
+                saved.getPriority());
     }
 
     private OffsetDateTime now() {

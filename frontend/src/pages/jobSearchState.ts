@@ -63,6 +63,7 @@ export const EMPLOYMENT_TYPES = [
 
 export const ORDER_OPTIONS: { value: JobOrder; label: string }[] = [
   { value: 'newest', label: 'Newest' },
+  { value: 'match', label: 'Best match (my resume)' },
   { value: 'oldest', label: 'Oldest' },
   { value: 'relevance', label: 'Relevance' },
   { value: 'salary-high', label: 'Salary — high to low' },
