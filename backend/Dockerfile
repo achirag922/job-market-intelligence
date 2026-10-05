@@ -18,7 +18,7 @@ RUN groupadd --system jmip && useradd --system --gid jmip --home-dir /app jmip \
     && mkdir -p /app/data/resumes && chown -R jmip:jmip /app
 COPY --from=build /workspace/backend/target/backend-*.jar /app/app.jar
 USER jmip
-ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75" \
+ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError" \
     JMIP_RESUME_DIR=/app/data/resumes
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=5 \

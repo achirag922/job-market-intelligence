@@ -67,6 +67,12 @@ public class User {
         this.updatedAt = createdAt;
     }
 
+    /** V9.17: the name the user chose, changed from Settings. */
+    public void changeFullName(String fullName, OffsetDateTime at) {
+        this.fullName = fullName;
+        this.updatedAt = at;
+    }
+
     /** For re-hashing on a password change or an algorithm upgrade. */
     public void changePasswordHash(String newPasswordHash, OffsetDateTime at) {
         this.passwordHash = Objects.requireNonNull(newPasswordHash, "newPasswordHash");

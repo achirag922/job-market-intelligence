@@ -28,7 +28,7 @@ public class PromptLibrary {
 
     private static final String INTENT_EXTRACTION = "prompts/intent-extraction-v2.txt";
     private static final String ANSWER_GENERATION = "prompts/answer-generation-v2.txt";
-    private static final String INTERVIEW_EVALUATION = "prompts/interview-evaluation-v1.txt";
+    private static final String INTERVIEW_EVALUATION = "prompts/interview-evaluation-v2.txt";
 
     private final String intentExtraction;
     private final String answerGeneration;
@@ -51,7 +51,7 @@ public class PromptLibrary {
         return answerGeneration;
     }
 
-    /** V8.7: instructions for scoring one practice interview answer. */
+    /** V8.7: instructions for scoring one practice interview answer (V9.6: with communication and a better approach). */
     public String interviewEvaluation() {
         return interviewEvaluation;
     }

@@ -21,6 +21,7 @@ export function Login() {
 
   const [email, setEmail] = useState(state.email ?? '');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +95,7 @@ export function Login() {
             <input
               ref={passwordInput}
               id="login-password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -104,6 +105,10 @@ export function Login() {
             />
           }
         />
+        <label className="auth-show-password">
+          <input type="checkbox" checked={showPassword} onChange={(event) => setShowPassword(event.target.checked)} />
+          Show password
+        </label>
 
         {error && (
           <p className="auth-alert" role="alert">

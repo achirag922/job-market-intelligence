@@ -34,8 +34,11 @@ public class SnapshotRefreshConfig {
 
     private final SkillTrendRepository skillTrendRepository;
     private final SnapshotProperties properties;
+    private final ScheduledJobRunner runner;
 
-    public SnapshotRefreshConfig(SkillTrendRepository skillTrendRepository, SnapshotProperties properties) {
+    public SnapshotRefreshConfig(SkillTrendRepository skillTrendRepository, SnapshotProperties properties,
+                                 ScheduledJobRunner runner) {
+        this.runner = runner;
         this.skillTrendRepository = skillTrendRepository;
         this.properties = properties;
     }
@@ -54,13 +57,12 @@ public class SnapshotRefreshConfig {
         refresh("schedule");
     }
 
+    /**
+     * Trends are a secondary view: a failure is logged by the runner rather than propagated, so it
+     * never stops the API serving everything else. V9.9: one rebuild at a time across instances.
+     */
     private void refresh(String trigger) {
-        try {
-            skillTrendRepository.rebuild();
-        } catch (RuntimeException e) {
-            // Trends are a secondary view. A failure here must not stop the API serving
-            // everything else, so it is logged rather than propagated.
-            log.error("Skill demand history refresh triggered by {} failed", trigger, e);
-        }
+        log.debug("Skill demand history refresh triggered by {}", trigger);
+        runner.run("skill-snapshots", skillTrendRepository::rebuild);
     }
 }

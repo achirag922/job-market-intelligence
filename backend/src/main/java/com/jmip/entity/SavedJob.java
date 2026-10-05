@@ -55,6 +55,10 @@ public class SavedJob {
     @Column(name = "follow_up_note")
     private String followUpNote;
 
+    /** V9.14: HIGH, MEDIUM or LOW; absent when the user has not set one. */
+    @Column(name = "priority")
+    private String priority;
+
     public SavedJob(UUID id, UUID userId, Job job, OffsetDateTime now) {
         this.id = id;
         this.userId = userId;
@@ -82,6 +86,11 @@ public class SavedJob {
     public void changeFollowUp(java.time.LocalDate on, String note, OffsetDateTime now) {
         this.followUpOn = on;
         this.followUpNote = on == null ? null : note;
+        this.updatedAt = now;
+    }
+
+    public void changePriority(String priority, OffsetDateTime now) {
+        this.priority = priority;
         this.updatedAt = now;
     }
 

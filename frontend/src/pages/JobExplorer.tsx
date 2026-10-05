@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
-import type { CategoryDemand, JobSummary, PagedResponse, SalaryRange } from '../api/types';
+import type { CategoryDemand, JobSummary, MatchHint, PagedResponse, SalaryRange, SavedSearch } from '../api/types';
+import { useToast } from '../components/feedback';
 import { DebouncedInput } from '../components/DebouncedInput';
 import { FilterDrawer } from '../components/FilterDrawer';
 import { JobFilterPanel } from '../components/JobFilterPanel';
 import { Pagination } from '../components/Pagination';
+import { PageGuide } from '../components/guidance';
 import { Badge, EmptyState, ErrorState, PageHeader, Skeleton } from '../components/ui';
 import { IconClose, IconFile, IconSearch } from '../components/icons';
 import { formatDate, formatExperience, formatLocation, formatSalary } from '../components/format';
@@ -27,7 +29,7 @@ import {
   withFilter,
 } from './jobSearchState';
 import type { PageSize, SearchState } from './jobSearchState';
-import { SaveJobButton } from '../saved/SavedJobs';
+import { SaveJobButton, useSavedJobs } from '../saved/SavedJobs';
 
 /** Enough to show what a role is about without the card becoming a list of skills. */
 const SKILLS_SHOWN = 5;
@@ -40,7 +42,42 @@ const SKILLS_SHOWN = 5;
  * work with the back button, and open unchanged from a shared link — with no store, no
  * context, and nothing to keep in sync.
  */
+/** V9.14: the last search is remembered in this browser, so returning to Job Explorer continues it. */
+const LAST_SEARCH_KEY = 'jmip:lastJobSearch';
+
+function readLastSearch(): string | null {
+  try {
+    return localStorage.getItem(LAST_SEARCH_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberSearch(query: string) {
+  try {
+    if (query) localStorage.setItem(LAST_SEARCH_KEY, query);
+    else localStorage.removeItem(LAST_SEARCH_KEY);
+  } catch {
+    // Storage can be unavailable (private windows); remembering is only a convenience.
+  }
+}
+
+/**
+ * Opens the remembered search when Job Explorer is first opened without one, before any request is
+ * made. Only on arrival: clearing the filters later leaves them cleared.
+ */
 export function JobExplorer() {
+  const location = useLocation();
+  const [remembered] = useState(() => (location.search === '' ? readLastSearch() : null));
+  const arrived = useRef(false);
+  if (remembered && !arrived.current && location.search === '') {
+    return <Navigate to={{ pathname: location.pathname, search: `?${remembered}` }} replace />;
+  }
+  arrived.current = true;
+  return <JobExplorerView />;
+}
+
+function JobExplorerView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const state = useMemo(() => parseSearch(searchParams), [searchParams]);
@@ -56,10 +93,62 @@ export function JobExplorer() {
   // One request per URL change. Everything a search depends on is in the URL, so a change
   // that touches several filters at once is still a single navigation and a single fetch.
   const apiFilters = useMemo(() => toApiFilters(state.filters), [state.filters]);
+  // V9.2: opt in to fill empty filters from your preferences; plain search is unchanged.
+  const [usePreferences, setUsePreferences] = useState(false);
   const jobs = useApi<PagedResponse<JobSummary>>(
-    () => api.jobs(apiFilters, state.page - 1, state.size, undefined, state.order),
-    [searchParams.toString(), attempt],
+    () => api.jobs(usePreferences ? { ...apiFilters, usePreferences: 'true' } : { ...apiFilters, excludeHidden: 'true' },
+      state.page - 1, state.size, undefined, state.order),
+    [searchParams.toString(), attempt, usePreferences],
   );
+  const toast = useToast();
+
+  useEffect(() => {
+    // The page number is not part of a search worth coming back to.
+    const remembered = new URLSearchParams(searchParams);
+    remembered.delete('page');
+    rememberSearch(remembered.toString());
+  }, [searchParams]);
+
+  // V9.14: why each job on the page matches the current resume (the existing skill match).
+  const [matches, setMatches] = useState<Record<string, MatchHint>>({});
+  const pageIds = jobs.data?.content.map((job) => job.id).join(',') ?? '';
+  useEffect(() => {
+    if (!pageIds || !api.jobMatches) return;
+    let active = true;
+    api.jobMatches(pageIds.split(',').map(Number)).then((result) => active && setMatches(result.matches), () => undefined);
+    return () => {
+      active = false;
+    };
+  }, [pageIds]);
+
+  // V9.14: saved searches, run again in one click.
+  const [searches, setSearches] = useState<SavedSearch[]>([]);
+  const [naming, setNaming] = useState(false);
+  const [searchName, setSearchName] = useState('');
+  useEffect(() => {
+    api.savedSearches?.().then(setSearches, () => setSearches([]));
+  }, []);
+  const saveSearch = async () => {
+    const filters = Object.fromEntries([...searchParams.entries()].filter(([key]) => key !== 'page'));
+    try {
+      const created = await api.saveSearch(searchName.trim(), filters);
+      setSearches((list) => [created, ...list]);
+      setNaming(false);
+      setSearchName('');
+      toast(`Saved search “${created.name}”.`);
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : 'The search could not be saved.', 'error');
+    }
+  };
+  const hide = async (job: JobSummary) => {
+    try {
+      await api.hideJob(job.id);
+      toast(`Hidden “${job.title}”. Find it in your workspace to undo.`);
+      setAttempt((count) => count + 1);
+    } catch (cause) {
+      toast(cause instanceof Error ? cause.message : 'The job could not be hidden.', 'error');
+    }
+  };
 
   const apply = (next: SearchState) => {
     const params = toSearchParams(normalise(next));
@@ -85,8 +174,15 @@ export function JobExplorer() {
         title="Job Explorer"
         description="Search every posting, combine filters, and share the result — the whole search is kept in the page address."
       />
+      <PageGuide id="jobs" title="Find jobs that fit" helpAnchor="jobs">
+        Filter by skill, location or work mode, and sort by match to see the jobs your resume fits best first. Save a job to track it, or hide ones you do not want.
+      </PageGuide>
 
       <section className="card job-search" aria-label="Search and filters">
+        <label className="row small" style={{ gap: 6, marginBottom: 8 }}>
+          <input type="checkbox" checked={usePreferences} onChange={(event) => setUsePreferences(event.target.checked)} />
+          Use my preferences (fills an empty role and location, leaves out excluded companies)
+        </label>
         <form
           className="search-row"
           role="search"
@@ -156,6 +252,27 @@ export function JobExplorer() {
         </div>
       )}
 
+      <div className="saved-search-bar" aria-label="Saved searches">
+        {searches.map((saved) => (
+          <Link key={saved.id} className="quick-action" to={`/jobs?${new URLSearchParams(saved.filters).toString()}`}>
+            {saved.name}
+          </Link>
+        ))}
+        {naming ? (
+          <form className="row" style={{ gap: 6 }} onSubmit={(event) => { event.preventDefault(); if (searchName.trim()) void saveSearch(); }}>
+            <label className="visually-hidden" htmlFor="saved-search-name">Name this search</label>
+            <input id="saved-search-name" type="text" maxLength={80} value={searchName} placeholder="Name this search"
+              onChange={(event) => setSearchName(event.target.value)} autoFocus />
+            <button type="submit" className="small" disabled={!searchName.trim()}>Save</button>
+            <button type="button" className="small ghost" onClick={() => setNaming(false)}>Cancel</button>
+          </form>
+        ) : (
+          <button type="button" className="small ghost" onClick={() => setNaming(true)} disabled={!filtersActive && state.order === 'newest'}>
+            Save this search
+          </button>
+        )}
+      </div>
+
       <div className="results-toolbar">
         <p className="results-summary" role="status" aria-live="polite">
           {jobs.data
@@ -198,6 +315,8 @@ export function JobExplorer() {
         filtersActive={filtersActive}
         onClear={() => apply(cleared(state))}
         onRetry={() => setAttempt((count) => count + 1)}
+        matches={matches}
+        onHide={hide}
       />
 
       {jobs.data && jobs.data.totalElements > 0 && (
@@ -252,6 +371,8 @@ interface ResultsProps {
   filtersActive: boolean;
   onClear: () => void;
   onRetry: () => void;
+  matches: Record<string, MatchHint>;
+  onHide: (job: JobSummary) => void;
 }
 
 /**
@@ -262,7 +383,7 @@ interface ResultsProps {
  * flashes up between one set of results and the next. The skeleton is only for the very
  * first load, when there is nothing yet to show.
  */
-function Results({ jobs, state, from, filtersActive, onClear, onRetry }: ResultsProps) {
+function Results({ jobs, state, from, filtersActive, onClear, onRetry, matches, onHide }: ResultsProps) {
   if (jobs.error) {
     return (
       <div className="card">
@@ -301,7 +422,7 @@ function Results({ jobs, state, from, filtersActive, onClear, onRetry }: Results
     <ul className={jobs.loading ? 'job-card-list is-refreshing' : 'job-card-list'} aria-busy={jobs.loading}>
       {jobs.data.content.map((job) => (
         <li key={job.id}>
-          <JobCard job={job} from={from} />
+          <JobCard job={job} from={from} match={matches[job.id]} onHide={() => onHide(job)} />
         </li>
       ))}
     </ul>
@@ -314,7 +435,12 @@ function Results({ jobs, state, from, filtersActive, onClear, onRetry }: Results
  * <p>Anything the posting does not state is shown as not stated — never as a zero, a
  * blank that looks like a rendering fault, or an invented figure.
  */
-function JobCard({ job, from }: { job: JobSummary; from: string }) {
+const STATUS_BADGE: Record<string, string> = {
+  SAVED: 'Saved', APPLIED: 'Applied', INTERVIEW: 'Interview', OFFER: 'Offer', REJECTED: 'Rejected', WITHDRAWN: 'Withdrawn',
+};
+
+function JobCard({ job, from, match, onHide }: { job: JobSummary; from: string; match?: MatchHint; onHide: () => void }) {
+  const tracked = useSavedJobs()?.savedFor(job.id);
   // Carried to the details page so its back link returns to this exact search.
   const detailsState = { from };
   const extraSkills = job.skills.length - SKILLS_SHOWN;
@@ -329,6 +455,9 @@ function JobCard({ job, from }: { job: JobSummary; from: string }) {
             </Link>
           </h2>
           {job.category ? <Badge tone="brand">{job.category}</Badge> : <Badge>Unclassified</Badge>}
+          {tracked && (
+            <Badge tone={tracked.status === 'SAVED' ? 'neutral' : 'success'}>{STATUS_BADGE[tracked.status] ?? tracked.status}</Badge>
+          )}
         </div>
 
         <p className="job-card-meta">
@@ -358,6 +487,16 @@ function JobCard({ job, from }: { job: JobSummary; from: string }) {
           </div>
         </dl>
 
+        {match?.percentage !== undefined && match.percentage !== null && (
+          <p className="job-card-match" aria-label="Match with your resume">
+            <Badge tone={match.percentage >= 70 ? 'success' : match.percentage >= 40 ? 'warning' : 'neutral'}>
+              {Math.round(match.percentage)}% skill match
+            </Badge>
+            {match.matched.length > 0 && <span>You have {match.matched.join(', ')}</span>}
+            {match.missing.length > 0 && <span className="muted">Missing {match.missing.join(', ')}</span>}
+          </p>
+        )}
+
         {job.skills.length > 0 && (
           <ul className="skill-list job-card-skills" aria-label="Key skills">
             {job.skills.slice(0, SKILLS_SHOWN).map((skill) => (
@@ -380,6 +519,9 @@ function JobCard({ job, from }: { job: JobSummary; from: string }) {
           Compare resume
         </Link>
         <SaveJobButton jobId={job.id} />
+        <button type="button" className="small ghost" onClick={onHide} aria-label={`Not interested in ${job.title}`}>
+          Not interested
+        </button>
       </div>
     </article>
   );

@@ -37,12 +37,13 @@ public class AnthropicAiClient implements AiClient {
                 ? AnthropicOkHttpClient.builder()
                         .apiKey(properties.apiKey())
                         .timeout(properties.timeout())
+                        .maxRetries(Math.max(0, properties.maxRetries()))
                         .build()
                 : null;
         // The model is safe to log and useful when answers change after a config change.
         // The key is not, and is never logged anywhere in this class.
-        log.info("Anthropic AI client created, model={}, timeout={}, configured={}",
-                properties.model(), properties.timeout(), properties.hasApiKey());
+        log.info("Anthropic AI client created, model={}, timeout={}, maxRetries={}, configured={}",
+                properties.model(), properties.timeout(), properties.maxRetries(), properties.hasApiKey());
     }
 
     @Override
@@ -83,7 +84,8 @@ public class AnthropicAiClient implements AiClient {
         } catch (AnthropicServiceException exception) {
             // The provider's own message may quote the request, so it is logged at debug
             // and never returned.
-            log.warn("AI provider returned an error: {}", exception.getClass().getSimpleName());
+            // V9.9: the status says whether it was the request (4xx, not retried) or the provider (5xx, retried).
+            log.warn("AI provider returned an error: {} status={}", exception.getClass().getSimpleName(), exception.statusCode());
             log.debug("AI provider error detail", exception);
             throw new AiFailureException("AI provider call failed", exception);
         } catch (RuntimeException exception) {

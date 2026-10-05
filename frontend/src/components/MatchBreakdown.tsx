@@ -3,12 +3,17 @@ import { ApiError, api } from '../api/client';
 import type { MatchBreakdown, MatchDimension, MatchPreferences } from '../api/types';
 import { Badge, Card } from './ui';
 
-const DIMENSIONS: { key: keyof Omit<MatchBreakdown, 'overallPercentage'>; label: string }[] = [
+type DimensionKey = 'skills' | 'experience' | 'location' | 'workMode' | 'salary' | 'careerGoal' | 'role' | 'preferredSkills';
+
+const DIMENSIONS: { key: DimensionKey; label: string }[] = [
   { key: 'skills', label: 'Skills' },
   { key: 'experience', label: 'Experience' },
+  { key: 'careerGoal', label: 'Career goal' },
   { key: 'location', label: 'Location' },
   { key: 'workMode', label: 'Work mode' },
   { key: 'salary', label: 'Salary' },
+  { key: 'role', label: 'Preferred role' },
+  { key: 'preferredSkills', label: 'Preferred skills' },
 ];
 
 const STATUS: Record<MatchDimension['status'], { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' }> = {
@@ -27,6 +32,9 @@ export function MatchBreakdownList({ breakdown }: { breakdown: MatchBreakdown })
     <ul className="stack" style={{ gap: 6, listStyle: 'none', padding: 0, margin: 0 }} aria-label="Match breakdown">
       {DIMENSIONS.map(({ key, label }) => {
         const dimension = breakdown[key];
+        if (!dimension) {
+          return null;
+        }
         const status = STATUS[dimension.status];
         return (
           <li key={key} className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
@@ -38,6 +46,12 @@ export function MatchBreakdownList({ breakdown }: { breakdown: MatchBreakdown })
           </li>
         );
       })}
+      {(breakdown.missingRequiredSkills?.length ?? 0) > 0 && (
+        <li className="small"><strong>Missing important skills:</strong> {breakdown.missingRequiredSkills!.join(', ')}</li>
+      )}
+      {(breakdown.optionalSkills?.length ?? 0) > 0 && (
+        <li className="small muted">Nice to have (not counted against you): {breakdown.optionalSkills!.join(', ')}</li>
+      )}
     </ul>
   );
 }
@@ -48,6 +62,15 @@ interface Form {
   workMode: string;
   minSalary: string;
   salaryCurrency: string;
+  // V9.2: comma-separated in the form, lists in the API.
+  preferredCategories: string;
+  preferredSkills: string;
+  excludedCompanies: string;
+  excludedLocations: string;
+}
+
+function list(value: string): string[] {
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function toForm(preferences: MatchPreferences): Form {
@@ -57,6 +80,10 @@ function toForm(preferences: MatchPreferences): Form {
     workMode: preferences.workMode ?? '',
     minSalary: preferences.minSalary?.toString() ?? '',
     salaryCurrency: preferences.salaryCurrency ?? '',
+    preferredCategories: (preferences.preferredCategories ?? []).join(', '),
+    preferredSkills: (preferences.preferredSkills ?? []).join(', '),
+    excludedCompanies: (preferences.excludedCompanies ?? []).join(', '),
+    excludedLocations: (preferences.excludedLocations ?? []).join(', '),
   };
 }
 
@@ -90,6 +117,10 @@ export function MatchPreferencesCard({ onSaved }: { onSaved: () => void }) {
         workMode: (form.workMode || undefined) as MatchPreferences['workMode'],
         minSalary: form.minSalary === '' ? undefined : Number(form.minSalary),
         salaryCurrency: form.salaryCurrency.trim().toUpperCase() || undefined,
+        preferredCategories: list(form.preferredCategories),
+        preferredSkills: list(form.preferredSkills),
+        excludedCompanies: list(form.excludedCompanies),
+        excludedLocations: list(form.excludedLocations),
       });
       setForm(toForm(saved));
       setMessage({ error: false, text: 'Preferences saved. Scores below now use them.' });
@@ -131,6 +162,22 @@ export function MatchPreferencesCard({ onSaved }: { onSaved: () => void }) {
         <label className="field">
           Currency
           <input type="text" maxLength={3} value={form.salaryCurrency} onChange={(e) => set('salaryCurrency', e.target.value)} placeholder="e.g. EUR" />
+        </label>
+        <label className="field">
+          Preferred roles
+          <input type="text" value={form.preferredCategories} onChange={(e) => set('preferredCategories', e.target.value)} placeholder="e.g. Backend Developer, Data Analyst" />
+        </label>
+        <label className="field">
+          Preferred skills
+          <input type="text" value={form.preferredSkills} onChange={(e) => set('preferredSkills', e.target.value)} placeholder="e.g. Java, Docker" />
+        </label>
+        <label className="field">
+          Exclude companies
+          <input type="text" value={form.excludedCompanies} onChange={(e) => set('excludedCompanies', e.target.value)} placeholder="Comma-separated" />
+        </label>
+        <label className="field">
+          Exclude locations
+          <input type="text" value={form.excludedLocations} onChange={(e) => set('excludedLocations', e.target.value)} placeholder="City, state or country" />
         </label>
         <div className="alert-form-actions">
           <button type="submit" disabled={saving}>

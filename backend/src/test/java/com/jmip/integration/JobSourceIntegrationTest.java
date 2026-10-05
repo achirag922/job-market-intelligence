@@ -69,7 +69,7 @@ class JobSourceIntegrationTest {
                 VALUES (1, 1, 1, '2026-09-20 10:00:00', '2026-09-20 10:00:00', '2026-09-20 10:00:05', 'COMPLETED', 'COMPLETED')
                 """);
         jdbcTemplate.update("INSERT INTO etl_run_metrics (job_execution_id, records_loaded, duplicates_skipped, skill_links_created, "
-                + "feed_name, feed_type) VALUES (1, 3, 1, 0, 'two-boards.csv', 'FILE_CSV')");
+                + "feed_name, feed_type, connector) VALUES (1, 3, 1, 0, 'two-boards.csv', 'FILE_CSV', 'file')");
         jdbcTemplate.update("INSERT INTO etl_run_sources (job_execution_id, source_id, records_loaded, records_seen_again) "
                 + "SELECT 1, id, CASE code WHEN 'board-a' THEN 2 ELSE 1 END, CASE code WHEN 'board-a' THEN 1 ELSE 0 END "
                 + "FROM job_sources");
@@ -130,6 +130,7 @@ class JobSourceIntegrationTest {
                 .andExpect(jsonPath("$.content[0].feedName").value("two-boards.csv"))
                 .andExpect(jsonPath("$.content[0].feedType").value("FILE_CSV"))
                 .andExpect(jsonPath("$.content[0].expired").value(0))
+                .andExpect(jsonPath("$.content[0].connector").value("file"))
                 .andExpect(jsonPath("$.content[0].sources[*].code", contains("board-a", "board-b")))
                 .andExpect(jsonPath("$.content[0].sources[0].recordsLoaded").value(2));
         mockMvc.perform(get("/api/etl/runs/latest"))

@@ -63,6 +63,18 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     List<Long> findRecommendationJobIds(@Param("resumeSkillIds") Collection<Long> resumeSkillIds,
                                         Pageable pageable);
 
+    /** V9.2: the newest active postings in any of these categories (lower-case), for the personalized feed. */
+    @Query("""
+            select j.id from Job j
+            where j.active = true and lower(j.jobCategory) in :categories
+            order by j.firstSeenAt desc, j.id desc
+            """)
+    List<Long> findActiveIdsInCategories(@Param("categories") Collection<String> categories, Pageable pageable);
+
+    /** V9.2: the newest active postings, for the personalized feed. */
+    @Query("select j.id from Job j where j.active = true order by j.firstSeenAt desc, j.id desc")
+    List<Long> findNewestActiveIds(Pageable pageable);
+
     /** Details for a small, already-ranked set of ids. The caller restores the ranking. */
     @Query("""
             select distinct j from Job j

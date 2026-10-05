@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from '../components/feedback';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
@@ -161,13 +162,16 @@ export function JobAlerts() {
     }
   };
 
+  const confirmAction = useConfirm();
+  const toast = useToast();
   const remove = async (alert: JobAlert) => {
-    if (!window.confirm(`Delete the alert “${alert.name}”?`)) {
+    if (!(await confirmAction({ title: `Delete the alert “${alert.name}”?`, confirmLabel: 'Delete alert', tone: 'danger' }))) {
       return;
     }
     setActionError(null);
     try {
       await api.deleteJobAlert(alert.id);
+      toast('Alert deleted.');
       setAlerts((list) => (list ?? []).filter((item) => item.id !== alert.id));
       if (editingId === alert.id) {
         resetForm();
@@ -267,7 +271,7 @@ export function JobAlerts() {
         ) : alerts === null ? (
           <SkeletonTable rows={3} columns={3} />
         ) : alerts.length === 0 ? (
-          <EmptyState title="No alerts yet" message="Create your first alert above." />
+          <EmptyState title="No alerts yet" message="Create your first alert above. You are emailed when new jobs match it." />
         ) : (
           <ul className="alert-list">
             {alerts.map((alert) => (

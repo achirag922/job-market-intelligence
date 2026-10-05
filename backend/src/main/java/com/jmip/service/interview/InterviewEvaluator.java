@@ -30,6 +30,7 @@ public class InterviewEvaluator {
     static final int TOKEN_BUDGET = 600;
     private static final int MAX_ITEMS = 3;
     private static final int MAX_ITEM_LENGTH = 300;
+    private static final int MAX_APPROACH_LENGTH = 1000;
 
     private final AiClient aiClient;
     private final PromptLibrary prompts;
@@ -43,11 +44,14 @@ public class InterviewEvaluator {
 
     /** What the job and the user supplied, for grounding. */
     public record Context(String jobTitle, String company, List<String> jobSkills, List<String> resumeSkills,
-                          String category, String focus, String question, String answer) {
+                          String category, String focus, String question, String answer, String interviewType,
+                          String difficulty) {
     }
 
+    /** V9.6: communication and the suggested approach are optional in a reply; the scores above are not. */
     public record Evaluation(int relevance, int completeness, int clarity, Integer technicalCorrectness,
-                             List<String> strengths, List<String> improvements) {
+                             List<String> strengths, List<String> improvements, Integer communication,
+                             String suggestedApproach) {
     }
 
     /** Either an evaluation, or why there is none. */
@@ -79,12 +83,14 @@ public class InterviewEvaluator {
                 COMPANY: %s
                 JOB SKILLS: %s
                 RESUME SKILLS: %s
+                INTERVIEW TYPE: %s
+                DIFFICULTY: %s
                 QUESTION CATEGORY: %s
                 QUESTION FOCUS: %s
                 QUESTION: %s
                 ANSWER:
                 %s""".formatted(context.jobTitle(), context.company(), names(context.jobSkills()),
-                names(context.resumeSkills()), context.category(), context.focus() == null ? "" : context.focus(),
+                names(context.resumeSkills()), context.interviewType(), context.difficulty(), context.category(), context.focus() == null ? "" : context.focus(),
                 context.question(), context.answer());
     }
 
@@ -106,7 +112,8 @@ public class InterviewEvaluator {
                 return Optional.empty();
             }
             return Optional.of(new Evaluation(relevance, completeness, clarity, score(json.get("technicalCorrectness")),
-                    items(json.get("strengths")), items(json.get("improvements"))));
+                    items(json.get("strengths")), items(json.get("improvements")), score(json.get("communication")),
+                    approach(json.get("suggestedApproach"))));
         } catch (java.io.IOException invalid) {
             return Optional.empty();
         }
@@ -131,6 +138,14 @@ public class InterviewEvaluator {
             }
         }
         return items;
+    }
+
+    private static String approach(JsonNode node) {
+        if (node == null || !node.isTextual() || node.asText().isBlank()) {
+            return null;
+        }
+        String text = node.asText().strip();
+        return text.length() > MAX_APPROACH_LENGTH ? text.substring(0, MAX_APPROACH_LENGTH) : text;
     }
 
     private static String names(List<String> names) {

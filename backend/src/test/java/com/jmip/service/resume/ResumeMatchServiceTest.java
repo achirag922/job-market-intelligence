@@ -50,6 +50,9 @@ class ResumeMatchServiceTest {
     @Mock
     private com.jmip.repository.MatchPreferencesRepository preferencesRepository;
 
+    @Mock
+    private MatchGoals goals;
+
     @InjectMocks
     private ResumeMatchService matchService;
 

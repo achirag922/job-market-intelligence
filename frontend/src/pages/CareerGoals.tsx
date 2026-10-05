@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm, useToast } from '../components/feedback';
 import type { FormEvent } from 'react';
 import { ApiError, api } from '../api/client';
 import type {
@@ -9,6 +10,7 @@ import type {
   Roadmap,
   SkillProgressStatus,
 } from '../api/types';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, ErrorState, PageHeader, SkeletonTable } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 import { EXPERIENCE_OPTIONS } from './jobSearchState';
@@ -131,12 +133,16 @@ export function CareerGoals() {
   const changeStatus = (goal: CareerGoal, status: CareerGoalStatus) =>
     run(async () => replace(await api.setCareerGoalStatus(goal.id, status)));
 
-  const remove = (goal: CareerGoal) => {
-    if (!window.confirm(`Delete the goal “${goal.targetRole}” and its roadmap progress?`)) {
+  const confirmAction = useConfirm();
+  const toast = useToast();
+  const remove = async (goal: CareerGoal) => {
+    if (!(await confirmAction({ title: `Delete the goal “${goal.targetRole}”?`, message: 'Its roadmap progress is deleted too.',
+      confirmLabel: 'Delete goal', tone: 'danger' }))) {
       return;
     }
     void run(async () => {
       await api.deleteCareerGoal(goal.id);
+      toast('Goal deleted.');
       setGoals((list) => (list ?? []).filter((item) => item.id !== goal.id));
       if (openGoal === goal.id) setOpenGoal(null);
       if (editingId === goal.id) resetForm();
@@ -152,6 +158,9 @@ export function CareerGoals() {
         title="Career Goals"
         description="Pick a role to work towards and get a skill roadmap from your resume and real job-market demand."
       />
+      <PageGuide id="career-goals" title="Set a direction" helpAnchor="growth">
+        Pick a target role. Your skill gap and learning suggestions come from real job postings for that role.
+      </PageGuide>
 
       <Card
         title={editingId ? 'Edit goal' : 'New goal'}

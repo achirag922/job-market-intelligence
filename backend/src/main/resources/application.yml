@@ -7,6 +7,16 @@ spring:
     username: ${JMIP_DB_USERNAME:postgres}
     password: ${JMIP_DB_PASSWORD:postgres}
 
+  # V9.9: two scheduler threads, so a long alert run does not hold back the snapshot or retention
+  # jobs, and on shutdown a running job may finish (up to the period) instead of being cut off.
+  task:
+    scheduling:
+      pool:
+        size: 2
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+
   jpa:
     open-in-view: false
     hibernate:
@@ -195,6 +205,9 @@ jmip:
     temperature: ${AI_TEMPERATURE:}
     max-tokens: ${AI_MAX_TOKENS:8192}
     timeout: ${AI_TIMEOUT:30s}
+    # V9.9: retries for timeouts, rate limits (429) and provider errors (5xx), with backoff by the SDK.
+    # Client errors such as a bad request or an invalid key are never retried.
+    max-retries: ${AI_MAX_RETRIES:2}
 
   assistant:
     # The model proposes how many rows a question wants; these are the ceilings the
@@ -210,6 +223,6 @@ logging:
   pattern:
     # V7.8: the request id next to the level in plain (local) logs; structured logs in prod
     # carry it as a field.
-    level: "%5p [%X{requestId:-}]"
+    level: "%5p [%X{requestId:-}%X{jobId:-}]"
   level:
     com.jmip: INFO

@@ -23,8 +23,11 @@ public class ResumeRetentionJob {
     private final ResumeService resumeService;
     private final ResumePrivacyProperties properties;
     private final Clock clock;
+    private final com.jmip.config.ScheduledJobRunner runner;
 
-    public ResumeRetentionJob(ResumeService resumeService, ResumePrivacyProperties properties, Clock clock) {
+    public ResumeRetentionJob(ResumeService resumeService, ResumePrivacyProperties properties, Clock clock,
+                              com.jmip.config.ScheduledJobRunner runner) {
+        this.runner = runner;
         this.resumeService = resumeService;
         this.properties = properties;
         this.clock = clock;
@@ -32,7 +35,8 @@ public class ResumeRetentionJob {
 
     @Scheduled(cron = "${jmip.resume.privacy.retention-cron:0 30 3 * * *}")
     public void scheduledSweep() {
-        sweep();
+        // V9.9: once across instances, with its duration and failures reported.
+        runner.run("resume-retention", this::sweep);
     }
 
     /** @return how many resumes were deleted; zero when retention is off */

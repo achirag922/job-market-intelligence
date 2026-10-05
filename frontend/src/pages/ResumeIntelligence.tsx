@@ -9,6 +9,7 @@ import type {
   ResumeRecommendation,
 } from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, PageHeader, SkillBadge, StatCard } from '../components/ui';
 import { IconCheck, IconFile } from '../components/icons';
 import { CareerInsights } from '../components/CareerInsights';
@@ -133,6 +134,9 @@ export function ResumeIntelligence() {
         title="Resume Intelligence"
         description="Upload a PDF resume, then pick a job to see which of its skills you already have and which are missing. The comparison looks only at skills — it says nothing about experience, seniority or your chances of being hired."
       />
+      <PageGuide id="resume" title="Your resume powers matching" helpAnchor="resume">
+        Upload a PDF to see the skills found on it, then compare it with any job to see what you have and what is missing.
+      </PageGuide>
 
       <ol className="stepper">
         {STEPS.map((label, index) => (
@@ -445,7 +449,8 @@ export function ResumeIntelligence() {
                 <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                   <div className="stat-grid" style={{ marginBottom: 12 }}>
                     <StatCard label="Skills you have" value={match.matchedSkillCount} />
-                    <StatCard label="Skills you are missing" value={match.missingSkillCount} />
+                    <StatCard label="Skills you are missing" value={match.missingSkillCount}
+                      info="Skills this job lists that were not found on your resume. Add the ones you really have, written plainly." />
                     <StatCard label="Required by this job" value={match.totalJobSkills} />
                   </div>
                   <div

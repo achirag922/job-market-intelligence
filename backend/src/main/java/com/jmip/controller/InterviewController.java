@@ -34,7 +34,7 @@ public class InterviewController {
 
     @PostMapping
     public ResponseEntity<SessionResponse> start(@Valid @RequestBody StartRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.start(request.jobId(), request.resumeId()));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.start(request));
     }
 
     /** Newest first, without questions. */
@@ -59,6 +59,13 @@ public class InterviewController {
         return service.reevaluate(id, position);
     }
 
+    /** V9.6: sets an unanswered question aside. */
+    @PostMapping("/{id}/questions/{position}/skip")
+    public QuestionResponse skip(@PathVariable UUID id, @PathVariable @Positive int position) {
+        return service.skip(id, position);
+    }
+
+    /** Ends the interview, answered or not, and returns the summary. */
     @PostMapping("/{id}/complete")
     public SessionResponse complete(@PathVariable UUID id) {
         return service.complete(id);

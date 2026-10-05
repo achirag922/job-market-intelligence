@@ -5,6 +5,8 @@ import type {
   VerificationStatus,
   CareerInsights,
   EtlRun,
+  BuilderContent,
+  BuiltResume,
   AdminDataQuality,
   AdminOverview,
   AdminUserDetail,
@@ -12,12 +14,14 @@ import type {
   MarketTrends,
   InterviewQuestion,
   InterviewSession,
+  InterviewSetup,
   ResumeJobComparison,
   ResumeOptimization,
   ApplicationAnalysis,
   ApplicationInsights,
   JobSource,
   MatchPreferences,
+  PersonalizedFeed,
   JobAlert,
   JobAlertInput,
   JobAlertNotification,
@@ -35,6 +39,28 @@ import type {
   CareerGoalInput,
   CareerGoalStatus,
   Roadmap,
+  LearningItem,
+  Portfolio,
+  NotificationInbox,
+  NotificationPreferences,
+  JobMatches,
+  JobWorkspace,
+  SavedSearch,
+  CareerProgress,
+  OnboardingPreferencesInput,
+  OnboardingProfileInput,
+  OnboardingStatus,
+  AnalyticsRange,
+  UserAnalytics,
+  PortfolioImport,
+  PortfolioInput,
+  PublicProfile,
+  LearningItemInput,
+  LearningItemUpdate,
+  LearningPlan,
+  LearningResource,
+  LearningResourceInput,
+  LearningStatus,
   SkillProgressStatus,
   ResumeJobAnalysis,
   AssistantResponse,
@@ -450,6 +476,9 @@ export const api = {
   /** V8.3: the signed-in user's match preferences; an empty object when none are saved. */
   matchPreferences: () => request<MatchPreferences>('/api/match-preferences'),
 
+  /** V9.2: jobs ranked for the signed-in user, with the reasons for each. */
+  personalizedJobs: (limit = 20) => request<PersonalizedFeed>('/api/jobs/personalized', { limit }),
+
   saveMatchPreferences: (preferences: MatchPreferences) =>
     send<MatchPreferences>('PUT', '/api/match-preferences', preferences),
 
@@ -523,6 +552,28 @@ export const api = {
   /** V7.3: the signed-in user's resumes, newest first. */
   resumes: () => request<Resume[]>('/api/resumes'),
 
+  /** V9.4: the Resume Builder. Rename, default and delete are the resume endpoints below. */
+  createBuiltResume: (input: { title?: string; versionLabel?: string; content?: BuilderContent }) =>
+    send<BuiltResume>('POST', '/api/resumes/builder', input),
+  builtResume: (id: string) => request<BuiltResume>(`/api/resumes/${id}/builder`),
+  saveBuiltResume: (id: string, content: BuilderContent) => send<BuiltResume>('PUT', `/api/resumes/${id}/builder`, content),
+  duplicateResume: (id: string) => send<BuiltResume>('POST', `/api/resumes/${id}/duplicate`),
+  /** The PDF as a file to save, with the name the server gives it. */
+  downloadResumePdf: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}/api/resumes/${id}/builder/pdf`, { credentials: 'include' });
+    } catch {
+      throw new ApiError(0, CANNOT_REACH);
+    }
+    if (!response.ok) {
+      throw new ApiError(response.status, friendlyMessage(response, ''));
+    }
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'resume.pdf';
+    return { blob: await response.blob(), fileName: name };
+  },
+
   updateResume: (id: string, title: string, versionLabel: string) =>
     send<Resume>('PATCH', `/api/resumes/${id}`, { title, versionLabel }),
 
@@ -543,13 +594,16 @@ export const api = {
     request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
 
   /** V8.7: practice interviews; the owner is always the signed-in account. */
-  startInterview: (jobId: number, resumeId?: string) => send<InterviewSession>("POST", "/api/interviews", { jobId, resumeId }),
+  /** V9.6: with the resume, interview type, difficulty and question count. */
+  startInterview: (setup: InterviewSetup) => send<InterviewSession>("POST", "/api/interviews", setup),
   interviewSessions: () => request<InterviewSession[]>("/api/interviews"),
   interviewSession: (id: string) => request<InterviewSession>(`/api/interviews/${id}`),
   answerInterviewQuestion: (id: string, position: number, answer: string) =>
     send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/answer`, { answer }),
   evaluateInterviewQuestion: (id: string, position: number) =>
     send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
+  skipInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/skip`),
   completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
 
   /** V8.9: admin only; the server answers 403 to any other account. */
@@ -580,6 +634,67 @@ export const api = {
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
 
+  /** V9.17: the signed-in account's own settings. */
+  updateAccountName: (fullName: string) => send<AuthUser>('PATCH', '/api/account/profile', { fullName }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    send<void>('POST', '/api/account/password', { currentPassword, newPassword }),
+  deleteAccount: (password: string) => send<void>('DELETE', '/api/account', { password }),
+
+  /** V9.16: the notification center. */
+  notifications: (unreadOnly = false) => request<NotificationInbox>('/api/notifications', unreadOnly ? { unreadOnly: 'true' } : {}),
+  unreadNotifications: () => request<{ unreadCount: number }>('/api/notifications/unread-count'),
+  markNotificationRead: (id: string) => send<void>('POST', `/api/notifications/${id}/read`),
+  markAllNotificationsRead: () => send<{ unreadCount: number }>('POST', '/api/notifications/read-all'),
+  notificationPreferences: () => request<NotificationPreferences>('/api/notifications/preferences'),
+  saveNotificationPreferences: (preferences: NotificationPreferences) =>
+    send<NotificationPreferences>('PUT', '/api/notifications/preferences', preferences),
+
+  /** V9.14: the job-search workspace; hidden and viewed jobs, saved searches and match hints. */
+  workspace: () => request<JobWorkspace>('/api/workspace'),
+  jobMatches: (jobIds: number[]) => request<JobMatches>('/api/workspace/matches', { jobIds: jobIds.join(',') }),
+  savedSearches: () => request<SavedSearch[]>('/api/workspace/searches'),
+  saveSearch: (name: string, filters: Record<string, string>) => send<SavedSearch>('POST', '/api/workspace/searches', { name, filters }),
+  deleteSavedSearch: (id: string) => send<void>('DELETE', `/api/workspace/searches/${id}`),
+  hideJob: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/hide`),
+  unhideJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/hide`),
+  recordJobView: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/viewed`),
+  setSavedJobPriority: (id: string, priority: 'HIGH' | 'MEDIUM' | 'LOW' | null) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/priority`, { priority }),
+
+  /** V9.13: readiness score, progress, achievements and streaks, all computed on the server. */
+  careerProgress: () => request<CareerProgress>('/api/career-progress'),
+
+  /** V9.12: first-time onboarding; the resume and goal steps use the existing resume and career-goal calls. */
+  onboarding: () => request<OnboardingStatus>('/api/onboarding'),
+  saveOnboardingProfile: (input: OnboardingProfileInput) => send<OnboardingStatus>('PUT', '/api/onboarding/profile', input),
+  saveOnboardingPreferences: (input: OnboardingPreferencesInput) =>
+    send<OnboardingStatus>('PUT', '/api/onboarding/preferences', input),
+  skipOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/skip'),
+  completeOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/complete'),
+
+  /** V9.7: the signed-in user's portfolio (404 until created) and published public profiles. */
+  portfolio: () => request<Portfolio>('/api/portfolio'),
+  createPortfolio: (input: PortfolioInput) => send<Portfolio>('POST', '/api/portfolio', input),
+  updatePortfolio: (input: PortfolioInput) => send<Portfolio>('PUT', '/api/portfolio', input),
+  changePortfolioSlug: (slug: string) => send<Portfolio>('PATCH', '/api/portfolio/slug', { slug }),
+  publishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/publish'),
+  unpublishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/unpublish'),
+  portfolioImport: (resumeId?: string) => request<PortfolioImport>('/api/portfolio/import', { resumeId }),
+  publicProfile: (slug: string) => request<PublicProfile>(`/api/public/profiles/${encodeURIComponent(slug)}`),
+
+  /** V9.5: the learning plan; everything is the signed-in user's own. */
+  learningPlan: () => request<LearningPlan>('/api/learning'),
+  createLearningItem: (input: LearningItemInput) => send<LearningItem>('POST', '/api/learning/items', input),
+  updateLearningItem: (id: string, input: LearningItemUpdate) => send<LearningItem>('PUT', `/api/learning/items/${id}`, input),
+  setLearningItemStatus: (id: string, status: LearningStatus) =>
+    send<LearningItem>('PATCH', `/api/learning/items/${id}/status`, { status }),
+  deleteLearningItem: (id: string) => send<void>('DELETE', `/api/learning/items/${id}`),
+  addLearningResource: (itemId: string, input: LearningResourceInput) =>
+    send<LearningResource>('POST', `/api/learning/items/${itemId}/resources`, input),
+  updateLearningResource: (id: string, input: LearningResourceInput) =>
+    send<LearningResource>('PUT', `/api/learning/resources/${id}`, input),
+  deleteLearningResource: (id: string) => send<void>('DELETE', `/api/learning/resources/${id}`),
+
   /** V7.5 market intelligence; every endpoint takes the same filters. */
   /** V8.8: historical trends for a role (job category) or all roles, with a labelled estimate. */
   marketTrends: (filters: { category?: string; months?: number }) => request<MarketTrends>("/api/market/trends", { ...filters }),
@@ -592,6 +707,9 @@ export const api = {
 
   /** V7.7: the signed-in user's career dashboard; optionally for one of their goals. */
   dashboard: (goalId?: string) => request<PersonalDashboard>('/api/dashboard', { goalId }),
+
+  /** V9.8: how your job search, resume, interviews and learning changed over a range. */
+  userAnalytics: (range: AnalyticsRange) => request<UserAnalytics>('/api/dashboard/analytics', { range }),
 };
 
 export { BASE_URL };

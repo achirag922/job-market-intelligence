@@ -58,11 +58,15 @@ public class JobAlertProcessor {
     private final AlertProperties properties;
     private final TransactionTemplate transaction;
     private final Clock clock;
+    private final com.jmip.service.resume.MatchGoals goals;
+    private final com.jmip.config.ScheduledJobRunner runner;
 
     public JobAlertProcessor(AlertNotificationRepository notifications, JobAlertRepository alerts, JobRepository jobs,
                              JobService jobService, JobMatchScorer scorer, MatchPreferencesRepository preferences,
                              AlertEmailSender sender, AlertProperties properties, TransactionTemplate transaction,
-                             Clock clock) {
+                             Clock clock, com.jmip.service.resume.MatchGoals goals, com.jmip.config.ScheduledJobRunner runner) {
+        this.goals = goals;
+        this.runner = runner;
         this.notifications = notifications;
         this.alerts = alerts;
         this.jobs = jobs;
@@ -82,7 +86,8 @@ public class JobAlertProcessor {
     @Scheduled(cron = "${jmip.alerts.cron:0 0 * * * *}")
     public void onSchedule() {
         if (properties.enabled()) {
-            processDue();
+            // V9.9: once across instances, with its duration and failures reported.
+            runner.run("job-alerts", this::processDue);
         }
     }
 
@@ -128,12 +133,13 @@ public class JobAlertProcessor {
         Set<Long> already = notifications.recordedJobIds(due.alertId(), matches.stream().map(Job::getId).toList());
         Set<Long> resumeSkills = notifications.currentResumeSkillIds(due.userId());
         MatchPreferences prefs = resumeSkills.isEmpty() ? MatchPreferences.NONE : preferences.find(due.userId());
+        JobMatchScorer.GoalContext goal = resumeSkills.isEmpty() ? JobMatchScorer.GoalContext.NONE : goals.forUser(due.userId());
         int recorded = 0;
         for (Job job : matches) {
             if (already.contains(job.getId())) {
                 continue;
             }
-            notifications.recordPending(due.alertId(), due.userId(), job.getId(), matchScore(job, resumeSkills, prefs));
+            notifications.recordPending(due.alertId(), due.userId(), job.getId(), matchScore(job, resumeSkills, prefs, goal));
             recorded++;
         }
         notifications.markProcessed(due.alertId(), now);
@@ -141,13 +147,12 @@ public class JobAlertProcessor {
     }
 
     /** The V8.3 overall match against the user's current resume, or null without one. */
-    private Double matchScore(Job job, Set<Long> resumeSkills, MatchPreferences prefs) {
+    private Double matchScore(Job job, Set<Long> resumeSkills, MatchPreferences prefs, JobMatchScorer.GoalContext goal) {
         if (resumeSkills.isEmpty()) {
             return null;
         }
-        Set<Long> jobSkills = job.getSkills().stream().map(Skill::getId).collect(Collectors.toSet());
-        long matched = jobSkills.stream().filter(resumeSkills::contains).count();
-        return scorer.score((int) matched, jobSkills.size(), job, prefs).overallPercentage();
+        // V9.3: the same engine as matches and recommendations.
+        return scorer.score(resumeSkills, job, prefs, goal).overallPercentage();
     }
 
     /** @return true when a digest went out, false when it failed, null when there was nothing to send */

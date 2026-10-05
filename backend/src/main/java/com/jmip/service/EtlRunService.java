@@ -90,7 +90,8 @@ public class EtlRunService {
                 row.feedName(),
                 row.feedType(),
                 sources,
-                row.expired());
+                row.expired(),
+                row.connector());
     }
 
     /**

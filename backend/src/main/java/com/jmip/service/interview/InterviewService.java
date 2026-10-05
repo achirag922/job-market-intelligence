@@ -4,6 +4,10 @@ import com.jmip.common.exception.InvalidRequestException;
 import com.jmip.common.exception.ResourceNotFoundException;
 import com.jmip.dto.SkillResponse;
 import com.jmip.dto.interview.InterviewDtos.Feedback;
+import com.jmip.dto.interview.InterviewDtos.LearningSuggestion;
+import com.jmip.dto.interview.InterviewDtos.Report;
+import com.jmip.dto.interview.InterviewDtos.StartRequest;
+import com.jmip.dto.learning.LearningDtos;
 import com.jmip.dto.interview.InterviewDtos.QuestionResponse;
 import com.jmip.dto.interview.InterviewDtos.SessionResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
@@ -15,6 +19,7 @@ import com.jmip.repository.InterviewRepository.QuestionRow;
 import com.jmip.repository.InterviewRepository.SessionRow;
 import com.jmip.repository.JobRepository;
 import com.jmip.service.auth.CurrentUser;
+import com.jmip.service.learning.LearningService;
 import com.jmip.service.resume.ResumeKeywordAnalyzer;
 import com.jmip.service.resume.ResumeMatchService;
 import com.jmip.service.resume.ResumeService;
@@ -43,6 +48,10 @@ import java.util.stream.Stream;
  * scored by {@link InterviewEvaluator}. Sessions are the owner's only: another account's
  * session, like another account's resume, answers 404.
  *
+ * <p>V9.6: a session has a type, a difficulty and a question count; questions can be skipped, and
+ * a completed session carries a report with technical and behavioral scores, strong and weak areas
+ * and matching items from the V9.5 learning plan. The plan is only read, never changed.
+ *
  * <p>Nothing here holds a transaction open while the AI provider is called.
  */
 @Service
@@ -63,12 +72,15 @@ public class InterviewService {
     private final InterviewEvaluator evaluator;
     private final CurrentUser currentUser;
     private final Clock clock;
+    private final LearningService learning;
     private final org.springframework.transaction.support.TransactionTemplate readOnly;
 
     public InterviewService(InterviewRepository repository, JobRepository jobRepository, ResumeService resumeService,
                             ResumeMatchService matchService, ResumeKeywordAnalyzer keywords,
                             InterviewQuestionGenerator generator, InterviewEvaluator evaluator, CurrentUser currentUser,
-                            Clock clock, org.springframework.transaction.PlatformTransactionManager transactionManager) {
+                            Clock clock, org.springframework.transaction.PlatformTransactionManager transactionManager,
+                            LearningService learning) {
+        this.learning = learning;
         this.readOnly = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.readOnly.setReadOnly(true);
         this.repository = repository;
@@ -83,8 +95,13 @@ public class InterviewService {
     }
 
     @Transactional
-    public SessionResponse start(Long jobId, UUID resumeId) {
+    public SessionResponse start(StartRequest request) {
         UUID owner = currentUser.requireId();
+        Long jobId = request.jobId();
+        UUID resumeId = request.resumeId();
+        InterviewQuestionGenerator.Setup setup = new InterviewQuestionGenerator.Setup(
+                request.interviewType() == null ? "MIXED" : request.interviewType(),
+                request.difficulty() == null ? "MEDIUM" : request.difficulty(), request.questionCount());
         if (repository.countByUser(owner) >= MAX_SESSIONS_PER_ACCOUNT) {
             throw new InvalidRequestException("You can keep at most " + MAX_SESSIONS_PER_ACCOUNT + " interview sessions");
         }
@@ -114,12 +131,12 @@ public class InterviewService {
                 .filter(term -> !job.getTitle().toLowerCase(java.util.Locale.ROOT).contains(term))
                 .toList();
 
-        List<InterviewQuestionGenerator.Question> questions = generator.generate(job.getTitle(), job.getCompany().getName(),
+        List<InterviewQuestionGenerator.Question> questions = generator.generate(setup, job.getTitle(), job.getCompany().getName(),
                 matched, missing, resumeOnly, postingTerms, experience(job), resume.isPresent());
         UUID id = UUID.randomUUID();
         repository.create(id, owner, job.getId(), resume.map(Resume::getId).orElse(null), job.getTitle(),
-                job.getCompany().getName(), now(), questions);
-        log.info("Interview session {} started with {} questions", id, questions.size());
+                job.getCompany().getName(), setup.type(), setup.difficulty(), now(), questions);
+        log.info("Interview session {} started: {} {} with {} questions", id, setup.type(), setup.difficulty(), questions.size());
         return detail(id, owner);
     }
 
@@ -155,7 +172,19 @@ public class InterviewService {
         return evaluate(session, position, owner);
     }
 
-    /** Closes the session with a summary computed from the stored feedback; no AI involved. */
+    /** V9.6: sets an unanswered question aside; it can still be answered before the interview ends. */
+    public QuestionResponse skip(UUID id, int position) {
+        UUID owner = currentUser.requireId();
+        SessionRow session = requireOpen(id, owner);
+        QuestionRow question = requireQuestion(session, position);
+        if (question.answer() != null) {
+            throw new InvalidRequestException("This question is already answered");
+        }
+        repository.skip(id, position, now());
+        return question(requireQuestion(session, position), null);
+    }
+
+    /** Closes the session (also when ended early) with a summary computed from the stored feedback; no AI involved. */
     @Transactional
     public SessionResponse complete(UUID id) {
         UUID owner = currentUser.requireId();
@@ -177,15 +206,17 @@ public class InterviewService {
                     .map(job -> job.getSkills().stream().map(Skill::getName).sorted().toList()).orElse(List.of());
             List<String> resumeSkills = session.resumeId() == null ? List.<String>of() : resumeSkillsOf(session.resumeId());
             return new InterviewEvaluator.Context(session.jobTitle(), session.companyName(), jobSkills, resumeSkills,
-                    question.category(), question.focus(), question.question(), question.answer());
+                    question.category(), question.focus(), question.question(), question.answer(), session.interviewType(),
+                    session.difficulty());
         });
         InterviewEvaluator.Outcome outcome = evaluator.evaluate(context);
         String note = null;
         if (outcome.evaluation().isPresent()) {
             InterviewEvaluator.Evaluation evaluation = outcome.evaluation().get();
             repository.saveEvaluation(session.id(), position, evaluation.relevance(), evaluation.completeness(),
-                    evaluation.clarity(), evaluation.technicalCorrectness(), String.join("\n", evaluation.strengths()),
-                    String.join("\n", evaluation.improvements()), now());
+                    evaluation.clarity(), evaluation.technicalCorrectness(), evaluation.communication(),
+                    String.join("\n", evaluation.strengths()), String.join("\n", evaluation.improvements()),
+                    evaluation.suggestedApproach(), now());
         } else {
             repository.markUnavailable(session.id(), position);
             note = outcome.unavailableReason();
@@ -210,9 +241,11 @@ public class InterviewService {
     static Summary summarize(List<QuestionRow> questions) {
         List<QuestionRow> evaluated = questions.stream().filter(q -> "EVALUATED".equals(q.feedbackStatus())).toList();
         long answered = questions.stream().filter(q -> q.answer() != null).count();
+        long skipped = questions.stream().filter(q -> "SKIPPED".equals(q.feedbackStatus())).count();
+        String skippedNote = skipped == 0 ? "" : " You skipped " + skipped + ".";
         if (evaluated.isEmpty()) {
             return new Summary("You answered " + answered + " of " + questions.size() + " questions. No answer was evaluated, "
-                    + "so there is no score for this session.", null);
+                    + "so there is no score for this session." + skippedNote, null);
         }
         double average = evaluated.stream().mapToDouble(InterviewService::scoreOf).average().orElse(0);
         Map<String, List<Double>> byCategory = new LinkedHashMap<>();
@@ -228,7 +261,8 @@ public class InterviewService {
 
         StringBuilder text = new StringBuilder();
         text.append("You answered ").append(answered).append(" of ").append(questions.size()).append(" questions; ")
-                .append(evaluated.size()).append(" were evaluated, averaging ").append(format(average)).append(" out of 5.");
+                .append(evaluated.size()).append(" were evaluated, averaging ").append(format(average)).append(" out of 5.")
+                .append(skippedNote);
         if (categoryAverage.size() > 1 && !strongest.equals(weakest)) {
             text.append(" Strongest: ").append(label(strongest)).append(" (").append(format(categoryAverage.get(strongest)))
                     .append("). Needs most work: ").append(label(weakest)).append(" (")
@@ -242,7 +276,7 @@ public class InterviewService {
     }
 
     private static double scoreOf(QuestionRow q) {
-        return Stream.of(q.relevance(), q.completeness(), q.clarity(), q.technicalCorrectness())
+        return Stream.of(q.relevance(), q.completeness(), q.clarity(), q.technicalCorrectness(), q.communication())
                 .filter(java.util.Objects::nonNull).mapToInt(Integer::intValue).average().orElse(0);
     }
 
@@ -283,24 +317,91 @@ public class InterviewService {
 
     private SessionResponse detail(UUID id, UUID owner) {
         SessionRow row = repository.find(id, owner).orElseThrow(() -> ResourceNotFoundException.of("Interview session", id));
-        return response(row, repository.questions(id).stream().map(q -> question(q, null)).toList());
+        List<QuestionRow> questions = repository.questions(id);
+        Report report = "COMPLETED".equals(row.status()) ? report(questions) : null;
+        return response(row, questions.stream().map(q -> question(q, null)).toList(), report);
     }
 
     private static SessionResponse response(SessionRow row, List<QuestionResponse> questions) {
+        return response(row, questions, null);
+    }
+
+    private static SessionResponse response(SessionRow row, List<QuestionResponse> questions, Report report) {
         return new SessionResponse(row.id(), row.jobId(), row.jobTitle(), row.companyName(), row.resumeId(), row.status(),
                 row.createdAt(), row.completedAt(), row.summary(), row.averageScore(), row.answered(), row.evaluated(),
-                row.total(), questions);
+                row.total(), questions, row.interviewType(), row.difficulty(), row.skipped(), report);
+    }
+
+    // ------------------------------------------------------------------ V9.6 report
+
+    /** Technical questions are TECHNICAL and RESUME ones; behavioral are BEHAVIORAL and ROLE ones. */
+    static boolean isTechnical(String category) {
+        return "TECHNICAL".equals(category) || "RESUME".equals(category);
+    }
+
+    private Report report(List<QuestionRow> questions) {
+        Report scores = scores(questions);
+        return new Report(scores.overallScore(), scores.technicalScore(), scores.behavioralScore(), scores.strongAreas(),
+                scores.weakAreas(), scores.prepareTopics(), learningFor(scores.prepareTopics()));
+    }
+
+    /** Everything in the report except the learning plan; a strong answer scores 4 or more, a weak one under 3. */
+    public static Report scores(List<QuestionRow> questions) {
+        List<QuestionRow> evaluated = questions.stream().filter(q -> "EVALUATED".equals(q.feedbackStatus())).toList();
+        List<String> strong = evaluated.stream().filter(q -> scoreOf(q) >= 4).map(InterviewService::area).distinct().toList();
+        List<String> weak = evaluated.stream().filter(q -> scoreOf(q) < 3).map(InterviewService::area).distinct().toList();
+        List<String> prepare = questions.stream()
+                .filter(q -> q.focus() != null)
+                .filter(q -> "SKIPPED".equals(q.feedbackStatus()) || q.answer() == null
+                        || ("EVALUATED".equals(q.feedbackStatus()) && scoreOf(q) < 3))
+                .map(QuestionRow::focus).distinct().limit(8).toList();
+        return new Report(average(evaluated), average(evaluated.stream().filter(q -> isTechnical(q.category())).toList()),
+                average(evaluated.stream().filter(q -> !isTechnical(q.category())).toList()), strong, weak, prepare, null);
+    }
+
+    private static Double average(List<QuestionRow> rows) {
+        return rows.isEmpty() ? null
+                : Math.round(rows.stream().mapToDouble(InterviewService::scoreOf).average().orElse(0) * 10.0) / 10.0;
+    }
+
+    private static String area(QuestionRow q) {
+        return q.focus() != null ? q.focus() : label(q.category());
+    }
+
+    /** Topics to prepare that the learning plan already has, or that are priority skills on its roadmap. */
+    private List<LearningSuggestion> learningFor(List<String> topics) {
+        if (topics.isEmpty()) {
+            return List.of();
+        }
+        LearningDtos.Plan plan;
+        try {
+            plan = learning.plan();
+        } catch (RuntimeException unavailable) {
+            log.debug("Learning plan unavailable for the interview report: {}", unavailable.getClass().getSimpleName());
+            return List.of();
+        }
+        List<LearningSuggestion> suggestions = new ArrayList<>();
+        for (String topic : topics) {
+            plan.items().stream().filter(item -> item.skill().equalsIgnoreCase(topic)).findFirst().ifPresentOrElse(
+                    item -> suggestions.add(new LearningSuggestion(item.skill(), "PLAN_ITEM", item.id(), item.skillId(),
+                            item.status(), "Already in your learning plan: " + item.topic())),
+                    () -> plan.priorities().stream().filter(priority -> priority.skill().equalsIgnoreCase(topic)).findFirst()
+                            .ifPresent(priority -> suggestions.add(new LearningSuggestion(priority.skill(), "ROADMAP_PRIORITY",
+                                    null, priority.skillId(), null, priority.reason()))));
+        }
+        return suggestions;
     }
 
     private static QuestionResponse question(QuestionRow q, String note) {
         Feedback feedback = "EVALUATED".equals(q.feedbackStatus())
                 ? new Feedback(q.relevance(), q.completeness(), q.clarity(), q.technicalCorrectness(),
-                Math.round(scoreOf(q) * 10.0) / 10.0, lines(q.strengths()), lines(q.improvements()), q.evaluatedAt())
+                Math.round(scoreOf(q) * 10.0) / 10.0, lines(q.strengths()), lines(q.improvements()), q.evaluatedAt(),
+                q.communication(), q.suggestedApproach())
                 : null;
         String feedbackNote = note != null ? note
                 : "UNAVAILABLE".equals(q.feedbackStatus()) ? "Feedback is not available for this answer yet; try again." : null;
         return new QuestionResponse(q.position(), q.category(), q.question(), q.focus(), q.answer(), q.answeredAt(),
-                q.feedbackStatus(), feedback, feedbackNote, q.evaluationAttempts());
+                q.feedbackStatus(), feedback, feedbackNote, q.evaluationAttempts(), q.skippedAt());
     }
 
     private static List<String> lines(String text) {

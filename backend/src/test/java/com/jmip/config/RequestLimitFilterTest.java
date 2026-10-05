@@ -25,6 +25,29 @@ class RequestLimitFilterTest {
     }
 
     @Test
+    @DisplayName("V9.10: interview answers and re-evaluations call the AI, so they are limited like the assistant")
+    void interviewAiRateLimit() throws Exception {
+        RequestLimitFilter filter = filter(true, 2, 10);
+        String answer = "/api/interviews/5f1c7a2e-0000-0000-0000-000000000001/questions/1/answer";
+        String evaluate = "/api/interviews/5f1c7a2e-0000-0000-0000-000000000001/questions/2/evaluate";
+
+        assertThat(send(filter, post(answer, "10.0.0.1")).getStatus()).isEqualTo(200);
+        assertThat(send(filter, post(evaluate, "10.0.0.1")).getStatus()).isEqualTo(200);
+        assertThat(send(filter, post(answer, "10.0.0.1")).getStatus()).isEqualTo(429);
+        // A separate allowance from the assistant's, and other interview calls are not counted.
+        assertThat(send(filter, assistant("10.0.0.1")).getStatus()).isEqualTo(200);
+        assertThat(send(filter, post("/api/interviews", "10.0.0.1")).getStatus()).isEqualTo(200);
+        assertThat(send(filter, post("/api/interviews/x/questions/1/skip", "10.0.0.1")).getStatus()).isEqualTo(200);
+        assertThat(send(filter, post("/api/interviews/x/complete", "10.0.0.1")).getStatus()).isEqualTo(200);
+    }
+
+    private static MockHttpServletRequest post(String path, String remoteAddress) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
+        request.setRemoteAddr(remoteAddress);
+        return request;
+    }
+
+    @Test
     @DisplayName("allows the configured number of assistant questions per client, then 429 with Retry-After")
     void assistantRateLimit() throws Exception {
         RequestLimitFilter filter = filter(true, 2, 10);
@@ -106,7 +129,7 @@ class RequestLimitFilterTest {
     @Test
     @DisplayName("the AI settings never print the API key")
     void aiKeyNeverPrinted() {
-        AiProperties properties = new AiProperties("anthropic", "sk-test-do-not-print", "model", null, 10, null);
+        AiProperties properties = new AiProperties("anthropic", "sk-test-do-not-print", "model", null, 10, null, 2);
 
         assertThat(properties.toString()).doesNotContain("sk-test-do-not-print").contains("apiKey=****");
     }

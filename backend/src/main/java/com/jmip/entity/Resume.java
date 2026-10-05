@@ -98,6 +98,38 @@ public class Resume {
             inverseJoinColumns = @JoinColumn(name = "skill_id"))
     private Set<Skill> skills = new LinkedHashSet<>();
 
+    /** V9.4: UPLOAD for a PDF, BUILDER for one written in JMIP's builder. */
+    @Column(name = "source", nullable = false)
+    private String source = "UPLOAD";
+
+    /** V9.4: the builder's sections as JSON; encrypted at rest like the extracted text. */
+    @Convert(converter = EncryptedTextConverter.class)
+    @Column(name = "builder_content")
+    private String builderContent;
+
+    /**
+     * V9.4: a resume written in the builder. It has no uploaded file: the stored name is a
+     * placeholder no file will ever have, so the existing deletion removes nothing on disk.
+     */
+    public static Resume built(UUID id, UUID userId, String title, String contentJson, OffsetDateTime now) {
+        Resume resume = new Resume(id, userId, "resume.pdf", "builder-" + id, "application/json", contentJson.length(), now);
+        resume.source = "BUILDER";
+        resume.builderContent = contentJson;
+        resume.title = title;
+        return resume;
+    }
+
+    public boolean isBuilt() {
+        return "BUILDER".equals(source);
+    }
+
+    /** V9.4: new sections from the owner; the caller regenerates the text and skills. */
+    public void replaceBuilderContent(String contentJson, OffsetDateTime now) {
+        this.builderContent = contentJson;
+        this.fileSizeBytes = contentJson.length();
+        this.updatedAt = now;
+    }
+
     public Resume(UUID id, String originalFileName, String storedFileName,
                   String contentType, long fileSizeBytes, OffsetDateTime uploadedAt) {
         this.id = id;

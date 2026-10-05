@@ -14,6 +14,10 @@ export function RequireAuth() {
     return <SkeletonCards count={3} />;
   }
   if (status === 'signedOut') {
+    // V9.15: a visitor arriving at the root sees what JMIP is first; deep links go straight to Log in.
+    if (location.pathname === '/' && location.search === '') {
+      return <Navigate to="/welcome" replace />;
+    }
     return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   }
   return <Outlet />;

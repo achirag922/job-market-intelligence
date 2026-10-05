@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useConfirm } from '../components/feedback';
 import { Link } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
 import type { ApplicationAnalysis, ApplicationStatus, SavedJob } from '../api/types';
@@ -85,7 +86,7 @@ export function SavedJobs() {
   return (
     <>
       <PageHeader
-        title="Saved Jobs"
+        title="Applications"
         description="Jobs you bookmarked, and where each application stands. Your status and notes are visible only to you."
       />
 
@@ -219,8 +220,9 @@ function SavedJobCard({ item, analysis }: { item: SavedJob; analysis?: Applicati
       setFollowUpNote(updated.followUpNote ?? '');
     }, followUpOn ? 'Follow-up saved' : 'Follow-up cleared');
 
-  const remove = () => {
-    if (window.confirm(`Remove “${item.job.title}” from your saved jobs?`)) {
+  const confirmAction = useConfirm();
+  const remove = async () => {
+    if (await confirmAction({ title: `Remove “${item.job.title}” from your saved jobs?`, confirmLabel: 'Remove', tone: 'danger' })) {
       void run(() => saved.remove(item.id));
     }
   };
@@ -253,6 +255,19 @@ function SavedJobCard({ item, analysis }: { item: SavedJob; analysis?: Applicati
                 {STATUS_LABEL[status]}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="field">
+          Priority
+          <select value={item.priority ?? ''} disabled={busy}
+            onChange={(event) => run(async () => {
+              const value = (event.target.value || null) as 'HIGH' | 'MEDIUM' | 'LOW' | null;
+              saved.replace(await api.setSavedJobPriority(item.id, value));
+            }, 'Priority saved')}>
+            <option value="">None</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
           </select>
         </label>
         <button type="button" className="small ghost" disabled={busy} onClick={remove}>

@@ -123,6 +123,10 @@ export interface ApiErrorBody {
  * writes `q`, which matches across title, company, location, description and skills.
  */
 export interface JobFilters {
+  /** V9.2: fill empty filters from the signed-in user's preferences (explicit filters win). */
+  usePreferences?: 'true';
+  /** V9.14: leave out the jobs the user marked not interested. */
+  excludeHidden?: 'true';
   q?: string;
   category?: string;
   title?: string;
@@ -151,7 +155,9 @@ export type JobOrder =
   | 'salary-high'
   | 'salary-low'
   | 'title'
-  | 'company';
+  | 'company'
+  /** V9.14: by the existing skill match with the current resume. */
+  | 'match';
 
 /** One currency salaries are stated in, and the range seen in it. */
 export interface SalaryRange {
@@ -256,6 +262,29 @@ export interface Resume {
   /** V7.3: the account's default resume. */
   isDefault?: boolean;
   updatedAt?: string;
+  /** V9.4: UPLOAD for a PDF, BUILDER for one written in the Resume Builder. */
+  source?: 'UPLOAD' | 'BUILDER';
+}
+
+// ---------------------------------------------------------------- V9.4: resume builder
+
+/** A built resume's sections; only what the user wrote. */
+export interface BuilderContent {
+  template?: 'CLASSIC' | 'MODERN';
+  personal: { fullName: string; headline?: string; email?: string; phone?: string; location?: string; links?: string[] };
+  summary?: string;
+  skills?: string[];
+  experience?: { title: string; company: string; location?: string; start?: string; end?: string; current: boolean; bullets?: string[] }[];
+  education?: { degree: string; institution: string; location?: string; start?: string; end?: string; details?: string }[];
+  projects?: { name: string; url?: string; description?: string; bullets?: string[] }[];
+  certifications?: { name: string; issuer?: string; date?: string }[];
+  achievements?: string[];
+  additional?: { title: string; items?: string[] }[];
+}
+
+export interface BuiltResume {
+  resume: Resume;
+  content: BuilderContent;
 }
 
 export interface ResumeMatch {
@@ -302,6 +331,16 @@ export interface MatchBreakdown {
   location: MatchDimension;
   workMode: MatchDimension;
   salary: MatchDimension;
+  /** V9.3: career-goal alignment and the V9.2 preferred roles and skills. */
+  careerGoal?: MatchDimension;
+  role?: MatchDimension;
+  preferredSkills?: MatchDimension;
+  /** Required skills the resume does not show. */
+  missingRequiredSkills?: string[];
+  /** Skills the posting lists only as nice to have; they never lower the skill score. */
+  optionalSkills?: string[];
+  /** Each available dimension's contribution, in words. */
+  reasons?: string[];
 }
 
 /** The signed-in user's own match preferences; every field optional. */
@@ -311,6 +350,31 @@ export interface MatchPreferences {
   workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
   minSalary?: number;
   salaryCurrency?: string;
+  /** V9.2: personalization lists (at most 20 each). */
+  preferredCategories?: string[];
+  preferredSkills?: string[];
+  excludedCompanies?: string[];
+  excludedLocations?: string[];
+}
+
+// ---------------------------------------------------------------- V9.2: personalized feed
+
+export interface PersonalizedFeedItem {
+  job: JobSummary;
+  /** The V8.3 overall match; absent without a processed resume. */
+  matchPercentage?: number;
+  /** The match plus the personal signals in reasons; what the feed is ordered by. */
+  priority: number;
+  saved: boolean;
+  reasons: { text: string; kind: 'POSITIVE' | 'NEGATIVE' | 'INFO'; points?: number }[];
+  breakdown?: MatchBreakdown;
+}
+
+export interface PersonalizedFeed {
+  jobs: PersonalizedFeedItem[];
+  context: { resume: boolean; careerGoal?: string; preferredRoles: string[]; preferredSkills: string[];
+    candidates: number; excludedApplied: number; excludedByPreference: number };
+  note?: string;
 }
 
 /** A job whose existing required skills overlap with a completed resume. */
@@ -563,6 +627,8 @@ export interface EtlRun {
   sources?: EtlRunSource[];
   /** V8.2: jobs the run marked inactive (expired, or closed by their source). */
   expired?: number;
+  /** V9.1: the connector the run read through ("file", "sample", ...). */
+  connector?: string;
 }
 
 export interface EtlRunSource {
@@ -679,6 +745,8 @@ export interface SavedJob {
   /** V8.5: follow-up date (YYYY-MM-DD) and reminder. */
   followUpOn?: string | null;
   followUpNote?: string | null;
+  /** V9.14: application priority. */
+  priority?: 'HIGH' | 'MEDIUM' | 'LOW' | null;
 }
 
 // ---------------------------------------------------------------- V8.5: application intelligence
@@ -839,6 +907,10 @@ export interface InterviewFeedback {
   strengths: string[];
   improvements: string[];
   evaluatedAt?: string;
+  /** V9.6: 1 to 5, absent on answers evaluated before V9.6. */
+  communication?: number;
+  /** V9.6: how a stronger answer would be built; never written as the user's experience. */
+  suggestedApproach?: string;
 }
 
 export interface InterviewQuestion {
@@ -848,10 +920,11 @@ export interface InterviewQuestion {
   focus?: string;
   answer?: string;
   answeredAt?: string;
-  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE";
+  feedbackStatus: "NOT_ANSWERED" | "EVALUATED" | "UNAVAILABLE" | "SKIPPED";
   feedback?: InterviewFeedback;
   feedbackNote?: string;
   evaluationAttempts: number;
+  skippedAt?: string;
 }
 
 /** A practice session; questions only on the detail view. */
@@ -870,6 +943,41 @@ export interface InterviewSession {
   evaluated: number;
   total: number;
   questions?: InterviewQuestion[];
+  /** V9.6 setup. */
+  interviewType?: InterviewType;
+  difficulty?: InterviewDifficulty;
+  skipped?: number;
+  /** V9.6: present on a completed session's detail view. */
+  report?: InterviewReport;
+}
+
+export type InterviewType = 'TECHNICAL' | 'BEHAVIORAL' | 'MIXED';
+export type InterviewDifficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+export interface InterviewSetup {
+  jobId: number;
+  resumeId?: string;
+  interviewType?: InterviewType;
+  difficulty?: InterviewDifficulty;
+  questionCount?: number;
+}
+
+/** V9.6: the end-of-interview report; scores are 1 to 5. */
+export interface InterviewReport {
+  overallScore?: number;
+  technicalScore?: number;
+  behavioralScore?: number;
+  strongAreas: string[];
+  weakAreas: string[];
+  prepareTopics: string[];
+  learning: {
+    skill: string;
+    source: 'PLAN_ITEM' | 'ROADMAP_PRIORITY';
+    itemId?: string;
+    skillId?: number;
+    status?: string;
+    reason?: string;
+  }[];
 }
 
 export interface ResumeComparison {
@@ -1159,4 +1267,351 @@ export interface PersonalDashboard {
     topCompanies: MarketCompanies['topCompanies'];
     notes: string[];
   };
+}
+
+/** V9.5: the learning plan. */
+export type LearningStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+export type LearningPriority = 'HIGH' | 'MEDIUM' | 'LOW';
+export type LearningResourceType = 'COURSE' | 'VIDEO' | 'ARTICLE' | 'DOCUMENTATION' | 'PROJECT' | 'OTHER';
+
+export interface LearningResource {
+  id: string;
+  title: string;
+  url: string;
+  type: LearningResourceType;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface LearningResourceInput {
+  title: string;
+  url: string;
+  type: LearningResourceType;
+  notes?: string;
+}
+
+export interface LearningItem {
+  id: string;
+  goalId?: string;
+  skillId?: number;
+  skill: string;
+  topic: string;
+  priority: LearningPriority;
+  status: LearningStatus;
+  progress: number;
+  targetDate?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  /** The skill's status on the career goal's roadmap, when the item serves one. */
+  roadmapStatus?: LearningStatus;
+  resources: LearningResource[];
+}
+
+export interface LearningItemInput {
+  skillId?: number;
+  skillName?: string;
+  topic: string;
+  priority?: LearningPriority;
+  targetDate?: string;
+  notes?: string;
+}
+
+export interface LearningItemUpdate {
+  topic: string;
+  priority: LearningPriority;
+  progress: number;
+  targetDate?: string;
+  notes?: string;
+}
+
+export interface LearningPrioritySkill {
+  rank: number;
+  skillId: number;
+  skill: string;
+  reason: string;
+  roadmapStatus?: LearningStatus;
+  suggestedPriority: LearningPriority;
+  itemId?: string;
+}
+
+export interface LearningPlan {
+  goalId?: string;
+  goalRole?: string;
+  priorities: LearningPrioritySkill[];
+  items: LearningItem[];
+  progress: {
+    items: number;
+    notStarted: number;
+    inProgress: number;
+    completed: number;
+    averageProgress?: number;
+    completedSkills: string[];
+  };
+  impact: {
+    goalRole?: string;
+    roadmapSkills?: number;
+    roadmapCompleted?: number;
+    roadmapPercentComplete?: number;
+    completedNotOnResume?: string[];
+    savedJobDemand?: { skill: string; savedJobs: number }[];
+    note?: string;
+  };
+  note?: string;
+}
+
+/** V9.7: the professional portfolio; section shapes are the resume builder's. */
+export interface PortfolioContent {
+  headline?: string;
+  about?: string;
+  skills: string[];
+  experience: NonNullable<BuilderContent['experience']>;
+  education: NonNullable<BuilderContent['education']>;
+  projects: NonNullable<BuilderContent['projects']>;
+  certifications: NonNullable<BuilderContent['certifications']>;
+  achievements: string[];
+  links: { label: string; url: string }[];
+}
+
+export interface PortfolioSections {
+  about: boolean;
+  skills: boolean;
+  experience: boolean;
+  education: boolean;
+  projects: boolean;
+  certifications: boolean;
+  achievements: boolean;
+  careerGoals: boolean;
+  links: boolean;
+}
+
+export interface Portfolio {
+  slug: string;
+  displayName: string;
+  visibility: 'PRIVATE' | 'PUBLIC';
+  publicPath: string;
+  content: PortfolioContent;
+  sections: PortfolioSections;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt?: string;
+}
+
+export interface PortfolioInput {
+  displayName: string;
+  slug?: string;
+  content: PortfolioContent;
+  sections: PortfolioSections;
+}
+
+/** What /profile/{slug} shows; hidden sections are absent. */
+export interface PublicProfile {
+  displayName: string;
+  headline?: string;
+  about?: string;
+  skills?: string[];
+  experience?: PortfolioContent['experience'];
+  education?: PortfolioContent['education'];
+  projects?: PortfolioContent['projects'];
+  certifications?: PortfolioContent['certifications'];
+  achievements?: string[];
+  careerGoals?: string[];
+  links?: PortfolioContent['links'];
+  updatedAt: string;
+}
+
+export interface PortfolioImport {
+  displayName: string;
+  content: PortfolioContent;
+  learnedSkills: string[];
+  source: 'BUILDER' | 'UPLOAD';
+}
+
+/** V9.8: the signed-in user's career analytics over a time range; absent figures could not be computed. */
+export type AnalyticsRange = '7D' | '30D' | '90D' | '1Y' | 'ALL';
+
+export interface UserAnalytics {
+  range: AnalyticsRange;
+  from?: string;
+  to: string;
+  bucket: 'DAY' | 'WEEK' | 'MONTH';
+  kpis: {
+    jobsSaved: number;
+    applications: number;
+    interviews: number;
+    offers: number;
+    averageMatch?: number;
+    interviewsCompleted: number;
+    averageInterviewScore?: number;
+    learningCompleted: number;
+  };
+  activity: { label: string; saved: number; applied: number; interviews: number; offers: number }[];
+  funnel: { applied: number; interviewed: number; offers: number; applyToInterviewRate?: number; interviewToOfferRate?: number };
+  statusBreakdown: Record<string, number>;
+  resumeTrend: { title: string; date: string; skills: number; averageMatch?: number; missingSkills: number; jobsCompared: number }[];
+  missingSkills: { skill: string; jobs: number }[];
+  interviews: {
+    completed: number;
+    averageScore?: number;
+    firstScore?: number;
+    latestScore?: number;
+    sessions: { date: string; jobTitle: string; interviewType?: string; overall?: number; technical?: number; behavioral?: number }[];
+  };
+  learning: {
+    items: number;
+    completed: number;
+    inProgress: number;
+    notStarted: number;
+    startedInRange: number;
+    completedInRange: number;
+    completionRate?: number;
+    targetSkills?: number;
+    targetSkillsCovered?: number;
+    activity: { label: string; started: number; completed: number }[];
+  };
+  portfolio: { exists: boolean; visibility?: 'PRIVATE' | 'PUBLIC'; createdAt?: string; updatedAt?: string; publishedAt?: string };
+  insights: string[];
+  notes: string[];
+}
+
+/** V9.12: first-time onboarding progress; answers live in the existing preferences, resumes and goals. */
+export type OnboardingStep = 'PROFILE' | 'RESUME' | 'PREFERENCES' | 'CAREER_GOAL' | 'DONE';
+
+export interface OnboardingStatus {
+  status: 'PENDING' | 'SKIPPED' | 'COMPLETED';
+  steps: { profile: boolean; resume: boolean; preferences: boolean; careerGoal: boolean };
+  completedSteps: number;
+  totalSteps: number;
+  nextStep: OnboardingStep;
+  profile: { targetRole?: string; yearsExperience?: number; skills?: string[] };
+  preferences: {
+    preferredLocation?: string;
+    workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+    minSalary?: number;
+    salaryCurrency?: string;
+    preferredCategories?: string[];
+  };
+  completedAt?: string;
+  skippedAt?: string;
+}
+
+export interface OnboardingProfileInput {
+  targetRole: string;
+  yearsExperience: number;
+  skills: string[];
+}
+
+export interface OnboardingPreferencesInput {
+  preferredLocation?: string;
+  workMode?: 'REMOTE' | 'HYBRID' | 'ON_SITE';
+  minSalary?: number;
+  salaryCurrency?: string;
+  preferredCategories?: string[];
+}
+
+/** V9.13: career progress, computed on the server from existing data. */
+export interface ReadinessComponent {
+  key: string;
+  label: string;
+  points: number;
+  maxPoints: number;
+  detail: string;
+  hint?: string;
+}
+
+export interface Achievement {
+  key: string;
+  title: string;
+  description: string;
+  category: string;
+  achieved: boolean;
+  achievedOn?: string;
+  progress?: string;
+}
+
+export interface Streak {
+  key: string;
+  label: string;
+  currentWeeks: number;
+  longestWeeks: number;
+  activeThisWeek: boolean;
+  lastActiveOn?: string;
+}
+
+export interface CareerProgress {
+  readiness: { score: number; level: string; components: ReadinessComponent[] };
+  progress: {
+    target?: {
+      role: string;
+      category: string;
+      percentComplete?: number;
+      skillsTotal: number;
+      skillsOnResume: number;
+      skillsCompleted: number;
+      skillsInProgress: number;
+      nextSkills: string[];
+    };
+    learning: { items: number; completed: number; inProgress: number; averageProgress?: number };
+    interviews: { completed: number; averageScore?: number; latestScore?: number };
+    applications: { saved: number; applied: number; interviewing: number; offers: number };
+  };
+  achievements: Achievement[];
+  nextMilestones: Achievement[];
+  streaks: Streak[];
+  notes: string[];
+}
+
+/** V9.14: the job-search workspace. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  filters: Record<string, string>;
+  createdAt: string;
+}
+
+export interface MatchHint {
+  percentage?: number;
+  matched: string[];
+  missing: string[];
+}
+
+export interface JobMatches {
+  matches: Record<string, MatchHint>;
+  note?: string;
+}
+
+export interface JobWorkspace {
+  recommended: PersonalizedFeedItem[];
+  saved: SavedJob[];
+  applied: SavedJob[];
+  followUps: SavedJob[];
+  recentlyViewed: { job: JobSummary; viewedAt: string }[];
+  hidden: { job: JobSummary; hiddenAt: string }[];
+  savedSearches: SavedSearch[];
+}
+
+/** V9.16: the notification center. */
+export interface AppNotification {
+  id: string;
+  type: 'JOB_MATCH' | 'FOLLOW_UP' | 'INTERVIEW' | 'LEARNING' | 'CAREER';
+  title: string;
+  body?: string;
+  link?: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+export interface NotificationInbox {
+  items: AppNotification[];
+  unreadCount: number;
+}
+
+export interface NotificationPreferences {
+  jobMatches: boolean;
+  followUps: boolean;
+  interviews: boolean;
+  learning: boolean;
+  career: boolean;
 }

@@ -112,6 +112,26 @@ without a source column take one from an optional `defaultSource=<name>` paramet
 
 Re-running the same file is safe: duplicate detection means nothing is loaded twice.
 
+**Connectors (V9.1).** Records come through a connector, and every connector's records then go through
+the same pipeline: Connector → Normalize → Validate → Deduplicate → Load (the V8.1/V8.2 processor,
+writer and source registry). The connector is the `connector` job parameter, else
+`JMIP_ETL_CONNECTOR` (`jmip.etl.connectors.active`), default `file`:
+
+| Connector | Reads | Feed type |
+|---|---|---|
+| `file` | the `inputFile` JSON or CSV, exactly as before | FILE_JSON / FILE_CSV |
+| `sample` | a bundled mock job-board feed (`connectors/sample-postings.json`) with its own record shape, mapped to the common raw record; never touches the network | SAMPLE |
+
+```
+java -jar etl/target/etl-0.0.1-SNAPSHOT.jar connector=sample
+```
+
+The sample feed's location (`JMIP_ETL_SAMPLE_RESOURCE`, `classpath:` or `file:` only) and its source code
+(`JMIP_ETL_SAMPLE_SOURCE`, default `sample-board`) are configurable. Each run records its connector with
+its metrics; ETL Monitoring and `/api/etl/runs` show it next to the feed, read, loaded, duplicate and
+rejected counts, status and duration. A new connector implements `JobSourceConnector` (a name, a reader
+over `RawJobRecord`s and a feed description) and is picked up automatically.
+
 To re-read postings already in the database after the rules or the skill dictionary change,
 run the reprocessing job instead — see [Job categories and text processing](#job-categories-and-text-processing-v4).
 
@@ -222,6 +242,24 @@ etl/data
 - [x] V8.7 — interview preparation: job- and resume-grounded questions (technical, role, resume, behavioral), practice sessions with AI-evaluated answers through the existing provider, graceful AI failure with retry, stored history and summaries, Interview Prep page
 - [x] V8.8 — career market trends: role and market demand, share, skills, salary, location and work-mode trends over past posting months (earlier vs recent halves, periods shown), gaps for months without data, and a labelled straight-line estimate only with 6+ months
 - [x] V8.9 — admin: ADMIN role (bootstrapped from JMIP_ADMIN_EMAILS, never at signup), admin-only /api/admin (overview, data quality, users, job-source switch), Admin Dashboard for admins
+- [x] V9.1 — multi-source connectors: JobSourceConnector with the existing file connector and a mock sample-board connector, selected by job parameter or JMIP_ETL_CONNECTOR, through the one common pipeline; each run records its connector (V22)
+- [x] V9.2 — personalized feed: GET /api/jobs/personalized ranks jobs by the V8.3 match plus goal, preferred role and skill, freshness and application-history signals with reasons; preference lists (V23); opt-in usePreferences search; For You page
+- [x] V9.3 — smart matching 2.0: required vs optional skills from the posting's wording, career-goal, preferred-role and preferred-skill dimensions, missing important skills and reasons, one engine for every match
+- [x] V9.4 — resume builder: built resumes as ordinary resume rows (V24) with sections, versions, duplicate, default and delete, two ATS-friendly templates, server-side PDF export, live preview and job optimisation check
+- [x] V9.5 — learning plan: learning items per skill prioritised by the career-goal roadmap, own resources, progress and target dates, completion synced to the roadmap, career impact without editing the resume, and a Learning & Skills page
+- [x] V9.6 — interview simulation: mock interviews by type (technical, behavioral, mixed), difficulty and question count, one question at a time with skip and end, communication score and a suggested approach per answer, and a final report with technical/behavioral scores and learning-plan recommendations (V26)
+- [x] V9.7 — professional portfolio: a profile built from your resume (builder sections reused), skills and career goals, with section visibility, private/public publishing, a unique changeable slug and a read-only public page at /profile/{slug} (V27)
+- [x] V9.8 — advanced user analytics: 7D/30D/90D/1Y/All history of job-search activity, the application funnel, resume-version match and skill-gap trends, interview scores and learning progress, with factual insights and no forecasts
+- [x] V9.9 — production reliability: analytics N+1 removed (37 → 24 statements), scheduled jobs run once across instances with job ids, durations and a metric, ETL single-run lock and transient-database retry, AI retry setting and status logging, graceful stop and OOM exit in Docker
+- [x] V9.10 — release validation: full test, build, migration and Docker smoke run (27 end-to-end checks); interview answer/re-evaluation AI calls now share the assistant's per-minute rate limit
+- [x] V9.11 — UI polish: accessible confirm dialogs (focus trap, Escape, focus restore) instead of browser confirms, toasts, section breadcrumb and page titles, skip link, show-password toggles, dashboard quick actions, two-column KPIs on phones, subtle motion that honours reduced-motion
+- [x] V9.12 — onboarding: after sign-up and email verification, Welcome → Career profile → Resume → Preferences → Career goal → personalized dashboard, each skippable and resumable; answers go to the existing match preferences, resume parser and career goals (V28 tracks progress; existing accounts marked complete)
+- [x] V9.13 — career progress: a transparent 100-point readiness score (profile, resume, skill gap, learning, interviews, job search, portfolio; each capped), progress toward the target role, one-time achievements with a dated timeline and weekly streaks, all computed server-side from existing data (GET /api/career-progress, page /progress)
+- [x] V9.14 — job search workspace: Best-match ordering and per-job match explanations from the existing skill match, not-interested (hidden) jobs left out of search and recommendations, saved searches, remembered last search, recently viewed, application priority, a Job Workspace page (follow-ups, recommended, saved, applied, viewed, hidden) and once-per-date follow-up reminder emails through the alert delivery (V29)
+- [x] V9.15 — showcase: a public landing page (/welcome; signed-out visits to / start there) with features, the workflow and how JMIP uses your data; dashboard next steps chosen from what is still incomplete in career readiness; navigation regrouped (Overview, Jobs, Resume & profile, Growth, Market insights; ETL under Admin) with Applications and Profile & Preferences entries
+- [x] V9.16 — notification center: job-alert matches, follow-up, interview, learning and achievement notifications derived from existing data (each once, by key), read/unread, mark all read, per-kind preferences, header bell with unread count (V30)
+- [x] V9.17 — Settings (/settings): profile name, job preferences and notification preferences (existing cards), public-profile privacy, theme, password change and account deletion (both need the current password; /api/account)
+- [x] V9.18 — Help & Guidance: searchable Help & FAQ page (/help, header ? link), ? tooltips explaining key metrics, dismissible first-visit tips on key pages, empty states with next-step links, and error panels with a troubleshooting link
 
 ## API
 
@@ -971,6 +1009,149 @@ password or hash, a session, a verification code, resume contents or a rejected 
 "Active users" means accounts that saved, uploaded or changed something in the last 30 days, because
 sign-ins are not recorded. Accounts cannot be deactivated: the user model has no active flag. There is
 no SQL or command execution. The Admin Dashboard page (`/admin`) appears in the menu for admins only.
+
+### Personalized feed (V9.2)
+
+`GET /api/jobs/personalized?limit=` (1 to 50, default 20) ranks the signed-in user's jobs. The score is the
+V8.3 match with the current resume and match preferences; on top of it fixed, listed signals order the
+feed: the active career goal's category (+10), a preferred role (+8), preferred skills (+3 each, up to +9),
+first seen in the last 7 days (+5), and a category the user applied to before (+4). Each job returns its
+match, priority, breakdown and reasons such as "Strong skill match (3 of 4 skills)", "Matches target role",
+"Preferred location", "Remote preference matched" or "Missing 2 required skills". Jobs already applied to,
+inactive jobs, and excluded companies or locations are left out; saved jobs stay, marked. It is a
+ranking aid, not a hiring or interview prediction.
+
+Preferences extend the V8.3 `/api/match-preferences` resource with `preferredCategories`, `preferredSkills`,
+`excludedCompanies` and `excludedLocations` (up to 20 each). `GET /api/jobs?usePreferences=true` fills an
+empty category and location from them and leaves out excluded companies; filters in the request win, and
+without the flag search is unchanged. Everything is the signed-in user's own. The For You page shows the feed
+with Save and Mark applied, and Job Explorer has a "Use my preferences" option.
+
+### Smart matching 2.0 (V9.3)
+
+The one matching engine (`JobMatchScorer`) now also weighs skills by importance and adds the career goal and
+the V9.2 preferences. Recommendations, the personalized feed, resume analysis and optimisation, interview
+preparation, application intelligence and alert digests all use it.
+
+- **Required vs optional skills.** Postings carry no required/optional flag, so the posting's own wording
+  decides: a listed skill mentioned only in a sentence or a section headed with "nice to have", "a plus",
+  "bonus", "preferred", "desirable", "optional" or "advantageous" is optional; every other listed skill,
+  including one the text never names, is required. The skill score is the share of required skills the
+  resume shows; optional ones are listed but never lower it (when all are optional, all count).
+- **New dimensions** (unavailable, and not counted, when their data is missing): career goal (weight 10:
+  same category as the active goal, or the share of the job's skills on its roadmap), preferred role
+  (5) and preferred skills (5), next to skills (60), experience (15), location (10), work mode (10) and
+  salary (5). The overall score is the weighted average of the available dimensions.
+- **Explanation.** The breakdown adds `careerGoal`, `role`, `preferredSkills`, `missingRequiredSkills`,
+  `optionalSkills` and `reasons` (each dimension's contribution in words). The feed's goal, role and skill
+  bonuses moved into the engine; only freshness and application history are still added there.
+- Experience still comes only from the years in match preferences; resumes do not state it reliably, so it
+  is unavailable rather than guessed. It is a compatibility measure, not a hiring prediction.
+
+### Resume builder (V9.4)
+
+Write a resume section by section (personal information, summary, skills, experience, education, projects,
+certifications, achievements and named extra sections), preview it live and export it as a PDF. A built
+resume is an ordinary resume row (`source = BUILDER`, migration V24): versions, rename (`PATCH /api/resumes/{id}`),
+default (`PUT /api/resumes/{id}/default`) and delete (`DELETE /api/resumes/{id}`) work as for uploads. On every
+save its text is regenerated from the sections and its skills extracted by the same matcher uploads use, so
+matching, recommendations, analysis, V8.6 optimisation and interview preparation work on it unchanged.
+Its sections are stored as JSON, encrypted at rest like extracted text; nothing is ever added or rewritten.
+
+| Method | Path | Result |
+|---|---|---|
+| POST | `/api/resumes/builder` | 201, a new built resume (`title`, `versionLabel`, optional `content`; blank starts from the account's name) |
+| GET | `/api/resumes/{id}/builder` | Its sections |
+| PUT | `/api/resumes/{id}/builder` | Saves the sections (validated: names, titles and sizes) |
+| POST | `/api/resumes/{id}/duplicate` | 201, a copy ("Copy of …", not the default) |
+| GET | `/api/resumes/{id}/builder/pdf` | The PDF, as a download named after the title |
+
+PDFs are drawn server-side with PDFBox in one of two ATS-friendly templates (Classic: serif, centred header,
+ruled headings; Modern: sans-serif, left-aligned, coloured headings): selectable single-column text, standard
+fonts, A4, entries kept on one page when they fit and headings kept with their first entry. Characters the
+standard fonts cannot print (such as emoji) become "?". The document carries only the user's content (its
+title is the person's name): no ids, export dates or product names. Only the owner can read, edit, duplicate,
+export or delete a built resume. The Resume Builder page lists built resumes and has section navigation, a
+live preview, template choice, unsaved-change tracking, validation, PDF export and a check against a saved job
+using V8.6 optimisation.
+
+### Learning plan (V9.5)
+
+The **Learning & Skills** page (`/learning`) turns the active career goal's roadmap (V7.4) into a learning plan.
+
+- **Priority skills** are the roadmap's own ranking (market demand plus skills you added to the goal, minus what your resume already shows); the top three are suggested HIGH, the next four MEDIUM, the rest LOW. Without an active goal you can still plan any skill by name.
+- **Items** have a skill, topic, priority, status (`NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`), progress 0–100, optional target date and notes. Completing an item sets progress to 100 and marks the skill COMPLETED on the goal's roadmap; reopening moves it back.
+- **Resources** are links you add yourself (title, http(s) URL, type `COURSE`, `VIDEO`, `ARTICLE`, `DOCUMENTATION`, `PROJECT` or `OTHER`, notes). JMIP does not suggest or fetch courses.
+- **Career impact** shows roadmap coverage, completed skills not yet on your resume and how many of your saved jobs ask for them. Job matches read the resume, so a learned skill counts once you add it there; JMIP never edits the resume for you.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/learning` | Priorities, items with resources, progress and impact |
+| POST | `/api/learning/items` | Plan a skill (`skillId` or `skillName`, `topic`, optional `priority`, `targetDate`, `notes`) |
+| PUT | `/api/learning/items/{id}` | Edit topic, priority, progress, target date, notes |
+| PATCH | `/api/learning/items/{id}/status` | Start, complete or reopen |
+| DELETE | `/api/learning/items/{id}` | Remove an item and its resources |
+| POST | `/api/learning/items/{id}/resources` | Add a resource |
+| PUT / DELETE | `/api/learning/resources/{id}` | Edit or remove a resource |
+
+Everything is the signed-in user's own: no endpoint takes a user id, and another user's items or resources return 404. Tables: `learning_items`, `learning_resources` (migration V25).
+
+### Interview simulation (V9.6)
+
+Interview Preparation (`/interview-prep`) now runs a mock interview on top of the V8.7 sessions.
+
+- **Setup:** a saved job, one of your processed resumes (default: the current one), type `TECHNICAL`, `BEHAVIORAL` or `MIXED`, difficulty `EASY`, `MEDIUM` or `HARD`, and 3–10 questions. Without a type or count the V8.7 mixed set is used. Questions are still generated without AI from the job's skills and terms and the resume's skills; HARD questions also ask for trade-offs and how success is measured.
+- **Flow:** one question at a time with a progress bar; submit an answer to get feedback, skip an unanswered question, or end the interview at any time.
+- **Evaluation** (prompt `interview-evaluation-v2.txt`): relevance, completeness, clarity, technical correctness where it applies and communication (1–5), strengths, improvements and a suggested approach that describes structure and never writes experience for you. Replies that are not the expected JSON, or scores out of range, are treated as unavailable feedback; the answer is kept.
+- **Report** (completed sessions): overall, technical (technical and resume questions) and behavioral (behavioral and role questions) scores, strong areas (4+), weak areas (under 3), topics to prepare (weak, skipped or unanswered) and matching items or priority skills from the V9.5 learning plan. The plan is only read; adding a skill to it is your own action.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/api/interviews` | Start: `jobId`, optional `resumeId`, `interviewType`, `difficulty`, `questionCount` |
+| POST | `/api/interviews/{id}/questions/{position}/skip` | Skip an unanswered question |
+| POST | `/api/interviews/{id}/complete` | End the interview; the detail view then has `report` |
+| GET | `/api/interviews` | History with job, type, difficulty, date, score and summary |
+
+Sessions stay owner-only (404 for other accounts). The AI sees only the job's title, company and skills, the resume's skill names, the question and the answer, and everything after `DATA:` is treated as data. Migration V26 adds the session type and difficulty and the question's communication score, suggested approach and skip time.
+
+### Professional portfolio (V9.7)
+
+The **Portfolio** page (`/portfolio`) builds a professional profile: display name, headline, about, skills, experience, education, projects, certifications, achievements and links (the V9.4 resume builder's section shapes), plus the target roles of your active career goals when you choose to show them.
+
+- **Import** fills the editor from one of your resumes: a built resume brings all its sections, an uploaded one its skills; skills completed in the V9.5 learning plan are offered separately. Nothing is saved until you save, and the resume's email and phone are never copied.
+- **Visibility:** the profile is `PRIVATE` until you publish it, and each section can be hidden. The live preview shows exactly what a visitor would see.
+- **Address:** a unique slug (3–50 lowercase letters, digits and hyphens, a few reserved words refused), made from your name on creation and changeable later; the old address then stops working. A taken slug answers 409.
+- **Public page:** `/profile/{slug}` (API `GET /api/public/profiles/{slug}`, no sign-in) shows a published profile's visible sections only. It never includes an email, phone, account id, applications, alerts, interviews or learning data; a private or unknown slug is the same 404.
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET / POST / PUT / DELETE | `/api/portfolio` | Your portfolio (404 until created); create, update, delete |
+| PATCH | `/api/portfolio/slug` | Change the public address |
+| POST | `/api/portfolio/publish`, `/api/portfolio/unpublish` | Make it public or private |
+| GET | `/api/portfolio/preview` | The public view, published or not |
+| GET | `/api/portfolio/import?resumeId=` | A draft from one of your resumes |
+| GET | `/api/public/profiles/{slug}` | A published profile (public) |
+
+Web addresses must be http or https; control and text-direction characters are removed, and the page renders everything as text. Table `portfolios` (migration V27).
+
+### My analytics (V9.8)
+
+**My Analytics** (`/my-analytics`, API `GET /api/dashboard/analytics?range=7D|30D|90D|1Y|ALL`, default 30D) shows how things changed over time; the V7.7 dashboard still shows where they stand. Everything is the signed-in user's own and computed from data JMIP already keeps; no table was added.
+
+- **Activity:** jobs saved, applied, moved to interview and to offer per day (7D, 30D), week (90D) or month (1Y), from the V8.5 status history.
+- **Funnel:** applications started in the range (first applied, interview or offer change) and how many reached an interview and an offer, with conversion rates when there is a base.
+- **Resume and skills:** each resume version from the range scored now against all saved jobs with the existing skill match (average match, skills, missing skills), and the skills the current resume lacks most often among the range's saved jobs. Past match scores are not stored, so this is labelled as computed now.
+- **Interviews and learning:** completed V9.6 interviews with overall, technical and behavioral scores; V9.5 learning items started and completed, completion rate and roadmap coverage when there is an active goal. Portfolio status and dates (V9.7).
+- **Insights** are fixed sentences filled from these figures (application volume against the previous equal period, funnel conversion, match change between resume versions, the most frequent missing skill, interview score first to latest, learning completion). A figure that cannot be computed is absent, never zero or estimated.
+
+### Production reliability (V9.9)
+
+- **Query counts** (`QueryCountIntegrationTest` prints them) now cover the V8/V9 endpoints too. My Analytics issued one query per completed interview and matched the current resume twice: 37 statements, now 24, independent of history size. The other newer endpoints were already bounded and now have ceilings.
+- **Scheduled jobs** (job alerts, skill snapshots, resume retention) go through `ScheduledJobRunner`: a PostgreSQL advisory lock per job means a second backend instance skips instead of repeating the work (or the alert emails); a crashed instance releases its lock with its connection. Each run logs `scheduled.job name=… status=COMPLETED|FAILED|SKIPPED durationMs=…` with a `jobId` in every line, records the `jmip.scheduled.job` timer, and never throws at the scheduler. Two scheduler threads; on shutdown a running job may finish (30 s).
+- **ETL:** one run at a time (advisory lock `jmip:etl`; a concurrent run fails before reading and can simply be started again). Transient database failures (deadlock, lock timeout, dropped connection) are retried up to 3 attempts with 0.5–5 s backoff; rejections are still skipped and never retried, and any other failure fails the step for a normal restart.
+- **AI:** `AI_MAX_RETRIES` (default 2) is passed to the SDK, which retries timeouts, 408/409/429 and 5xx with backoff and never other 4xx; failures log the provider status code, never the request.
+- **Docker:** `-XX:+ExitOnOutOfMemoryError` so an out-of-memory JVM restarts instead of limping; backend `stop_grace_period: 40s` (longer than the 20 s graceful shutdown) and `mem_limit: ${JMIP_BACKEND_MEMORY:-1g}`, which the heap percentage follows.
+- **Checked, unchanged:** no new index (every new query hits an existing one: status events by user and time, sessions by user, questions by session, learning items by user); no cache (market endpoints measure 3 statements and ~20 ms; user data is per user and changes often); resume processing stays in the upload request (bounded by the upload size limit, and the user needs the result), alert emails already run on the scheduler, AI calls keep their timeout.
 
 ### Backup and recovery
 

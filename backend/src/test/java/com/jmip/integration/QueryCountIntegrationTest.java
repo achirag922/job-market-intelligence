@@ -98,7 +98,8 @@ class QueryCountIntegrationTest {
 
     @BeforeEach
     void seed() {
-        jdbcTemplate.execute("TRUNCATE career_goal_skill_progress, career_goal_skills, career_goals, saved_jobs, resume_skills, "
+        jdbcTemplate.execute("TRUNCATE learning_resources, learning_items, interview_questions, interview_sessions, "
+                + "saved_job_status_events, portfolios, career_goal_skill_progress, career_goal_skills, career_goals, saved_jobs, resume_skills, "
                 + "resumes, job_skills, jobs, skills, companies, locations, users, skill_demand_snapshot RESTART IDENTITY CASCADE");
         UUID alice = UUID.randomUUID();
         jdbcTemplate.update("INSERT INTO users (id, full_name, email, password_hash, role, email_verified_at) "
@@ -142,6 +143,39 @@ class QueryCountIntegrationTest {
                             + "VALUES (?, ?, ?, ?, now(), CASE WHEN ? = 'SAVED' THEN NULL ELSE now() END, now())",
                     UUID.randomUUID(), alice, job, state, state);
         }
+        // V9.9: the V8/V9 data the newer endpoints read: status history, 10 completed interviews with
+        // 3 evaluated answers each, 8 learning items with 2 resources each, and a portfolio.
+        jdbcTemplate.update("INSERT INTO saved_job_status_events (saved_job_id, user_id, status, changed_at) "
+                + "SELECT id, user_id, status, now() - interval '3 days' FROM saved_jobs");
+        for (int i = 0; i < 10; i++) {
+            UUID session = UUID.randomUUID();
+            jdbcTemplate.update("""
+                    INSERT INTO interview_sessions (id, user_id, job_id, job_title, company_name, status, summary, average_score,
+                                                    created_at, completed_at)
+                    VALUES (?, ?, 1, 'Engineer 1', 'Company 2', 'COMPLETED', 'Done', 3.0, now() - make_interval(days => ?), now() - make_interval(days => ?))
+                    """, session, alice, i + 1, i);
+            for (int q = 1; q <= 3; q++) {
+                jdbcTemplate.update("""
+                        INSERT INTO interview_questions (session_id, position, category, question, answer, answered_at,
+                                                         feedback_status, relevance, completeness, clarity, evaluated_at)
+                        VALUES (?, ?, ?, 'Question', 'Answer', now(), 'EVALUATED', 3, 3, 3, now())
+                        """, session, q, q == 3 ? "BEHAVIORAL" : "TECHNICAL");
+            }
+        }
+        for (int i = 1; i <= 8; i++) {
+            UUID item = UUID.randomUUID();
+            jdbcTemplate.update("""
+                    INSERT INTO learning_items (id, user_id, goal_id, skill_id, skill_name, topic, priority, status, progress,
+                                                created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 'Topic', 'MEDIUM', 'NOT_STARTED', 0, now(), now())
+                    """, item, alice, goalId, i + 3, "Skill " + (i + 3));
+            for (int r = 0; r < 2; r++) {
+                jdbcTemplate.update("INSERT INTO learning_resources (id, item_id, user_id, title, url, type, created_at) "
+                        + "VALUES (?, ?, ?, 'Docs', 'https://example.invalid/docs', 'DOCUMENTATION', now())", UUID.randomUUID(), item, alice);
+            }
+        }
+        jdbcTemplate.update("INSERT INTO portfolios (user_id, slug, display_name, visibility, content, sections, created_at, updated_at, published_at) "
+                + "VALUES (?, 'alice', 'Alice', 'PUBLIC', '{}'::jsonb, '{}'::jsonb, now(), now(), now())", alice);
     }
 
     @Test
@@ -157,6 +191,14 @@ class QueryCountIntegrationTest {
         endpoints.put("roadmap", "/api/career-goals/" + goalId + "/roadmap");
         endpoints.put("market skills", "/api/market/skills?category=Backend Developer");
         endpoints.put("dashboard", "/api/dashboard");
+        endpoints.put("personalized feed", "/api/jobs/personalized?size=20");
+        endpoints.put("applications", "/api/applications");
+        endpoints.put("application insights", "/api/applications/insights");
+        endpoints.put("interviews (10)", "/api/interviews");
+        endpoints.put("learning plan (8)", "/api/learning");
+        endpoints.put("my analytics, all", "/api/dashboard/analytics?range=ALL");
+        endpoints.put("portfolio", "/api/portfolio");
+        endpoints.put("public profile", "/api/public/profiles/alice");
 
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (Map.Entry<String, String> endpoint : endpoints.entrySet()) {
@@ -175,5 +217,15 @@ class QueryCountIntegrationTest {
         assertThat(counts.get("recommendations")).isLessThanOrEqualTo(8);
         // 38 before V7.9 (a user lookup per service call, market window read per view), 25 after.
         assertThat(counts.get("dashboard")).isLessThanOrEqualTo(28);
+        // V9.9: the V8/V9 endpoints. My analytics was 37 (a question query per completed interview,
+        // the current resume matched twice) and is 24; none of these grows with the rows it reads.
+        assertThat(counts.get("my analytics, all")).isLessThanOrEqualTo(28);
+        assertThat(counts.get("interviews (10)")).isLessThanOrEqualTo(4);
+        assertThat(counts.get("learning plan (8)")).isLessThanOrEqualTo(14);
+        assertThat(counts.get("personalized feed")).isLessThanOrEqualTo(16);
+        assertThat(counts.get("applications")).isLessThanOrEqualTo(9);
+        assertThat(counts.get("application insights")).isLessThanOrEqualTo(10);
+        assertThat(counts.get("portfolio")).isLessThanOrEqualTo(3);
+        assertThat(counts.get("public profile")).isLessThanOrEqualTo(3);
     }
 }

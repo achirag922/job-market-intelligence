@@ -40,41 +40,42 @@ public class JobSourceRegistry implements JobSourceStatus {
     private volatile Long runId;
     private volatile String feedName;
     private volatile String feedType;
+    /** V9.1: the connector the run reads through; null for the reprocessing job. */
+    private volatile String connector;
 
     public JobSourceRegistry(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Starts a run. Only the file name is kept, never its path. */
-    public void beginRun(long executionId, String inputFile) {
+    /**
+     * Starts a run. V9.1: the connector describes its own feed (a file's name, never its path).
+     *
+     * @param connector null for a run that reads no source (reprocessing)
+     */
+    public void beginRun(long executionId, String connector, String feedName, String feedType) {
         activeByCode.clear();
         loaded.clear();
         seenAgain.clear();
         runId = executionId;
-        if (inputFile == null || inputFile.isBlank()) {
-            feedName = null;
-            feedType = null;
-        } else {
-            Path file = Path.of(inputFile).getFileName();
-            feedName = file == null ? null : file.toString();
-            feedType = typeOf(feedName);
-        }
+        this.connector = connector;
+        this.feedName = feedName;
+        this.feedType = feedType;
     }
 
-    static String typeOf(String fileName) {
-        String name = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
-        if (name.endsWith(".json")) {
-            return "FILE_JSON";
-        }
-        return name.endsWith(".csv") || name.endsWith(".tsv") ? "FILE_CSV" : "OTHER";
+    /** A new source's type in job_sources: the file formats as they are, any other feed OTHER. */
+    static String sourceTypeOf(String feedType) {
+        return "FILE_JSON".equals(feedType) || "FILE_CSV".equals(feedType) || "API".equals(feedType) ? feedType : "OTHER";
+    }
+
+    public String connector() {
+        return connector;
     }
 
     /** Registers the source on first sight in this run, and says whether it is active. */
     @Override
     public boolean isActive(String sourceCode) {
         return activeByCode.computeIfAbsent(sourceCode, code -> {
-            Boolean active = jdbcTemplate.queryForObject(UPSERT_SOURCE, Boolean.class, code, code,
-                    feedType == null ? "OTHER" : feedType);
+            Boolean active = jdbcTemplate.queryForObject(UPSERT_SOURCE, Boolean.class, code, code, sourceTypeOf(feedType));
             return Boolean.TRUE.equals(active);
         });
     }

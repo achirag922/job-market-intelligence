@@ -1,0 +1,96 @@
+{
+  "board": "Sample Board (mock data for the V9.1 connector; not a real source)",
+  "postings": [
+    {
+      "id": "SB-1001",
+      "position": "Senior Java Engineer",
+      "employer": "Northwind Labs",
+      "city": "Berlin",
+      "country": "Germany",
+      "workplace": "remote",
+      "summary": "Build Java and Spring Boot microservices on Kubernetes with PostgreSQL.",
+      "contract": "full-time",
+      "experience": "5+ years",
+      "compensation": "70000-85000 EUR",
+      "published": "2026-09-01",
+      "link": "https://sample-board.invalid/jobs/SB-1001"
+    },
+    {
+      "id": "SB-1002",
+      "position": "Data Analyst",
+      "employer": "Contoso Retail",
+      "city": "Madrid",
+      "country": "Spain",
+      "workplace": "hybrid",
+      "summary": "Analyse sales data with SQL and Python and build dashboards.",
+      "contract": "contract",
+      "experience": "2-4 years",
+      "published": "2026-09-03",
+      "link": "https://sample-board.invalid/jobs/SB-1002"
+    },
+    {
+      "id": "SB-1003",
+      "position": "Frontend Developer",
+      "employer": "Fabrikam",
+      "city": "Paris",
+      "country": "France",
+      "workplace": "on-site",
+      "summary": "Develop React and TypeScript interfaces for a design system.",
+      "contract": "full-time",
+      "experience": "3-5 years",
+      "compensation": "45000-55000 EUR",
+      "published": "2026-09-05",
+      "link": "https://sample-board.invalid/jobs/SB-1003"
+    },
+    {
+      "id": "SB-1004",
+      "position": "DevOps Engineer",
+      "employer": "Northwind Labs",
+      "city": "Warsaw",
+      "country": "Poland",
+      "workplace": "remote",
+      "summary": "Run Docker and Kubernetes platforms and CI pipelines on AWS.",
+      "contract": "full-time",
+      "published": "2026-09-07",
+      "link": "https://sample-board.invalid/jobs/SB-1004"
+    },
+    {
+      "id": "SB-1005",
+      "position": "QA Engineer",
+      "employer": "",
+      "city": "Lisbon",
+      "country": "Portugal",
+      "summary": "Automate tests for web applications.",
+      "published": "2026-09-08",
+      "link": "https://sample-board.invalid/jobs/SB-1005"
+    },
+    {
+      "id": "SB-1001",
+      "position": "Senior Java Engineer (reposted)",
+      "employer": "Northwind Labs",
+      "city": "Berlin",
+      "country": "Germany",
+      "workplace": "remote",
+      "summary": "Build Java and Spring Boot microservices.",
+      "contract": "full-time",
+      "published": "2026-09-09",
+      "link": "https://sample-board.invalid/jobs/SB-1001-repost"
+    },
+    {
+      "id": "SB-1006",
+      "position": "Backend Developer",
+      "employer": "Tailspin Toys",
+      "city": "Austin",
+      "region": "Texas",
+      "country": "United States",
+      "workplace": "hybrid",
+      "summary": "Build REST APIs in Java with Spring Boot and PostgreSQL.",
+      "contract": "full-time",
+      "experience": "2-4 years",
+      "compensation": "110000-130000 USD",
+      "published": "2026-09-10",
+      "closes": "2099-12-31",
+      "link": "https://sample-board.invalid/jobs/SB-1006"
+    }
+  ]
+}

@@ -93,6 +93,8 @@ public class SecurityConfig {
                                 "/api/auth/verify-email", "/api/auth/resend-verification")
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").permitAll()
+                        // V9.7: published profiles are public and read-only; unpublished ones answer 404.
+                        .requestMatchers(HttpMethod.GET, "/api/public/profiles/*").permitAll()
                         // Container and load-balancer health checks carry no session.
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info")
                         .permitAll()
