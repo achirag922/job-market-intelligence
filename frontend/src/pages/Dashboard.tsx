@@ -60,6 +60,7 @@ export function Dashboard() {
         <Link className="quick-action" to="/interview-prep">Practise an interview</Link>
         <Link className="quick-action" to="/learning">Plan my learning</Link>
         <Link className="quick-action" to="/my-analytics">My analytics</Link>
+        <Link className="quick-action" to="/progress">My progress</Link>
       </nav>
 
       <AsyncPanel state={overview} skeleton="cards">

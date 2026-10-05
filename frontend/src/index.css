@@ -3741,3 +3741,176 @@ button.danger:hover:not(:disabled) {
     flex: 1 1 auto;
   }
 }
+
+/* ---------------------------------------------------------------- V9.13 career progress */
+.progress-hero {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: center;
+}
+
+.score-ring {
+  position: relative;
+  width: 180px;
+  height: 180px;
+  margin: 0 auto;
+}
+
+.score-ring svg {
+  transform: rotate(-90deg);
+}
+
+.score-ring-track {
+  stroke: var(--surface-3);
+}
+
+.score-ring-value {
+  stroke: var(--brand);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 700ms ease-out;
+}
+
+.score-ring-label {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.score-ring-number {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.score-components {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.score-component-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.progress-bar {
+  height: 8px;
+  margin: 4px 0;
+  border-radius: var(--radius-pill);
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+  transition: width 600ms ease-out;
+}
+
+.progress-bar-fill.is-full {
+  background: var(--success);
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.streak-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.achievement {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-1);
+  animation: page-enter 220ms ease-out;
+}
+
+.achievement.is-earned {
+  border-color: var(--success);
+  background: var(--success-subtle);
+}
+
+.achievement.is-locked {
+  opacity: 0.75;
+}
+
+.achievement-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.achievement.is-earned .achievement-badge {
+  background: var(--success);
+  color: #fff;
+}
+
+.progress-timeline {
+  margin: 0;
+  padding: 0 0 0 18px;
+  border-left: 2px solid var(--border);
+  list-style: none;
+}
+
+.progress-timeline li {
+  position: relative;
+  padding: 0 0 14px 8px;
+}
+
+.progress-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -25px;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+@media (max-width: 720px) {
+  .progress-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .score-ring-value,
+  .progress-bar-fill {
+    transition: none;
+  }
+
+  .achievement {
+    animation: none;
+  }
+}

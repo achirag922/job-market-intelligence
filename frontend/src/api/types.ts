@@ -1504,3 +1504,55 @@ export interface OnboardingPreferencesInput {
   salaryCurrency?: string;
   preferredCategories?: string[];
 }
+
+/** V9.13: career progress, computed on the server from existing data. */
+export interface ReadinessComponent {
+  key: string;
+  label: string;
+  points: number;
+  maxPoints: number;
+  detail: string;
+  hint?: string;
+}
+
+export interface Achievement {
+  key: string;
+  title: string;
+  description: string;
+  category: string;
+  achieved: boolean;
+  achievedOn?: string;
+  progress?: string;
+}
+
+export interface Streak {
+  key: string;
+  label: string;
+  currentWeeks: number;
+  longestWeeks: number;
+  activeThisWeek: boolean;
+  lastActiveOn?: string;
+}
+
+export interface CareerProgress {
+  readiness: { score: number; level: string; components: ReadinessComponent[] };
+  progress: {
+    target?: {
+      role: string;
+      category: string;
+      percentComplete?: number;
+      skillsTotal: number;
+      skillsOnResume: number;
+      skillsCompleted: number;
+      skillsInProgress: number;
+      nextSkills: string[];
+    };
+    learning: { items: number; completed: number; inProgress: number; averageProgress?: number };
+    interviews: { completed: number; averageScore?: number; latestScore?: number };
+    applications: { saved: number; applied: number; interviewing: number; offers: number };
+  };
+  achievements: Achievement[];
+  nextMilestones: Achievement[];
+  streaks: Streak[];
+  notes: string[];
+}

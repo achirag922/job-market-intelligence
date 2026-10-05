@@ -60,6 +60,7 @@ const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
     items: [
       { to: '/for-you', label: 'For You', icon: IconSpark },
       { to: '/my-analytics', label: 'My Analytics', icon: IconTrend },
+      { to: '/progress', label: 'Career Progress', icon: IconFlag },
       { to: '/resume', label: 'Resume Intelligence', icon: IconFile },
       { to: '/resume-builder', label: 'Resume Builder', icon: IconFile },
       { to: '/saved-jobs', label: 'Saved Jobs', icon: IconBookmark },
@@ -103,6 +104,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/for-you', 'For You'],
   ['/my-analytics', 'My Analytics'],
   ['/onboarding', 'Get started'],
+  ['/progress', 'Career Progress'],
   ['/resume-builder', 'Resume Builder'],
   ['/career-goals', 'Career Goals'],
   ['/learning', 'Learning & Skills'],

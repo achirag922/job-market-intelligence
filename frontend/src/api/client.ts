@@ -41,6 +41,7 @@ import type {
   Roadmap,
   LearningItem,
   Portfolio,
+  CareerProgress,
   OnboardingPreferencesInput,
   OnboardingProfileInput,
   OnboardingStatus,
@@ -627,6 +628,9 @@ export const api = {
 
   setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
     send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.13: readiness score, progress, achievements and streaks, all computed on the server. */
+  careerProgress: () => request<CareerProgress>('/api/career-progress'),
 
   /** V9.12: first-time onboarding; the resume and goal steps use the existing resume and career-goal calls. */
   onboarding: () => request<OnboardingStatus>('/api/onboarding'),
