@@ -36,6 +36,9 @@
         <postgresql.version>42.7.13</postgresql.version>
         <!-- Pulled in by the Anthropic SDK's HTTP client; 5.4 is a compatible minor of 5.3. -->
         <httpcore5.version>5.4.4</httpcore5.version>
+        <!-- Jackson 2.21.7: CVE-2026-89407, CVE-2026-89425 (jackson-core) and CVE-2026-68497,
+             CVE-2026-91776, CVE-2026-91777 (jackson-databind), all DoS; a patch release of 2.21. -->
+        <jackson-bom.version>2.21.7</jackson-bom.version>
     </properties>
 
     <dependencyManagement>
