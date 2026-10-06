@@ -30,6 +30,15 @@ Store both files off the host, encrypted at rest, with a retention period that m
 resume-retention policy (`JMIP_RESUME_RETENTION`): a backup keeps deleted resumes until the backup
 itself expires.
 
+## Managed cloud database (V10.2)
+
+- Enable automated daily backups with point-in-time recovery (7+ days) on the managed PostgreSQL, and a
+  deletion protection flag; the `pg_dump` above stays useful for portable, off-platform copies.
+- Snapshot the resume volume (or the bucket, once an object store is added) on the same schedule as the database,
+  so files and rows agree; keep `JMIP_RESUME_ENCRYPTION_KEY` in the secret store, backed up separately.
+- Restores need no special steps: Flyway validates the schema at start-up and applies only newer migrations.
+- Test a restore into a separate database regularly and run the checks below.
+
 ## Restore
 
 ```bash

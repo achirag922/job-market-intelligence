@@ -39,7 +39,11 @@ files in the repository. `.env.example` is the template.
 |---|---|---|
 | `JMIP_DB_SSL_MODE` | `prefer` | `require` or `verify-full` for managed databases (RDS, Cloud SQL, Azure) |
 | `JMIP_DB_PORT` | `5432` | |
-| `JMIP_DB_POOL_SIZE` / `JMIP_DB_CONNECTION_TIMEOUT` | `10` / `10000` ms | Keep pool × instances below the database connection limit |
+| `JMIP_DB_POOL_SIZE` / `JMIP_DB_POOL_MIN_IDLE` / `JMIP_DB_CONNECTION_TIMEOUT` | `10` / `2` / `10000` ms | Keep pool × instances (+ ETL pool) below the database connection limit |
+| `JMIP_DB_IDLE_TIMEOUT` / `JMIP_DB_MAX_LIFETIME` / `JMIP_DB_KEEPALIVE_TIME` | `600000` / `1500000` / `300000` ms | Max lifetime below the platform's idle-connection cut-off |
+| `JMIP_DB_LEAK_DETECTION_THRESHOLD` | `0` (off) | e.g. `60000` to log connections held too long |
+| `JMIP_FLYWAY_CONNECT_RETRIES` | `10` | Retries while a managed database is still starting |
+| `JMIP_RESUME_MAX_FILE_SIZE` | `5MB` | Upload limit, applied by the servlet container and the upload validation alike |
 | `JMIP_APP_URL` | `http://localhost:5173` | Public URL used in emails (alerts, follow-ups) |
 | `JMIP_MAIL_HOST` / `JMIP_MAIL_PORT` / `JMIP_MAIL_FROM` | Gmail / 587 / — | SMTP with STARTTLS |
 | `JMIP_VERIFICATION_DELIVERY` / `JMIP_ALERTS_DELIVERY` | `smtp` / `log` | Set alerts to `smtp` to send alert and follow-up emails |
@@ -84,8 +88,20 @@ not a long-running service; `EtlRunLock` stops overlapping runs.
   and that a fresh database migrates, validates and has nothing pending.
 - With several API instances, Flyway's own lock serialises the migration; the first instance migrates.
 - Hibernate only validates the schema (`ddl-auto: validate`).
+- V10.2 connection pool (prod): named pools `jmip-backend` / `jmip-etl` (also the PostgreSQL `application_name`,
+  visible in `pg_stat_activity`), minimum idle 2, connections retired after 25 min and kept alive every 5 min,
+  TCP keepalive on. The ETL uses its own pool of 5 (`JMIP_ETL_DB_POOL_SIZE`).
+- V10.2 Flyway (prod): validate on migrate, migration naming validated, no out-of-order or baseline, connect retries.
+  An edited, missing or misnamed migration stops the start instead of being applied.
 
 ## File storage
+
+V10.2: uploads are checked for size (`JMIP_RESUME_MAX_FILE_SIZE`), declared type (PDF only) and the PDF signature
+before anything is stored; the stored name is generated from the resume id, never the upload name, and the display
+name is sanitised. On Linux the store creates its directory and files owner-only (700/600), the image creates
+`/app/data/resumes` as 700, and the backend refuses to start when `JMIP_RESUME_DIR` is not a writable directory.
+Stored files are never served: no API endpoint or nginx location exposes the volume, and resume data is returned only to its owner.
+
 
 Resume files go through `ResumeFileStore` (V10.1). `LocalResumeFileStore` writes to `JMIP_RESUME_DIR`,
 which in the cloud must be a persistent volume shared by all API instances (or run one instance).

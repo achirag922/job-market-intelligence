@@ -15,7 +15,7 @@ RUN --mount=type=cache,target=/root/.m2 \
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 RUN groupadd --system jmip && useradd --system --gid jmip --home-dir /app jmip \
-    && mkdir -p /app/data/resumes && chown -R jmip:jmip /app
+    && mkdir -p /app/data/resumes && chown -R jmip:jmip /app && chmod 700 /app/data/resumes
 COPY --from=build /workspace/backend/target/backend-*.jar /app/app.jar
 USER jmip
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError" \

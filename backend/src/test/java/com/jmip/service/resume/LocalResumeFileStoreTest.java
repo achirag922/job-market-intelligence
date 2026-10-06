@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /** V10.1: the local resume file store behind the storage abstraction. */
 class LocalResumeFileStoreTest {
@@ -37,5 +38,27 @@ class LocalResumeFileStoreTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThatThrownBy(() -> store.delete("../../etc/passwd")).isInstanceOf(IllegalStateException.class);
         assertThat(root.resolve("escape.pdf")).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("V10.2: start-up check creates the directory, and refuses a path that is not a directory")
+    void verifyReady() throws Exception {
+        LocalResumeFileStore store = new LocalResumeFileStore(root.resolve("new/resumes"));
+        store.verifyReady();
+        assertThat(root.resolve("new/resumes")).isDirectory();
+
+        Path file = Files.writeString(root.resolve("not-a-directory"), "x");
+        assertThatThrownBy(() -> new LocalResumeFileStore(file).verifyReady())
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("JMIP_RESUME_DIR");
+    }
+
+    @Test
+    @DisplayName("V10.2: on POSIX file systems new directories and files are owner-only")
+    void ownerOnlyPermissions() throws Exception {
+        assumeTrue(LocalResumeFileStore.posix(), "POSIX permissions are not available on this file system");
+        LocalResumeFileStore store = new LocalResumeFileStore(root.resolve("private"));
+        store.write("a.pdf", new byte[] {1});
+        assertThat(Files.getPosixFilePermissions(root.resolve("private"))).isEqualTo(LocalResumeFileStore.OWNER_DIRECTORY);
+        assertThat(Files.getPosixFilePermissions(root.resolve("private/a.pdf"))).isEqualTo(LocalResumeFileStore.OWNER_FILE);
     }
 }

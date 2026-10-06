@@ -166,4 +166,33 @@ class ProductionProfileIntegrationTest {
         connection.disconnect();
         return new Response(status, cookies);
     }
+
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
+    @Autowired
+    private org.flywaydb.core.Flyway flyway;
+
+    @Test
+    @DisplayName("V10.2: named, tuned connection pool; strict forward-only Flyway with nothing pending; storage ready")
+    void productionDatabaseAndStorage() {
+        com.zaxxer.hikari.HikariDataSource pool = (com.zaxxer.hikari.HikariDataSource) dataSource;
+        assertThat(pool.getPoolName()).isEqualTo("jmip-backend");
+        assertThat(pool.getMaximumPoolSize()).isEqualTo(10);
+        assertThat(pool.getMinimumIdle()).isEqualTo(2);
+        assertThat(pool.getMaxLifetime()).isEqualTo(1_500_000);
+        assertThat(pool.getKeepaliveTime()).isEqualTo(300_000);
+        assertThat(jdbcTemplate.queryForObject("SELECT current_setting('application_name')", String.class))
+                .isEqualTo("jmip-backend");
+
+        var config = flyway.getConfiguration();
+        assertThat(config.isCleanDisabled()).isTrue();
+        assertThat(config.isValidateOnMigrate()).isTrue();
+        assertThat(config.isValidateMigrationNaming()).isTrue();
+        assertThat(config.isOutOfOrder()).isFalse();
+        assertThat(config.getConnectRetries()).isEqualTo(10);
+        assertThat(flyway.info().pending()).isEmpty();
+
+        assertThat(java.nio.file.Path.of("target/prod-profile-resumes")).isDirectory();
+    }
 }

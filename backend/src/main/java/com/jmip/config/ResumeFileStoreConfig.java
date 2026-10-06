@@ -17,7 +17,12 @@ public class ResumeFileStoreConfig {
 
     @Bean
     ResumeFileStore resumeFileStore(ResumeStorageProperties properties) {
-        return create(properties);
+        ResumeFileStore store = create(properties);
+        // V10.2: an unwritable or missing volume fails the start, not the first upload.
+        if (store instanceof LocalResumeFileStore local) {
+            local.verifyReady();
+        }
+        return store;
     }
 
     static ResumeFileStore create(ResumeStorageProperties properties) {

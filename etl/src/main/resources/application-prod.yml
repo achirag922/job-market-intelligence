@@ -7,9 +7,27 @@ spring:
     url: jdbc:postgresql://${JMIP_DB_HOST}:${JMIP_DB_PORT:5432}/${JMIP_DB_NAME}?sslmode=${JMIP_DB_SSL_MODE:prefer}
     username: ${JMIP_DB_USERNAME}
     password: ${JMIP_DB_PASSWORD}
+    hikari:
+      # V10.2: a small named pool; the batch job is single-threaded.
+      pool-name: jmip-etl
+      maximum-pool-size: ${JMIP_ETL_DB_POOL_SIZE:5}
+      connection-timeout: ${JMIP_DB_CONNECTION_TIMEOUT:10000}
+      max-lifetime: ${JMIP_DB_MAX_LIFETIME:1500000}
+      keepalive-time: ${JMIP_DB_KEEPALIVE_TIME:300000}
+      data-source-properties:
+        ApplicationName: jmip-etl
+        tcpKeepAlive: true
 
   flyway:
+    # Migrations only ever move forward in production.
     clean-disabled: true
+    # V10.2: refuse to start on an edited, missing or misnamed migration instead of guessing.
+    validate-on-migrate: true
+    validate-migration-naming: true
+    out-of-order: false
+    baseline-on-migrate: false
+    # A managed database may still be starting when the container does.
+    connect-retries: ${JMIP_FLYWAY_CONNECT_RETRIES:10}
 
 logging:
   # V7.8: one JSON object per line (Elastic Common Schema), with the request or job id from

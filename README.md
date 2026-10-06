@@ -261,6 +261,7 @@ etl/data
 - [x] V9.17 — Settings (/settings): profile name, job preferences and notification preferences (existing cards), public-profile privacy, theme, password change and account deletion (both need the current password; /api/account)
 - [x] V9.18 — Help & Guidance: searchable Help & FAQ page (/help, header ? link), ? tooltips explaining key metrics, dismissible first-visit tips on key pages, empty states with next-step links, and error panels with a troubleshooting link
 - [x] V10.1 — Cloud readiness: ResumeFileStore storage abstraction (JMIP_RESUME_STORAGE_TYPE, local volume), JMIP_DB_SSL_MODE for managed PostgreSQL, Flyway migration verification test, frontend /healthz health check, production env-var guide in docs/PRODUCTION_DEPLOYMENT.md
+- [x] V10.2 — Production database & file storage: named, tuned Hikari pools (backend/ETL, env-configurable), strict forward-only Flyway with connect retries, owner-only resume files with a start-up writability check, managed-backup guidance
 
 ## API
 

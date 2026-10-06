@@ -12,13 +12,33 @@ spring:
     username: ${JMIP_DB_USERNAME}
     password: ${JMIP_DB_PASSWORD}
     hikari:
+      # V10.2: named, so database-side views (pg_stat_activity) and metrics show which service holds a connection.
+      pool-name: jmip-backend
+      # Keep pool size x instances (+ the ETL pool) below the database's connection limit.
       maximum-pool-size: ${JMIP_DB_POOL_SIZE:10}
+      minimum-idle: ${JMIP_DB_POOL_MIN_IDLE:2}
       # Fail a request after this long waiting for a connection instead of hanging.
       connection-timeout: ${JMIP_DB_CONNECTION_TIMEOUT:10000}
+      idle-timeout: ${JMIP_DB_IDLE_TIMEOUT:600000}
+      # Retire connections before cloud load balancers or NAT gateways silently drop idle ones (often 30-60 min).
+      max-lifetime: ${JMIP_DB_MAX_LIFETIME:1500000}
+      keepalive-time: ${JMIP_DB_KEEPALIVE_TIME:300000}
+      # 0 = off. Set e.g. 60000 to log a stack trace for a connection held longer than that.
+      leak-detection-threshold: ${JMIP_DB_LEAK_DETECTION_THRESHOLD:0}
+      data-source-properties:
+        ApplicationName: jmip-backend
+        tcpKeepAlive: true
 
   flyway:
     # Migrations only ever move forward in production.
     clean-disabled: true
+    # V10.2: refuse to start on an edited, missing or misnamed migration instead of guessing.
+    validate-on-migrate: true
+    validate-migration-naming: true
+    out-of-order: false
+    baseline-on-migrate: false
+    # A managed database may still be starting when the container does.
+    connect-retries: ${JMIP_FLYWAY_CONNECT_RETRIES:10}
 
   lifecycle:
     timeout-per-shutdown-phase: 20s
