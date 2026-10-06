@@ -34,10 +34,19 @@ public record AiProperties(
         @DefaultValue("claude-opus-5") String model,
         Double temperature,
         @DefaultValue("8192") int maxTokens,
-        @DefaultValue("30s") Duration timeout) {
+        @DefaultValue("30s") Duration timeout,
+        // V9.9: SDK retries for timeouts, 408/409/429 and 5xx, with backoff; never for other 4xx.
+        @DefaultValue("2") int maxRetries) {
 
     /** True when a real provider call could be made. Never logs or exposes the key. */
     public boolean hasApiKey() {
         return apiKey != null && !apiKey.isBlank();
+    }
+
+    /** The generated record toString would print the key; this one never does. */
+    @Override
+    public String toString() {
+        return "AiProperties[provider=%s, apiKey=%s, model=%s, temperature=%s, maxTokens=%d, timeout=%s]"
+                .formatted(provider, hasApiKey() ? "****" : "<unset>", model, temperature, maxTokens, timeout);
     }
 }

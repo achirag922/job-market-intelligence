@@ -13,6 +13,8 @@ import type {
 import { AsyncPanel } from '../components/AsyncPanel';
 import { BarChartPanel, LineChartPanel, PieChartPanel } from '../components/charts';
 import { Card, PageHeader, StatCard } from '../components/ui';
+import { OnboardingPrompt } from '../components/OnboardingPrompt';
+import { NextSteps } from '../components/NextSteps';
 import { useApi } from '../hooks/useApi';
 
 const CHART_SIZE = 8;
@@ -47,6 +49,12 @@ export function Dashboard() {
         title="Job Market Intelligence"
         description="Understand job demand, skills, companies and career trends across the dataset."
       />
+
+      {/* V9.12: new accounts start onboarding; a skipped one is offered here until it is finished. */}
+      <OnboardingPrompt />
+
+      {/* V9.15: only the actions still worth doing, from the career readiness score. */}
+      <NextSteps />
 
       <AsyncPanel state={overview} skeleton="cards">
         {(data) => (

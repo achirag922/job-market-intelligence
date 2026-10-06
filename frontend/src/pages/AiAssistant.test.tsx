@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api/client';
 import type { AssistantResponse } from '../api/types';
@@ -252,5 +252,62 @@ describe('AiAssistant', () => {
     await waitFor(() => expect(askAssistant).toHaveBeenCalledWith(
       expect.objectContaining({ question: 'Which cities have the most Java jobs?' }),
     ));
+  });
+});
+
+describe('AiAssistant career copilot (V7.6)', () => {
+  beforeEach(() => {
+    askAssistant.mockReset();
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('offers questions about the user and sends the one picked', async () => {
+    askAssistant.mockResolvedValue(reply({ intent: 'APPLICATION_PROGRESS' }));
+    render(<AiAssistant />);
+
+    const about = screen.getByRole('list', { name: 'Questions about you' });
+    fireEvent.click(within(about).getByRole('button', { name: 'Show me my application progress.' }));
+
+    await screen.findByText('Java appears most often in this dataset.');
+    expect(askAssistant).toHaveBeenCalledWith(expect.objectContaining({ question: 'Show me my application progress.' }));
+    expect(screen.getByRole('list', { name: 'Questions about the job market' })).toBeTruthy();
+  });
+
+  it('asks about the job handed over in the URL until told to stop', async () => {
+    window.history.replaceState({}, '', '/assistant?jobId=7');
+    askAssistant.mockResolvedValue(reply({ intent: 'RESUME_MATCH' }));
+    render(<AiAssistant />);
+
+    expect(screen.getByText('Asking about job #7')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'How does my resume compare with this job?' }));
+    await screen.findByText('Java appears most often in this dataset.');
+    expect(askAssistant).toHaveBeenLastCalledWith(expect.objectContaining({ jobId: 7 }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Stop using this job' }));
+    expect(screen.queryByText('Asking about job #7')).toBeNull();
+    await ask('Which jobs match my resume?');
+    await vi.waitFor(() => expect(askAssistant).toHaveBeenCalledTimes(2));
+    expect(askAssistant.mock.calls[1][0].jobId).toBeUndefined();
+  });
+
+  it('shows a personal table answer with its note', async () => {
+    askAssistant.mockResolvedValue(reply({
+      intent: 'SAVED_JOB_PRIORITY',
+      answer: 'Your open saved jobs, by how much of each posting your resume covers.',
+      data: [{ jobTitle: 'Platform Engineer', companyName: 'Acme Systems', status: 'APPLIED', matchPercentage: 50 }],
+      visualization: { type: 'TABLE', title: 'Your open saved jobs by skill match', points: [] },
+      note: 'This is information to help you decide, not a recommendation or a prediction.',
+    }));
+    render(<AiAssistant />);
+
+    await ask('Which saved jobs should I prioritize?');
+
+    expect(await screen.findByText('Your open saved jobs, by how much of each posting your resume covers.')).toBeTruthy();
+    expect(screen.getByText(/not a recommendation or a prediction/)).toBeTruthy();
+    expect(screen.getByText('Platform Engineer')).toBeTruthy();
   });
 });

@@ -1,5 +1,6 @@
 package com.jmip.service.resume;
 
+import com.jmip.common.exception.InvalidRequestException;
 import com.jmip.common.exception.ResourceNotFoundException;
 import com.jmip.dto.SkillResponse;
 import com.jmip.dto.resume.ResumeResponse;
@@ -7,6 +8,7 @@ import com.jmip.dto.resume.ResumeSkillsResponse;
 import com.jmip.entity.Resume;
 import com.jmip.entity.Skill;
 import com.jmip.mapper.JobMapper;
+import com.jmip.service.auth.CurrentUser;
 import com.jmip.repository.ResumeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,6 +38,9 @@ import java.util.UUID;
 @Service
 public class ResumeService {
 
+    /** V7.3: enough versions for real use, and a bound on what one account can store. */
+    static final int MAX_RESUMES_PER_ACCOUNT = 20;
+
     private static final Logger log = LoggerFactory.getLogger(ResumeService.class);
 
     private final ResumeRepository resumeRepository;
@@ -44,6 +50,7 @@ public class ResumeService {
     private final ResumeSkillMatcher skillMatcher;
     private final JobMapper jobMapper;
     private final Clock clock;
+    private final CurrentUser currentUser;
 
     public ResumeService(ResumeRepository resumeRepository,
                          ResumeStorageService storageService,
@@ -51,7 +58,8 @@ public class ResumeService {
                          ResumeTextNormalizer textNormalizer,
                          ResumeSkillMatcher skillMatcher,
                          JobMapper jobMapper,
-                         Clock clock) {
+                         Clock clock,
+                         CurrentUser currentUser) {
         this.resumeRepository = resumeRepository;
         this.storageService = storageService;
         this.textExtractor = textExtractor;
@@ -59,6 +67,7 @@ public class ResumeService {
         this.skillMatcher = skillMatcher;
         this.jobMapper = jobMapper;
         this.clock = clock;
+        this.currentUser = currentUser;
     }
 
     /**
@@ -70,6 +79,12 @@ public class ResumeService {
      */
     @Transactional
     public ResumeResponse upload(MultipartFile file) {
+        // The owner comes from the session, before anything is stored.
+        UUID ownerId = currentUser.requireId();
+        if (resumeRepository.countByUserId(ownerId) >= MAX_RESUMES_PER_ACCOUNT) {
+            throw new InvalidRequestException("You can keep at most " + MAX_RESUMES_PER_ACCOUNT
+                    + " resumes; delete one to upload another");
+        }
         storageService.validate(file);
 
         UUID resumeId = UUID.randomUUID();
@@ -78,12 +93,17 @@ public class ResumeService {
 
         Resume resume = new Resume(
                 resumeId,
+                ownerId,
                 sanitizeDisplayName(file.getOriginalFilename()),
                 storedFileName,
                 file.getContentType(),
                 content.length,
                 OffsetDateTime.now(clock));
         resume.markProcessing();
+        // V7.3: an account's first resume is its default until the owner picks another.
+        if (!resumeRepository.existsByUserIdAndDefaultResumeTrue(ownerId)) {
+            resume.setDefault(true, resume.getUploadedAt());
+        }
 
         try {
             String text = textNormalizer.normalize(textExtractor.extractText(content));
@@ -98,6 +118,104 @@ public class ResumeService {
         }
 
         return toResponse(resumeRepository.save(resume));
+    }
+
+    /**
+     * Deletes the caller's resume and everything derived from it: the row, its extracted
+     * text, its skill links (cascaded by the schema), and the stored file. Matches,
+     * recommendations and career insights are computed on request and never stored, so
+     * nothing else remains.
+     *
+     * @throws ResourceNotFoundException for someone else's, a missing or an already deleted
+     *                                   resume — the same answer in every case
+     */
+    @Transactional
+    public void delete(UUID id) {
+        Resume resume = requireResume(id);
+        remove(resume);
+        log.info("Resume {} deleted by its owner", id);
+    }
+
+    /**
+     * The retention sweep: deletes up to {@code batchSize} resumes uploaded before
+     * {@code cutoff}, oldest first.
+     *
+     * @return how many were deleted
+     */
+    @Transactional
+    public int deleteUploadedBefore(OffsetDateTime cutoff, int batchSize) {
+        List<Resume> expired = resumeRepository.findByUploadedAtBeforeOrderByUploadedAtAsc(cutoff,
+                org.springframework.data.domain.PageRequest.of(0, batchSize));
+        expired.forEach(this::remove);
+        return expired.size();
+    }
+
+    /** Row now; file once the delete has committed, so a rollback never loses a file it still needs. */
+    private void remove(Resume resume) {
+        String storedFileName = resume.getStoredFileName();
+        resumeRepository.delete(resume);
+        resumeRepository.flush();
+        // V7.3: deleting the default hands it to the newest remaining resume, if any.
+        if (resume.isDefaultResume() && resume.getUserId() != null) {
+            resumeRepository.findFirstByUserIdOrderByUploadedAtDesc(resume.getUserId())
+                    .ifPresent(next -> next.setDefault(true, OffsetDateTime.now(clock)));
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            storageService.deleteQuietly(storedFileName);
+                        }
+                    });
+        } else {
+            storageService.deleteQuietly(storedFileName);
+        }
+    }
+
+    // ------------------------------------------------------------------ V7.3 versions
+
+    /** The caller's resumes, newest first. */
+    @Transactional(readOnly = true)
+    public List<ResumeResponse> list() {
+        return resumeRepository.findByUserIdOrderByUploadedAtDesc(currentUser.requireId()).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    /**
+     * The resume analyses run against: the default if it is processed, otherwise the newest
+     * processed one (V7.6 copilot, V7.7 dashboard). Empty when none is processed.
+     */
+    public static Optional<ResumeResponse> currentProcessed(List<ResumeResponse> resumes) {
+        List<ResumeResponse> completed = resumes.stream()
+                .filter(resume -> "COMPLETED".equals(resume.status()))
+                .toList();
+        return completed.stream().filter(ResumeResponse::isDefault).findFirst()
+                .or(() -> completed.stream().findFirst());
+    }
+
+    /** {@link #currentProcessed(List)} for the signed-in user. */
+    @Transactional(readOnly = true)
+    public Optional<UUID> currentProcessedResumeId() {
+        return currentProcessed(list()).map(ResumeResponse::id);
+    }
+
+    /** Renames or relabels one of the caller's resumes. */
+    @Transactional
+    public ResumeResponse describe(UUID id, String title, String versionLabel) {
+        Resume resume = requireResume(id);
+        resume.describe(title, versionLabel, OffsetDateTime.now(clock));
+        return toResponse(resume);
+    }
+
+    /** Makes one of the caller's resumes the default; the previous default stops being one. */
+    @Transactional
+    public ResumeResponse makeDefault(UUID id) {
+        Resume resume = requireResume(id);
+        resumeRepository.clearDefault(resume.getUserId());
+        resume.setDefault(true, OffsetDateTime.now(clock));
+        return toResponse(resume);
     }
 
     @Transactional(readOnly = true)
@@ -126,8 +244,17 @@ public class ResumeService {
         return resume;
     }
 
+    /**
+     * The one way any feature reaches a resume — fetch, skills, match, recommendations,
+     * career insights, the assistant — so ownership is enforced here, once.
+     *
+     * <p>Someone else's resume gets exactly the same 404 as one that does not exist: a
+     * different answer would confirm that the id is real.
+     */
     private Resume requireResume(UUID id) {
+        UUID ownerId = currentUser.requireId();
         return resumeRepository.findWithSkillsById(id)
+                .filter(resume -> resume.isOwnedBy(ownerId))
                 .orElseThrow(() -> ResourceNotFoundException.of("Resume", id));
     }
 
@@ -143,7 +270,7 @@ public class ResumeService {
         };
     }
 
-    private ResumeResponse toResponse(Resume resume) {
+    ResumeResponse toResponse(Resume resume) {
         return new ResumeResponse(
                 resume.getId(),
                 resume.getOriginalFileName(),
@@ -152,7 +279,12 @@ public class ResumeService {
                 sortedSkills(resume.getSkills()),
                 resume.getErrorMessage(),
                 resume.getUploadedAt(),
-                resume.getProcessedAt());
+                resume.getProcessedAt(),
+                resume.getTitle(),
+                resume.getVersionLabel(),
+                resume.isDefaultResume(),
+                resume.getUpdatedAt(),
+                resume.getSource());
     }
 
     private List<SkillResponse> sortedSkills(Set<Skill> skills) {
@@ -179,7 +311,9 @@ public class ResumeService {
         if (originalFilename == null || originalFilename.isBlank()) {
             return "resume.pdf";
         }
-        String name = originalFilename.replaceAll("[\\\\/\\u0000]", "_").strip();
+        // Path separators and control characters (NUL, CR, LF, ...) are replaced, so the
+        // display name can neither look like a path nor forge lines wherever it is shown.
+        String name = originalFilename.replaceAll("[\\\\/\\p{Cntrl}]", "_").strip();
         return name.length() > 255 ? name.substring(name.length() - 255) : name;
     }
 }

@@ -1,0 +1,138 @@
+# JMIP in containers: PostgreSQL, the Spring Boot API, the React frontend and the ETL.
+#
+#   cp .env.example .env            # then set JMIP_DB_PASSWORD
+#   docker compose up -d --build    # postgres, backend, frontend
+#   docker compose --profile etl run --rm etl   # load the sample dataset
+#
+# Open http://localhost:3000. Values come from .env; nothing secret is written here.
+
+name: jmip
+
+x-database-env: &database-env
+  JMIP_DB_HOST: postgres
+  JMIP_DB_PORT: 5432
+  JMIP_DB_NAME: ${JMIP_DB_NAME:-jmip}
+  JMIP_DB_USERNAME: ${JMIP_DB_USERNAME:-jmip}
+  JMIP_DB_PASSWORD: ${JMIP_DB_PASSWORD:?Set JMIP_DB_PASSWORD in .env}
+  # prod removes the local-development fallbacks (see application-prod.yml).
+  SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+  JMIP_LOG_LEVEL: ${JMIP_LOG_LEVEL:-INFO}
+  # V7.8: JSON log lines (ecs, logstash or gelf) for backend and ETL.
+  JMIP_LOG_FORMAT: ${JMIP_LOG_FORMAT:-ecs}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${JMIP_DB_NAME:-jmip}
+      POSTGRES_USER: ${JMIP_DB_USERNAME:-jmip}
+      POSTGRES_PASSWORD: ${JMIP_DB_PASSWORD:?Set JMIP_DB_PASSWORD in .env}
+    volumes:
+      # PostgreSQL 18 images keep data under /var/lib/postgresql/18/docker.
+      - postgres-data:/var/lib/postgresql
+    ports:
+      # Host port differs from a local PostgreSQL on 5433; bound to localhost only.
+      - "127.0.0.1:${JMIP_DB_EXPOSED_PORT:-5434}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *database-env
+      # The browser reaches the API through the frontend's origin; the direct port is
+      # listed too so the API can be called from a locally run Vite dev server.
+      JMIP_CORS_ALLOWED_ORIGINS: ${JMIP_CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      AI_PROVIDER: ${AI_PROVIDER:-anthropic}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-claude-opus-5}
+      AI_TIMEOUT: ${AI_TIMEOUT:-30s}
+      JMIP_DB_POOL_SIZE: ${JMIP_DB_POOL_SIZE:-10}
+      JMIP_RATE_LIMIT_ENABLED: ${JMIP_RATE_LIMIT_ENABLED:-true}
+      JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE: ${JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE:-20}
+      JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE: ${JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE:-10}
+      JMIP_ASSISTANT_MAX_BODY_BYTES: ${JMIP_ASSISTANT_MAX_BODY_BYTES:-16384}
+      JMIP_PASSWORD_BCRYPT_STRENGTH: ${JMIP_PASSWORD_BCRYPT_STRENGTH:-12}
+      JMIP_RATE_LIMIT_AUTH_PER_MINUTE: ${JMIP_RATE_LIMIT_AUTH_PER_MINUTE:-10}
+      # Session cookie: HttpOnly always; Secure defaults on under prod (browsers accept it on localhost).
+      JMIP_SESSION_COOKIE_SECURE: ${JMIP_SESSION_COOKIE_SECURE:-true}
+      JMIP_SESSION_COOKIE_SAME_SITE: ${JMIP_SESSION_COOKIE_SAME_SITE:-strict}
+      JMIP_SESSION_TIMEOUT: ${JMIP_SESSION_TIMEOUT:-8h}
+      # Email verification codes. "log" prints them to this container's log for local use;
+      # set smtp plus the JMIP_MAIL_* values (Gmail: an app password) for real delivery.
+      JMIP_VERIFICATION_DELIVERY: ${JMIP_VERIFICATION_DELIVERY:-log}
+      JMIP_OTP_SECRET: ${JMIP_OTP_SECRET:?Set JMIP_OTP_SECRET in .env (a long random string)}
+      # Resume files and extracted text are encrypted with this (base64, 32 bytes).
+      JMIP_RESUME_ENCRYPTION_KEY: ${JMIP_RESUME_ENCRYPTION_KEY:?Set JMIP_RESUME_ENCRYPTION_KEY in .env (openssl rand -base64 32)}
+      JMIP_RESUME_RETENTION: ${JMIP_RESUME_RETENTION:-0s}
+      # V7.8: /actuator/metrics over HTTP Basic; empty keeps it closed. nginx never proxies it.
+      JMIP_METRICS_USERNAME: ${JMIP_METRICS_USERNAME:-metrics}
+      JMIP_METRICS_PASSWORD: ${JMIP_METRICS_PASSWORD:-}
+      JMIP_SLOW_REQUEST_THRESHOLD: ${JMIP_SLOW_REQUEST_THRESHOLD:-1s}
+      JMIP_MAIL_HOST: ${JMIP_MAIL_HOST:-smtp.gmail.com}
+      JMIP_MAIL_PORT: ${JMIP_MAIL_PORT:-587}
+      JMIP_MAIL_USERNAME: ${JMIP_MAIL_USERNAME:-}
+      JMIP_MAIL_PASSWORD: ${JMIP_MAIL_PASSWORD:-}
+      JMIP_MAIL_FROM: ${JMIP_MAIL_FROM:-}
+      # V8.4: job alert digests. "log" (the default) never emails; smtp uses the JMIP_MAIL_* values.
+      # V8.9: verified accounts with these emails become ADMIN at startup (comma-separated).
+      JMIP_ADMIN_EMAILS: ${JMIP_ADMIN_EMAILS:-}
+      JMIP_ALERTS_ENABLED: ${JMIP_ALERTS_ENABLED:-true}
+      JMIP_ALERTS_DELIVERY: ${JMIP_ALERTS_DELIVERY:-log}
+      JMIP_ALERTS_CRON: ${JMIP_ALERTS_CRON:-0 0 * * * *}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+      JMIP_APP_URL: ${JMIP_APP_URL:-http://localhost:3000}
+    volumes:
+      - resume-data:/app/data/resumes
+    ports:
+      # Localhost only: browsers use the nginx proxy on the frontend port. Exposing the API
+      # directly would also let a client set its own X-Forwarded-For and dodge the rate limit.
+      - "127.0.0.1:${JMIP_BACKEND_PORT:-8080}:8080"
+    # Flyway runs on startup; if the database is still settling the process exits and is retried.
+    restart: on-failure:5
+    # V9.9: longer than the application's own 20 s graceful shutdown, so docker stop never cuts
+    # off in-flight requests or a running scheduled job. The JVM sizes its heap from this limit.
+    stop_grace_period: 40s
+    mem_limit: ${JMIP_BACKEND_MEMORY:-1g}
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${JMIP_PUBLIC_URL:-http://localhost:3000}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${JMIP_FRONTEND_PORT:-3000}:80"
+    restart: unless-stopped
+
+  etl:
+    build:
+      context: .
+      dockerfile: etl/Dockerfile
+    profiles: ["etl"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *database-env
+      JMIP_ETL_JOB: ${JMIP_ETL_JOB:-ingestJobPostings}
+      # V9.1: "file" reads inputFile (below) as before; "sample" reads the bundled mock job-board feed.
+      JMIP_ETL_CONNECTOR: ${JMIP_ETL_CONNECTOR:-file}
+    volumes:
+      - ./etl/data/raw:/data/raw:ro
+    command: ["inputFile=/data/raw/${JMIP_ETL_INPUT_FILE:-synthetic-job-postings-v1.json}"]
+
+volumes:
+  postgres-data:
+  resume-data:

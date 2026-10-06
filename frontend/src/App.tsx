@@ -1,38 +1,113 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppShell } from './components/AppShell';
 import { AiAssistant } from './pages/AiAssistant';
+import { EtlMonitoring } from './pages/EtlMonitoring';
+import { Login } from './pages/Login';
+import { RequireAuth } from './auth/RequireAuth';
+import { Signup } from './pages/Signup';
+import { VerifyEmail } from './pages/VerifyEmail';
 import { CompanyAnalytics } from './pages/CompanyAnalytics';
 import { Dashboard } from './pages/Dashboard';
 import { JobDetails } from './pages/JobDetails';
+import { CareerGoals } from './pages/CareerGoals';
+import { JobAlerts } from './pages/JobAlerts';
+import { MarketIntelligence } from './pages/MarketIntelligence';
+import { MyCareer } from './pages/MyCareer';
+import { SavedJobs } from './pages/SavedJobs';
+import { SavedJobsProvider } from './saved/SavedJobs';
 import { JobExplorer } from './pages/JobExplorer';
 import { JobIntelligence } from './pages/JobIntelligence';
 import { LocationAnalytics } from './pages/LocationAnalytics';
 import { ResumeIntelligence } from './pages/ResumeIntelligence';
 import { SkillAnalytics } from './pages/SkillAnalytics';
 import { SkillTrends } from './pages/SkillTrends';
+import { InterviewPrep } from './pages/InterviewPrep';
+import { AdminDashboard } from './pages/AdminDashboard';
+import { RequireAdmin } from './auth/RequireAdmin';
+import { ForYou } from './pages/ForYou';
+import { ResumeBuilder } from './pages/ResumeBuilder';
+import { Learning } from './pages/Learning';
+import { PortfolioPage } from './pages/Portfolio';
+import { MyAnalytics } from './pages/MyAnalytics';
+import { Onboarding } from './pages/Onboarding';
+import { CareerProgressPage } from './pages/CareerProgress';
+import { JobWorkspacePage } from './pages/JobWorkspace';
+import { Landing } from './pages/Landing';
+import { NotificationsPage } from './pages/Notifications';
+import { SettingsPage } from './pages/Settings';
+import { HelpPage } from './pages/Help';
+import { PublicProfilePage } from './pages/PublicProfile';
 
 /**
- * Routes, inside the application shell.
+ * Routes. The authentication screens stand alone; everything else sits in the application shell.
  *
  * <p>The shell owns the header, the sidebar and the page frame, so a page is only its own
  * content — no page repeats the chrome, and there is one place to change it.
  */
 export default function App() {
   return (
-    <AppShell>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/jobs" element={<JobExplorer />} />
-        <Route path="/jobs/:id" element={<JobDetails />} />
-        <Route path="/analytics/categories" element={<JobIntelligence />} />
-        <Route path="/analytics/skills" element={<SkillAnalytics />} />
-        <Route path="/analytics/trends" element={<SkillTrends />} />
-        <Route path="/analytics/companies" element={<CompanyAnalytics />} />
-        <Route path="/analytics/locations" element={<LocationAnalytics />} />
-        <Route path="/resume" element={<ResumeIntelligence />} />
-        <Route path="/assistant" element={<AiAssistant />} />
+    <Routes>
+      {/* Sign up, Login and Verify are full-screen, outside the application shell. */}
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/verify-email" element={<VerifyEmail />} />
+      {/* V9.15: what JMIP is, for visitors; signed-out visits to / start here. */}
+      <Route path="/welcome" element={<Landing />} />
+      {/* V9.7: a published profile, readable without signing in. */}
+      <Route path="/profile/:slug" element={<PublicProfilePage />} />
+
+      <Route element={<ShellLayout />}>
+        {/* V6.10.3: everything inside the shell needs a signed-in user. */}
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/my-career" element={<MyCareer />} />
+          <Route path="/my-analytics" element={<MyAnalytics />} />
+          <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/progress" element={<CareerProgressPage />} />
+          <Route path="/workspace" element={<JobWorkspacePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="/jobs" element={<JobExplorer />} />
+          <Route path="/jobs/:id" element={<JobDetails />} />
+          <Route path="/analytics/categories" element={<JobIntelligence />} />
+          <Route path="/analytics/skills" element={<SkillAnalytics />} />
+          <Route path="/analytics/trends" element={<SkillTrends />} />
+          <Route path="/analytics/companies" element={<CompanyAnalytics />} />
+          <Route path="/analytics/locations" element={<LocationAnalytics />} />
+          <Route path="/market" element={<MarketIntelligence />} />
+          <Route path="/resume" element={<ResumeIntelligence />} />
+          <Route path="/alerts" element={<JobAlerts />} />
+          <Route path="/career-goals" element={<CareerGoals />} />
+          <Route path="/saved-jobs" element={<SavedJobs />} />
+          <Route path="/for-you" element={<ForYou />} />
+          <Route path="/resume-builder" element={<ResumeBuilder />} />
+          <Route path="/learning" element={<Learning />} />
+          <Route path="/portfolio" element={<PortfolioPage />} />
+          <Route path="/assistant" element={<AiAssistant />} />
+          <Route path="/interview-prep" element={<InterviewPrep />} />
+          <Route path="/etl" element={<EtlMonitoring />} />
+          <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AppShell>
+      </Route>
+    </Routes>
+  );
+}
+
+function ShellLayout() {
+  // V7.8: a page that fails to render is contained; moving to another page resets it.
+  const { pathname } = useLocation();
+  // Saved jobs are shared by every page in the shell; signing out leaves the shell, which
+  // drops them, so the next account never sees the last one's.
+  return (
+    <SavedJobsProvider>
+      <AppShell>
+        <ErrorBoundary key={pathname}>
+          <Outlet />
+        </ErrorBoundary>
+      </AppShell>
+    </SavedJobsProvider>
   );
 }

@@ -2,10 +2,12 @@ package com.jmip.integration;
 
 import com.jmip.ai.AiClient;
 import com.jmip.testsupport.ScriptedAiClient;
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -52,6 +54,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @TestPropertySource(properties = "jmip.assistant.min-salary-sample=2")
+// V6.10.3: the API requires a signed-in USER; these tests exercise behaviour behind that.
+@WithMockUser(roles = "USER")
 class AssistantIntegrationTest {
 
     @Container
@@ -86,8 +90,12 @@ class AssistantIntegrationTest {
     @Autowired
     private ScriptedAiClient ai;
 
+    /** The account behind @WithMockUser; resumes seeded here belong to it. */
+    private java.util.UUID ownerId;
+
     @BeforeEach
     void seed() {
+        ownerId = MockUserAccount.ensure(jdbcTemplate);
         ai.respondingWithIntent("""
                 {"intent":"GENERAL_JOB_MARKET","entities":{},"timeRange":null,"limit":null}""")
           .respondingWithAnswer("A description of the retrieved rows.");
@@ -306,6 +314,9 @@ class AssistantIntegrationTest {
     @Test
     @DisplayName("a resume question with no resume asks for one")
     void requiresResume() throws Exception {
+        // Since V7.6 a question without a selected resume uses the account's default one, so
+        // this account must have none at all (other tests here upload resumes for it).
+        jdbcTemplate.update("DELETE FROM resumes WHERE user_id = ?", ownerId);
         intent("SKILL_GAP", """
                 {"jobCategory":"Data Engineer"}""");
 
@@ -380,8 +391,10 @@ class AssistantIntegrationTest {
     void listsSupportedIntents() throws Exception {
         mockMvc.perform(get("/api/assistant/intents"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(12))
+                // 12 market intents plus the 8 V7.6 career-copilot intents.
+                .andExpect(jsonPath("$.length()").value(20))
                 .andExpect(content().string(containsString("SKILL_DEMAND")))
+                .andExpect(content().string(containsString("APPLICATION_PROGRESS")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(containsString("UNSUPPORTED"))));
     }
 

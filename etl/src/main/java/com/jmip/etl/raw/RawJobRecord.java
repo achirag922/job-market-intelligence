@@ -24,5 +24,26 @@ public record RawJobRecord(
         String salary,
         String postedDate,
         String source,
-        String sourceUrl) {
+        String sourceUrl,
+        // V8.1: the source's own id for the posting, when it gives one.
+        String sourceJobId,
+        // V8.2: when the source says the posting closes, and whether it says it is open or closed.
+        String expiresAt,
+        String status) {
+
+    /** V8.1 shape: a source id but no status. */
+    public RawJobRecord(String title, String company, String companyIndustry, String companyWebsite, String location,
+                        String description, String employmentType, String experience, String salary, String postedDate,
+                        String source, String sourceUrl, String sourceJobId) {
+        this(title, company, companyIndustry, companyWebsite, location, description, employmentType, experience,
+                salary, postedDate, source, sourceUrl, sourceJobId, null, null);
+    }
+
+    /** Records from sources that give no posting id. */
+    public RawJobRecord(String title, String company, String companyIndustry, String companyWebsite, String location,
+                        String description, String employmentType, String experience, String salary, String postedDate,
+                        String source, String sourceUrl) {
+        this(title, company, companyIndustry, companyWebsite, location, description, employmentType, experience,
+                salary, postedDate, source, sourceUrl, null, null, null);
+    }
 }

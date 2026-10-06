@@ -13,7 +13,10 @@ import com.jmip.service.analytics.TitleAnalyticsService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.test.context.support.WithMockUser;
+import com.jmip.config.SecurityConfig;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,6 +34,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AnalyticsController.class)
+// Slices do not load @Configuration classes; without this the default security chain would lock every endpoint.
+@Import(SecurityConfig.class)
+// V6.10.3: the API requires a signed-in USER; these tests exercise behaviour behind that.
+@WithMockUser(roles = "USER")
 class AnalyticsControllerTest {
 
     @Autowired

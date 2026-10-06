@@ -3,6 +3,7 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
   Line,
   LineChart,
   Pie,
@@ -167,6 +168,59 @@ export function LineChartPanel({
             dot={{ r: 3, strokeWidth: 0, fill: 'var(--series-1)' }}
             activeDot={{ r: 5 }}
           />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ multi-series line chart */
+
+export interface SeriesSpec {
+  key: string;
+  label: string;
+}
+
+interface MultiLineProps {
+  /** One row per point on the x axis: `label` plus a number (or null for "no data") per series key. */
+  rows: ({ label: string } & Record<string, number | string | null>)[];
+  series: SeriesSpec[];
+  height?: number;
+  emptyMessage?: string;
+}
+
+/**
+ * V7.5: several values over the same time axis, e.g. postings per work mode per month.
+ * Series take the palette slots in order, and a legend names them, so colour is never the
+ * only way to tell them apart. A null value is drawn as a gap, not as zero.
+ */
+export function MultiLineChartPanel({ rows, series, height = 280, emptyMessage = 'There is no history to chart yet.' }: MultiLineProps) {
+  if (rows.length === 0 || series.length === 0) {
+    return <EmptyState title="No history" message={emptyMessage} />;
+  }
+
+  return (
+    <div className="chart-frame">
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={rows} margin={{ top: 8, right: 24, bottom: 4, left: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
+          <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={56} />
+          <Tooltip formatter={(value) => (typeof value === 'number' ? value.toLocaleString('en-US') : value)} />
+          <Legend wrapperStyle={{ fontSize: 12 }} />
+          {series.slice(0, SERIES_SLOTS.length).map((spec, index) => (
+            <Line
+              key={spec.key}
+              type="monotone"
+              dataKey={spec.key}
+              name={spec.label}
+              stroke={SERIES_SLOTS[index]}
+              strokeWidth={2}
+              connectNulls={false}
+              dot={{ r: 3, strokeWidth: 0, fill: SERIES_SLOTS[index] }}
+              activeDot={{ r: 5 }}
+            />
+          ))}
         </LineChart>
       </ResponsiveContainer>
     </div>

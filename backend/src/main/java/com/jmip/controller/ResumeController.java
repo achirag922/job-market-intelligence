@@ -1,16 +1,23 @@
 package com.jmip.controller;
 
+import com.jmip.dto.resume.CareerInsightsResponse;
 import com.jmip.dto.resume.ResumeMatchResponse;
+import com.jmip.dto.resume.ResumeRecommendationResponse;
 import com.jmip.dto.resume.ResumeResponse;
 import com.jmip.dto.resume.ResumeSkillsResponse;
+import com.jmip.service.resume.CareerInsightsService;
 import com.jmip.service.resume.ResumeMatchService;
 import com.jmip.service.resume.ResumeService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
+import java.util.List;
 
 /**
  * Resume upload, extraction results, and comparison against a job posting.
@@ -33,10 +41,13 @@ public class ResumeController {
 
     private final ResumeService resumeService;
     private final ResumeMatchService resumeMatchService;
+    private final CareerInsightsService careerInsightsService;
 
-    public ResumeController(ResumeService resumeService, ResumeMatchService resumeMatchService) {
+    public ResumeController(ResumeService resumeService, ResumeMatchService resumeMatchService,
+                            CareerInsightsService careerInsightsService) {
         this.resumeService = resumeService;
         this.resumeMatchService = resumeMatchService;
+        this.careerInsightsService = careerInsightsService;
     }
 
     /**
@@ -49,9 +60,22 @@ public class ResumeController {
      */
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<ResumeResponse> upload(@RequestParam("file") MultipartFile file) {
-        log.info("POST /api/resumes name={} size={}", file.getOriginalFilename(), file.getSize());
+        // The original file name is not logged: it is client-controlled and usually a person's name.
+        log.info("POST /api/resumes size={}", file.getSize());
         ResumeResponse response = resumeService.upload(file);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Deletes the caller's resume, its extracted text and skills, and the stored file. 404 for
+     * another account's, a missing or an already deleted resume. Needs the CSRF token, like
+     * every state change from a signed-in session.
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
+        log.info("DELETE /api/resumes/{}", id);
+        resumeService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{id}")
@@ -76,5 +100,33 @@ public class ResumeController {
                                                      @PathVariable @Positive Long jobId) {
         log.info("GET /api/resumes/{}/match/{}", resumeId, jobId);
         return ResponseEntity.ok(resumeMatchService.match(resumeId, jobId));
+    }
+
+    /**
+     * The resume's highest matching postings, using the same deterministic V3 score as
+     * {@link #match(UUID, Long)}. No job with no skills or no overlap is returned.
+     */
+    @GetMapping("/{resumeId}/recommendations")
+    public ResponseEntity<List<ResumeRecommendationResponse>> recommendations(
+            @PathVariable UUID resumeId,
+            @RequestParam(defaultValue = "10") @Min(1)
+            @Max(20) int limit) {
+        log.info("GET /api/resumes/{}/recommendations limit={}", resumeId, limit);
+        return ResponseEntity.ok(resumeMatchService.recommend(resumeId, limit));
+    }
+
+    /**
+     * The resume set against one job category's skill demand and trends, with the V6.3
+     * recommendations that fall in that category. Without a category, the category of the
+     * best recommendation is used. {@code summary=true} adds a V5 AI description of the
+     * same figures.
+     */
+    @GetMapping("/{resumeId}/career-insights")
+    public ResponseEntity<CareerInsightsResponse> careerInsights(
+            @PathVariable UUID resumeId,
+            @RequestParam(required = false) @Size(max = 50) String category,
+            @RequestParam(defaultValue = "false") boolean summary) {
+        log.info("GET /api/resumes/{}/career-insights category={} summary={}", resumeId, category, summary);
+        return ResponseEntity.ok(careerInsightsService.insights(resumeId, category, summary));
     }
 }

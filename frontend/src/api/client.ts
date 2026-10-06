@@ -1,5 +1,68 @@
 import type {
   AssistantRequest,
+  AuthSession,
+  AuthUser,
+  VerificationStatus,
+  CareerInsights,
+  EtlRun,
+  BuilderContent,
+  BuiltResume,
+  AdminDataQuality,
+  AdminOverview,
+  AdminUserDetail,
+  AdminUserSummary,
+  MarketTrends,
+  InterviewQuestion,
+  InterviewSession,
+  InterviewSetup,
+  ResumeJobComparison,
+  ResumeOptimization,
+  ApplicationAnalysis,
+  ApplicationInsights,
+  JobSource,
+  MatchPreferences,
+  PersonalizedFeed,
+  JobAlert,
+  JobAlertInput,
+  JobAlertNotification,
+  ApplicationStatus,
+  SavedJob,
+  ResumeComparison,
+  CareerGoal,
+  MarketCompanies,
+  PersonalDashboard,
+  MarketFilters,
+  MarketLocations,
+  MarketRemote,
+  MarketSalary,
+  MarketSkills,
+  CareerGoalInput,
+  CareerGoalStatus,
+  Roadmap,
+  LearningItem,
+  Portfolio,
+  NotificationInbox,
+  NotificationPreferences,
+  JobMatches,
+  JobWorkspace,
+  SavedSearch,
+  CareerProgress,
+  OnboardingPreferencesInput,
+  OnboardingProfileInput,
+  OnboardingStatus,
+  AnalyticsRange,
+  UserAnalytics,
+  PortfolioImport,
+  PortfolioInput,
+  PublicProfile,
+  LearningItemInput,
+  LearningItemUpdate,
+  LearningPlan,
+  LearningResource,
+  LearningResourceInput,
+  LearningStatus,
+  SkillProgressStatus,
+  ResumeJobAnalysis,
   AssistantResponse,
   ApiErrorBody,
   CompanyDemand,
@@ -17,6 +80,7 @@ import type {
   PagedResponse,
   Resume,
   ResumeMatch,
+  ResumeRecommendation,
   SalaryRange,
   Skill,
   SkillAnalytics,
@@ -46,6 +110,50 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired when an application API says the session is gone, so the app can show Log in. */
+export const UNAUTHORIZED_EVENT = 'jmip:unauthorized';
+
+/** V7.8: shown when the request never reached the server; no addresses or internals. */
+export const CANNOT_REACH = 'Cannot reach the server. Check your connection and try again.';
+
+/**
+ * V7.8: what the user is told when a call fails. The server's own message is kept for
+ * requests it rejected (validation, not found, sign-in), since those are written for users.
+ * A server error never shows the server's words, only a plain sentence and the request id,
+ * which matches the id in the server log for support.
+ */
+export function friendlyMessage(response: Pick<Response, 'status' | 'headers'>, serverMessage: string): string {
+  const { status } = response;
+  if (status >= 500) {
+    const reference = response.headers.get('X-Request-Id');
+    return `Something went wrong on our side. Please try again in a moment.${reference ? ` (Reference: ${reference})` : ''}`;
+  }
+  if (serverMessage) {
+    return serverMessage;
+  }
+  switch (status) {
+    case 400:
+      return 'The request was not valid. Please check what you entered.';
+    case 401:
+      return 'Please sign in again.';
+    case 403:
+      return 'You do not have access to that.';
+    case 404:
+      return 'That could not be found. It may have been removed.';
+    case 429:
+      return 'Too many requests. Please wait a minute and try again.';
+    default:
+      return `The request could not be completed (${status}).`;
+  }
+}
+
+function reportIfUnauthorized(status: number, path: string): void {
+  // /api/auth/* answer 401 as part of their normal job (e.g. /me when signed out).
+  if (status === 401 && !path.startsWith('/api/auth/') && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+  }
+}
+
 async function request<T>(path: string, params?: Record<string, string | number | undefined>): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -57,15 +165,15 @@ async function request<T>(path: string, params?: Record<string, string | number 
 
   let response: Response;
   try {
-    response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
+    response = await fetch(url.toString(), { headers: { Accept: 'application/json' }, credentials: 'include' });
   } catch {
     // fetch only rejects on a network-level failure, which here almost always means the
     // backend is not running or CORS refused the request before it was sent.
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const body = (await response.json()) as ApiErrorBody;
       if (body.message) {
@@ -74,10 +182,112 @@ async function request<T>(path: string, params?: Record<string, string | number 
     } catch {
       // A non-JSON error body is not worth failing over; the status line will do.
     }
-    throw new ApiError(response.status, message);
+    reportIfUnauthorized(response.status, path);
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as T;
+}
+
+/**
+ * The CSRF token of the signed-in session. Held in memory only — never localStorage or a
+ * cookie — so a page reload drops it and currentSession() fetches it again. The session
+ * itself is an HttpOnly cookie that scripts never see; `credentials: 'include'` is what
+ * sends it, including to the API on another port during local development.
+ */
+let csrfToken: string | null = null;
+
+function csrfHeader(): Record<string, string> {
+  return csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {};
+}
+
+/** POST a JSON body (or none) and parse a JSON reply, for the auth endpoints. */
+async function postJson<T>(path: string, body?: unknown): Promise<T | null> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeader() },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+  } catch {
+    throw new ApiError(0, CANNOT_REACH);
+  }
+  if (!response.ok) {
+    let message = '';
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      // Field errors are more useful than the generic "Request validation failed".
+      message = error.fieldErrors?.[0]?.message ?? error.message ?? message;
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    throw new ApiError(response.status, friendlyMessage(response, message));
+  }
+  return response.status === 204 ? null : ((await response.json()) as T);
+}
+
+/**
+ * Login refused because the email is not confirmed yet. Only raised after the password was
+ * right; the UI moves to the code screen.
+ */
+export class EmailNotVerifiedError extends ApiError {
+  constructor(message: string) {
+    super(403, message);
+    this.name = 'EmailNotVerifiedError';
+  }
+}
+
+/** Creates an unverified account; the backend emails a 6-digit code. Does not sign in. */
+async function signup(fullName: string, email: string, password: string): Promise<AuthUser> {
+  return (await postJson<AuthUser>('/api/auth/signup', { fullName, email, password }))!;
+}
+
+async function login(email: string, password: string): Promise<AuthSession> {
+  try {
+    const session = (await postJson<AuthSession>('/api/auth/login', { email, password }))!;
+    csrfToken = session.csrfToken;
+    return session;
+  } catch (error) {
+    // Login is exempt from CSRF, so a 403 here can only mean "verify your email first".
+    if (error instanceof ApiError && error.status === 403) {
+      throw new EmailNotVerifiedError(error.message);
+    }
+    throw error;
+  }
+}
+
+/** Confirms the email with the code. Does not sign in. */
+async function verifyEmail(email: string, code: string): Promise<void> {
+  await postJson<void>('/api/auth/verify-email', { email, code });
+}
+
+async function resendVerification(email: string): Promise<VerificationStatus> {
+  return (await postJson<VerificationStatus>('/api/auth/resend-verification', { email }))!;
+}
+
+async function logout(): Promise<void> {
+  try {
+    await postJson<void>('/api/auth/logout');
+  } finally {
+    csrfToken = null;
+  }
+}
+
+/** The signed-in session, or null when nobody is signed in. */
+async function currentSession(): Promise<AuthSession | null> {
+  try {
+    const session = await request<AuthSession>('/api/auth/me');
+    csrfToken = session.csrfToken;
+    return session;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      csrfToken = null;
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
@@ -91,13 +301,18 @@ async function uploadResume(file: File): Promise<Resume> {
 
   let response: Response;
   try {
-    response = await fetch(`${BASE_URL}/api/resumes`, { method: 'POST', body });
+    response = await fetch(`${BASE_URL}/api/resumes`, {
+      method: 'POST',
+      body,
+      headers: csrfHeader(),
+      credentials: 'include',
+    });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -106,7 +321,8 @@ async function uploadResume(file: File): Promise<Resume> {
     } catch {
       // A non-JSON error body is not worth failing over.
     }
-    throw new ApiError(response.status, message);
+    reportIfUnauthorized(response.status, '/api/resumes');
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as Resume;
@@ -126,15 +342,16 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
   try {
     response = await fetch(`${BASE_URL}/api/assistant/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...csrfHeader() },
       body: JSON.stringify(body),
+      credentials: 'include',
     });
   } catch {
-    throw new ApiError(0, `Cannot reach the API at ${BASE_URL}. Is the backend running?`);
+    throw new ApiError(0, CANNOT_REACH);
   }
 
   if (!response.ok) {
-    let message = `${response.status} ${response.statusText}`;
+    let message = '';
     try {
       const error = (await response.json()) as ApiErrorBody;
       if (error.message) {
@@ -143,10 +360,48 @@ async function askAssistant(body: AssistantRequest): Promise<AssistantResponse> 
     } catch {
       // A non-JSON error body is not worth failing over.
     }
-    throw new ApiError(response.status, message);
+    reportIfUnauthorized(response.status, '/api/assistant/query');
+    throw new ApiError(response.status, friendlyMessage(response, message));
   }
 
   return (await response.json()) as AssistantResponse;
+}
+
+/**
+ * A JSON write (V7.1 job alerts): sends the CSRF token and, on a 400, the server's own field
+ * messages, so a form can say what to fix. Resolves to undefined for 204 No Content.
+ */
+async function send<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...csrfHeader(),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'include',
+    });
+  } catch {
+    throw new ApiError(0, CANNOT_REACH);
+  }
+
+  if (!response.ok) {
+    let message = '';
+    try {
+      const error = (await response.json()) as ApiErrorBody;
+      const details = (error.fieldErrors ?? []).map((field) => field.message);
+      message = details.length > 0 ? details.join('; ') : error.message || message;
+    } catch {
+      // A non-JSON error body is not worth failing over.
+    }
+    reportIfUnauthorized(response.status, path);
+    throw new ApiError(response.status, friendlyMessage(response, message));
+  }
+
+  return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
 export const api = {
@@ -202,10 +457,50 @@ export const api = {
 
   uploadResume,
 
+  // V6.10.2: browser sign-in
+  signup,
+  login,
+  logout,
+  currentSession,
+  verifyEmail,
+  resendVerification,
+
   resume: (id: string) => request<Resume>(`/api/resumes/${id}`),
+
+  /** Newest first. */
+  etlRuns: (page: number, size: number) => request<PagedResponse<EtlRun>>('/api/etl/runs', { page, size }),
+
+  /** 404 when the ETL has never run. */
+  latestEtlRun: () => request<EtlRun>('/api/etl/runs/latest'),
+
+  /** V8.3: the signed-in user's match preferences; an empty object when none are saved. */
+  matchPreferences: () => request<MatchPreferences>('/api/match-preferences'),
+
+  /** V9.2: jobs ranked for the signed-in user, with the reasons for each. */
+  personalizedJobs: (limit = 20) => request<PersonalizedFeed>('/api/jobs/personalized', { limit }),
+
+  saveMatchPreferences: (preferences: MatchPreferences) =>
+    send<MatchPreferences>('PUT', '/api/match-preferences', preferences),
+
+  /** V8.1: the sources postings are ingested from, by code. */
+  jobSources: () => request<JobSource[]>('/api/job-sources'),
+
+  /** One source with the latest runs that met it. */
+  jobSource: (id: number) => request<JobSource>(`/api/job-sources/${id}`),
 
   resumeMatch: (resumeId: string, jobId: number) =>
     request<ResumeMatch>(`/api/resumes/${resumeId}/match/${jobId}`),
+
+  /** Top deterministic skill-overlap matches for a completed resume. */
+  resumeRecommendations: (resumeId: string, limit = 10) =>
+    request<ResumeRecommendation[]>(`/api/resumes/${resumeId}/recommendations`, { limit }),
+
+  /** Without a category, the backend uses the category of the best recommendation. */
+  careerInsights: (resumeId: string, category?: string, summary = false) =>
+    request<CareerInsights>(`/api/resumes/${resumeId}/career-insights`, {
+      category,
+      summary: summary ? 'true' : undefined,
+    }),
 
   locationDemand: (page: number, size: number) =>
     request<PagedResponse<LocationDemand>>('/api/analytics/locations', { page, size }),
@@ -214,6 +509,207 @@ export const api = {
     request<PagedResponse<CompanyDemand>>('/api/analytics/companies', { page, size }),
 
   askAssistant,
+
+  /** V7.1: the signed-in user's job alerts, newest first. */
+  jobAlerts: () => request<JobAlert[]>('/api/job-alerts'),
+
+  createJobAlert: (input: JobAlertInput) => send<JobAlert>('POST', '/api/job-alerts', input),
+
+  updateJobAlert: (id: string, input: JobAlertInput) => send<JobAlert>('PUT', `/api/job-alerts/${id}`, input),
+
+  setJobAlertActive: (id: string, active: boolean) =>
+    send<JobAlert>('PATCH', `/api/job-alerts/${id}/status`, { active }),
+
+  deleteJobAlert: (id: string) => send<void>('DELETE', `/api/job-alerts/${id}`),
+
+  /** V8.4: the latest jobs an alert emailed (or will email), newest first. */
+  jobAlertNotifications: (id: string) => request<JobAlertNotification[]>(`/api/job-alerts/${id}/notifications`),
+
+  /** V7.2: the signed-in user's saved jobs, most recently changed first. */
+  savedJobs: (status?: ApplicationStatus) => request<SavedJob[]>('/api/saved-jobs', { status }),
+
+  /** Saving an already saved job returns the existing record. */
+  saveJob: (jobId: number) => send<SavedJob>('POST', `/api/jobs/${jobId}/save`),
+
+  unsaveJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/save`),
+
+  setSavedJobStatus: (id: string, status: ApplicationStatus) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/status`, { status }),
+
+  setSavedJobNotes: (id: string, notes: string) => send<SavedJob>('PATCH', `/api/saved-jobs/${id}/notes`, { notes }),
+
+  /** V8.5: sets the follow-up date (YYYY-MM-DD) and reminder; null clears both. */
+  setSavedJobFollowUp: (id: string, followUpOn: string | null, note: string) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/follow-up`, { followUpOn, note }),
+
+  /** V8.5: every tracked job with its V8.3 match against the current resume. */
+  applications: () => request<ApplicationAnalysis[]>('/api/applications'),
+
+  applicationInsights: () => request<ApplicationInsights>('/api/applications/insights'),
+
+  deleteSavedJob: (id: string) => send<void>('DELETE', `/api/saved-jobs/${id}`),
+
+  /** V7.3: the signed-in user's resumes, newest first. */
+  resumes: () => request<Resume[]>('/api/resumes'),
+
+  /** V9.4: the Resume Builder. Rename, default and delete are the resume endpoints below. */
+  createBuiltResume: (input: { title?: string; versionLabel?: string; content?: BuilderContent }) =>
+    send<BuiltResume>('POST', '/api/resumes/builder', input),
+  builtResume: (id: string) => request<BuiltResume>(`/api/resumes/${id}/builder`),
+  saveBuiltResume: (id: string, content: BuilderContent) => send<BuiltResume>('PUT', `/api/resumes/${id}/builder`, content),
+  duplicateResume: (id: string) => send<BuiltResume>('POST', `/api/resumes/${id}/duplicate`),
+  /** The PDF as a file to save, with the name the server gives it. */
+  downloadResumePdf: async (id: string): Promise<{ blob: Blob; fileName: string }> => {
+    let response: Response;
+    try {
+      response = await fetch(`${BASE_URL}/api/resumes/${id}/builder/pdf`, { credentials: 'include' });
+    } catch {
+      throw new ApiError(0, CANNOT_REACH);
+    }
+    if (!response.ok) {
+      throw new ApiError(response.status, friendlyMessage(response, ''));
+    }
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'resume.pdf';
+    return { blob: await response.blob(), fileName: name };
+  },
+
+  updateResume: (id: string, title: string, versionLabel: string) =>
+    send<Resume>('PATCH', `/api/resumes/${id}`, { title, versionLabel }),
+
+  setDefaultResume: (id: string) => send<Resume>('PUT', `/api/resumes/${id}/default`),
+
+  /** The V6.10.5 delete: the file, its text and its skills. */
+  deleteResume: (id: string) => send<void>('DELETE', `/api/resumes/${id}`),
+
+  analyzeResumeJob: (resumeId: string, jobId: number) =>
+    request<ResumeJobAnalysis>(`/api/resumes/${resumeId}/analyze-job/${jobId}`),
+
+  /** V8.6: keywords, sections and suggestions for one of your resumes against one job. */
+  optimizeResume: (resumeId: string, jobId: number) =>
+    request<ResumeOptimization>(`/api/resumes/${resumeId}/optimize/${jobId}`),
+
+  /** V8.6: two of your versions against one job. */
+  compareResumesForJob: (resumeId1: string, resumeId2: string, jobId: number) =>
+    request<ResumeJobComparison>("/api/resumes/compare-for-job", { resumeId1, resumeId2, jobId }),
+
+  /** V8.7: practice interviews; the owner is always the signed-in account. */
+  /** V9.6: with the resume, interview type, difficulty and question count. */
+  startInterview: (setup: InterviewSetup) => send<InterviewSession>("POST", "/api/interviews", setup),
+  interviewSessions: () => request<InterviewSession[]>("/api/interviews"),
+  interviewSession: (id: string) => request<InterviewSession>(`/api/interviews/${id}`),
+  answerInterviewQuestion: (id: string, position: number, answer: string) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/answer`, { answer }),
+  evaluateInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/evaluate`),
+  skipInterviewQuestion: (id: string, position: number) =>
+    send<InterviewQuestion>("POST", `/api/interviews/${id}/questions/${position}/skip`),
+  completeInterview: (id: string) => send<InterviewSession>("POST", `/api/interviews/${id}/complete`),
+
+  /** V8.9: admin only; the server answers 403 to any other account. */
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
+  adminDataQuality: () => request<AdminDataQuality>("/api/admin/data-quality"),
+  adminUsers: (params: { q?: string; role?: string; verified?: string; page: number; size: number }) =>
+    request<PagedResponse<AdminUserSummary>>("/api/admin/users", { ...params }),
+  adminUser: (id: string) => request<AdminUserDetail>(`/api/admin/users/${id}`),
+  setJobSourceActive: (id: number, active: boolean) => send<JobSource>("PATCH", `/api/admin/job-sources/${id}`, { active }),
+
+  compareResumes: (resumeId1: string, resumeId2: string) =>
+    request<ResumeComparison>('/api/resumes/compare', { resumeId1, resumeId2 }),
+
+  /** V7.4: the signed-in user's career goals, most recently changed first. */
+  careerGoals: (status?: CareerGoalStatus) => request<CareerGoal[]>('/api/career-goals', { status }),
+
+  createCareerGoal: (input: CareerGoalInput) => send<CareerGoal>('POST', '/api/career-goals', input),
+
+  updateCareerGoal: (id: string, input: CareerGoalInput) => send<CareerGoal>('PUT', `/api/career-goals/${id}`, input),
+
+  setCareerGoalStatus: (id: string, status: CareerGoalStatus) =>
+    send<CareerGoal>('PATCH', `/api/career-goals/${id}/status`, { status }),
+
+  deleteCareerGoal: (id: string) => send<void>('DELETE', `/api/career-goals/${id}`),
+
+  careerGoalRoadmap: (goalId: string) => request<Roadmap>(`/api/career-goals/${goalId}/roadmap`),
+
+  setRoadmapSkillStatus: (goalId: string, skillId: number, status: SkillProgressStatus) =>
+    send<{ status: SkillProgressStatus }>('PUT', `/api/career-goals/${goalId}/roadmap/skills/${skillId}`, { status }),
+
+  /** V9.17: the signed-in account's own settings. */
+  updateAccountName: (fullName: string) => send<AuthUser>('PATCH', '/api/account/profile', { fullName }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    send<void>('POST', '/api/account/password', { currentPassword, newPassword }),
+  deleteAccount: (password: string) => send<void>('DELETE', '/api/account', { password }),
+
+  /** V9.16: the notification center. */
+  notifications: (unreadOnly = false) => request<NotificationInbox>('/api/notifications', unreadOnly ? { unreadOnly: 'true' } : {}),
+  unreadNotifications: () => request<{ unreadCount: number }>('/api/notifications/unread-count'),
+  markNotificationRead: (id: string) => send<void>('POST', `/api/notifications/${id}/read`),
+  markAllNotificationsRead: () => send<{ unreadCount: number }>('POST', '/api/notifications/read-all'),
+  notificationPreferences: () => request<NotificationPreferences>('/api/notifications/preferences'),
+  saveNotificationPreferences: (preferences: NotificationPreferences) =>
+    send<NotificationPreferences>('PUT', '/api/notifications/preferences', preferences),
+
+  /** V9.14: the job-search workspace; hidden and viewed jobs, saved searches and match hints. */
+  workspace: () => request<JobWorkspace>('/api/workspace'),
+  jobMatches: (jobIds: number[]) => request<JobMatches>('/api/workspace/matches', { jobIds: jobIds.join(',') }),
+  savedSearches: () => request<SavedSearch[]>('/api/workspace/searches'),
+  saveSearch: (name: string, filters: Record<string, string>) => send<SavedSearch>('POST', '/api/workspace/searches', { name, filters }),
+  deleteSavedSearch: (id: string) => send<void>('DELETE', `/api/workspace/searches/${id}`),
+  hideJob: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/hide`),
+  unhideJob: (jobId: number) => send<void>('DELETE', `/api/jobs/${jobId}/hide`),
+  recordJobView: (jobId: number) => send<void>('POST', `/api/jobs/${jobId}/viewed`),
+  setSavedJobPriority: (id: string, priority: 'HIGH' | 'MEDIUM' | 'LOW' | null) =>
+    send<SavedJob>('PATCH', `/api/saved-jobs/${id}/priority`, { priority }),
+
+  /** V9.13: readiness score, progress, achievements and streaks, all computed on the server. */
+  careerProgress: () => request<CareerProgress>('/api/career-progress'),
+
+  /** V9.12: first-time onboarding; the resume and goal steps use the existing resume and career-goal calls. */
+  onboarding: () => request<OnboardingStatus>('/api/onboarding'),
+  saveOnboardingProfile: (input: OnboardingProfileInput) => send<OnboardingStatus>('PUT', '/api/onboarding/profile', input),
+  saveOnboardingPreferences: (input: OnboardingPreferencesInput) =>
+    send<OnboardingStatus>('PUT', '/api/onboarding/preferences', input),
+  skipOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/skip'),
+  completeOnboarding: () => send<OnboardingStatus>('POST', '/api/onboarding/complete'),
+
+  /** V9.7: the signed-in user's portfolio (404 until created) and published public profiles. */
+  portfolio: () => request<Portfolio>('/api/portfolio'),
+  createPortfolio: (input: PortfolioInput) => send<Portfolio>('POST', '/api/portfolio', input),
+  updatePortfolio: (input: PortfolioInput) => send<Portfolio>('PUT', '/api/portfolio', input),
+  changePortfolioSlug: (slug: string) => send<Portfolio>('PATCH', '/api/portfolio/slug', { slug }),
+  publishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/publish'),
+  unpublishPortfolio: () => send<Portfolio>('POST', '/api/portfolio/unpublish'),
+  portfolioImport: (resumeId?: string) => request<PortfolioImport>('/api/portfolio/import', { resumeId }),
+  publicProfile: (slug: string) => request<PublicProfile>(`/api/public/profiles/${encodeURIComponent(slug)}`),
+
+  /** V9.5: the learning plan; everything is the signed-in user's own. */
+  learningPlan: () => request<LearningPlan>('/api/learning'),
+  createLearningItem: (input: LearningItemInput) => send<LearningItem>('POST', '/api/learning/items', input),
+  updateLearningItem: (id: string, input: LearningItemUpdate) => send<LearningItem>('PUT', `/api/learning/items/${id}`, input),
+  setLearningItemStatus: (id: string, status: LearningStatus) =>
+    send<LearningItem>('PATCH', `/api/learning/items/${id}/status`, { status }),
+  deleteLearningItem: (id: string) => send<void>('DELETE', `/api/learning/items/${id}`),
+  addLearningResource: (itemId: string, input: LearningResourceInput) =>
+    send<LearningResource>('POST', `/api/learning/items/${itemId}/resources`, input),
+  updateLearningResource: (id: string, input: LearningResourceInput) =>
+    send<LearningResource>('PUT', `/api/learning/resources/${id}`, input),
+  deleteLearningResource: (id: string) => send<void>('DELETE', `/api/learning/resources/${id}`),
+
+  /** V7.5 market intelligence; every endpoint takes the same filters. */
+  /** V8.8: historical trends for a role (job category) or all roles, with a labelled estimate. */
+  marketTrends: (filters: { category?: string; months?: number }) => request<MarketTrends>("/api/market/trends", { ...filters }),
+
+  marketSalary: (filters: MarketFilters) => request<MarketSalary>('/api/market/salary', { ...filters }),
+  marketLocations: (filters: MarketFilters) => request<MarketLocations>('/api/market/locations', { ...filters }),
+  marketRemote: (filters: MarketFilters) => request<MarketRemote>('/api/market/remote', { ...filters }),
+  marketCompanies: (filters: MarketFilters) => request<MarketCompanies>('/api/market/companies', { ...filters }),
+  marketSkills: (filters: MarketFilters) => request<MarketSkills>('/api/market/skills', { ...filters }),
+
+  /** V7.7: the signed-in user's career dashboard; optionally for one of their goals. */
+  dashboard: (goalId?: string) => request<PersonalDashboard>('/api/dashboard', { goalId }),
+
+  /** V9.8: how your job search, resume, interviews and learning changed over a range. */
+  userAnalytics: (range: AnalyticsRange) => request<UserAnalytics>('/api/dashboard/analytics', { range }),
 };
 
 export { BASE_URL };

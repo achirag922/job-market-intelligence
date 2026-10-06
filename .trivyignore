@@ -1,0 +1,10 @@
+# Accepted vulnerabilities for the Dependency scan workflow (Trivy reads this file from the repository root).
+# Every entry needs a reason and an expiry date (exp:YYYY-MM-DD). After that date the finding fails the
+# scan again and the decision must be reviewed. Remove an entry as soon as a fixed version is in use.
+
+# CVE-2026-47884 (CRITICAL), spring-webmvc 6.2.19: RCE via improper path limitation in XsltView.
+# - Only fixed in Spring Framework 7.0.9 (Spring Boot 4). 6.2.19 is the latest open-source 6.2.x release.
+# - Not reachable in JMIP: the API returns JSON only. There is no XsltView, XSLT view resolver or .xsl/.xslt
+#   resource; NoXsltViewTest fails the build if one is ever added.
+# - Remediation: upgrade to Spring Boot 4, planned as a separate phase.
+CVE-2026-47884 exp:2027-01-06

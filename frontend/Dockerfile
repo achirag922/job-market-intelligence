@@ -1,0 +1,21 @@
+# syntax=docker/dockerfile:1
+# React frontend, built with Vite and served by nginx, which also proxies /api to the backend.
+
+FROM node:22-alpine AS build
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY . .
+# Vite bakes the API base URL in at build time. The default points at this nginx itself,
+# which forwards /api to the backend, so the browser only ever talks to one origin.
+ARG VITE_API_BASE_URL=http://localhost:3000
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
+# Used only when docker-compose.https.yml swaps in nginx-https.conf.
+COPY hsts.conf /etc/nginx/snippets/hsts.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80

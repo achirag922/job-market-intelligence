@@ -7,6 +7,16 @@ spring:
     username: ${JMIP_DB_USERNAME:postgres}
     password: ${JMIP_DB_PASSWORD:postgres}
 
+  # V9.9: two scheduler threads, so a long alert run does not hold back the snapshot or retention
+  # jobs, and on shutdown a running job may finish (up to the period) instead of being cut off.
+  task:
+    scheduling:
+      pool:
+        size: 2
+      shutdown:
+        await-termination: true
+        await-termination-period: 30s
+
   jpa:
     open-in-view: false
     hibernate:
@@ -36,6 +46,26 @@ spring:
       max-file-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
       max-request-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
 
+  autoconfigure:
+    # Users come from the users table (AppUserDetailsService). Never create the default
+    # in-memory user, whose generated password Spring Boot would print to the log.
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  # Verification emails. Gmail: smtp.gmail.com:587 with STARTTLS and an app password
+  # (Google Account > Security > App passwords); a normal account password is refused.
+  mail:
+    host: ${JMIP_MAIL_HOST:smtp.gmail.com}
+    port: ${JMIP_MAIL_PORT:587}
+    username: ${JMIP_MAIL_USERNAME:}
+    password: ${JMIP_MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+      mail.smtp.starttls.required: true
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 5000
+      mail.smtp.writetimeout: 5000
+
   jackson:
     default-property-inclusion: non_null
     serialization:
@@ -43,21 +73,72 @@ spring:
 
 server:
   port: ${JMIP_SERVER_PORT:8080}
+  servlet:
+    session:
+      # Browser sign-in (V6.10.2). The id is only ever in this cookie, never in a URL.
+      timeout: ${JMIP_SESSION_TIMEOUT:8h}
+      tracking-modes: cookie
+      cookie:
+        name: ${JMIP_SESSION_COOKIE_NAME:JMIP_SESSION}
+        http-only: true
+        # Off for plain-HTTP local development; the prod profile turns it on.
+        secure: ${JMIP_SESSION_COOKIE_SECURE:false}
+        # Strict: the cookie is never sent on a request started by another site.
+        same-site: ${JMIP_SESSION_COOKIE_SAME_SITE:strict}
+        path: /
   error:
     # Errors are rendered by GlobalExceptionHandler, not by the default error page.
     include-message: never
     include-stacktrace: never
 
 management:
+  health:
+    mail:
+      # A mail server outage must not mark the whole API unhealthy; delivery failures are
+      # handled per email (the user can resend).
+      enabled: false
   endpoints:
     web:
       exposure:
-        include: health,info
+        # V7.8: metrics joins health and info; nothing else (env, configprops, beans, heapdump)
+        # is reachable over HTTP. Metrics need the metrics account (ActuatorSecurityConfig).
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
+      # /actuator/health/liveness: the application itself is running.
+      # /actuator/health/readiness: it can serve, which includes a reachable database.
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        # /actuator/health/database: the database alone.
+        database:
+          include: db
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 jmip:
+  # V8.9: verified accounts with these emails (comma-separated) are made ADMIN at startup.
+  # Nobody can sign up as an admin; unset means no account is promoted.
+  admin:
+    bootstrap-emails: ${JMIP_ADMIN_EMAILS:}
+  # V8.4: job alert digests. delivery=log (the default) never sends email; smtp uses spring.mail
+  # above (JMIP_MAIL_HOST/PORT/USERNAME/PASSWORD). No credential is ever set here.
+  alerts:
+    enabled: ${JMIP_ALERTS_ENABLED:true}
+    delivery: ${JMIP_ALERTS_DELIVERY:log}
+    cron: ${JMIP_ALERTS_CRON:0 0 * * * *}
+    app-url: ${JMIP_APP_URL:http://localhost:5173}
+    mail-from: ${JMIP_ALERTS_MAIL_FROM:${JMIP_MAIL_FROM:}}
+  observability:
+    # HTTP Basic account for /actuator/metrics. No password, no metrics endpoint for anyone.
+    metrics-username: ${JMIP_METRICS_USERNAME:metrics}
+    metrics-password: ${JMIP_METRICS_PASSWORD:}
+    # Requests at least this slow are logged at INFO; faster ones only at DEBUG.
+    slow-request-threshold: ${JMIP_SLOW_REQUEST_THRESHOLD:1s}
   resume:
     storage:
       # Relative by default so nothing assumes a particular machine's layout. Override
@@ -67,6 +148,14 @@ jmip:
       # container and the upload validation reject at the same size.
       max-file-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
       allowed-content-types: application/pdf
+    privacy:
+      # base64 of a 256-bit key (`openssl rand -base64 32`). Encrypts stored resume files and
+      # extracted text. Required in production; blank here stores them unencrypted.
+      encryption-key: ${JMIP_RESUME_ENCRYPTION_KEY:}
+      # Delete resumes this long after upload, e.g. 365d. 0s keeps them until the owner deletes
+      # them. Anything else must be at least 1d.
+      retention: ${JMIP_RESUME_RETENTION:0s}
+      retention-cron: ${JMIP_RESUME_RETENTION_CRON:0 30 3 * * *}
 
   analytics:
     snapshots:
@@ -81,10 +170,32 @@ jmip:
     # JMIP_CORS_ALLOWED_ORIGINS when deploying somewhere else.
     allowed-origins: ${JMIP_CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
+  verification:
+    # smtp emails the 6-digit code; log prints it to this log (local development only).
+    delivery: ${JMIP_VERIFICATION_DELIVERY:log}
+    # HMAC key for stored codes. Required in production; blank here means a random key per start.
+    secret: ${JMIP_OTP_SECRET:}
+    code-ttl: ${JMIP_OTP_TTL:10m}
+    resend-cooldown: ${JMIP_OTP_RESEND_COOLDOWN:60s}
+    max-attempts: ${JMIP_OTP_MAX_ATTEMPTS:5}
+    mail-from: ${JMIP_MAIL_FROM:}
+
   # V5 assistant. The API key has no default and no value in this file: it comes from the
   # environment, it is never logged, and it never reaches the browser — every model call is
   # made by the server. With no key set the application starts normally and the assistant
   # reports itself unavailable; nothing else is affected.
+  security:
+    # Per client address, per minute. Protects a single instance from a runaway client.
+    rate-limit-enabled: ${JMIP_RATE_LIMIT_ENABLED:true}
+    assistant-per-minute: ${JMIP_RATE_LIMIT_ASSISTANT_PER_MINUTE:20}
+    uploads-per-minute: ${JMIP_RATE_LIMIT_UPLOADS_PER_MINUTE:10}
+    auth-per-minute: ${JMIP_RATE_LIMIT_AUTH_PER_MINUTE:10}
+    assistant-max-body-bytes: ${JMIP_ASSISTANT_MAX_BODY_BYTES:16384}
+    password:
+      # bcrypt work factor (log2). 12 is about a quarter of a second per hash; raise it as
+      # hardware gets faster. Existing hashes keep working at their original strength.
+      bcrypt-strength: ${JMIP_PASSWORD_BCRYPT_STRENGTH:12}
+
   ai:
     provider: ${AI_PROVIDER:anthropic}
     api-key: ${AI_API_KEY:}
@@ -94,6 +205,9 @@ jmip:
     temperature: ${AI_TEMPERATURE:}
     max-tokens: ${AI_MAX_TOKENS:8192}
     timeout: ${AI_TIMEOUT:30s}
+    # V9.9: retries for timeouts, rate limits (429) and provider errors (5xx), with backoff by the SDK.
+    # Client errors such as a bad request or an invalid key are never retried.
+    max-retries: ${AI_MAX_RETRIES:2}
 
   assistant:
     # The model proposes how many rows a question wants; these are the ceilings the
@@ -106,5 +220,9 @@ jmip:
     max-question-length: ${JMIP_ASSISTANT_MAX_QUESTION_LENGTH:500}
 
 logging:
+  pattern:
+    # V7.8: the request id next to the level in plain (local) logs; structured logs in prod
+    # carry it as a field.
+    level: "%5p [%X{requestId:-}%X{jobId:-}]"
   level:
     com.jmip: INFO

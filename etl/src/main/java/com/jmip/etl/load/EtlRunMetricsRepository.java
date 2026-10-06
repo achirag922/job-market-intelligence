@@ -1,0 +1,49 @@
+package com.jmip.etl.load;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+/**
+ * Persists the {@link EtlMetrics} counters of a finished run to {@code etl_run_metrics},
+ * keyed by the Spring Batch job execution id, so the monitoring API can report them next
+ * to what Spring Batch already records.
+ */
+@Repository
+public class EtlRunMetricsRepository {
+
+    private static final String UPSERT = """
+            INSERT INTO etl_run_metrics (job_execution_id, records_loaded, duplicates_skipped, skill_links_created,
+                                         feed_name, feed_type, jobs_expired, connector)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (job_execution_id) DO UPDATE
+               SET records_loaded = EXCLUDED.records_loaded,
+                   duplicates_skipped = EXCLUDED.duplicates_skipped,
+                   skill_links_created = EXCLUDED.skill_links_created,
+                   feed_name = EXCLUDED.feed_name,
+                   feed_type = EXCLUDED.feed_type,
+                   jobs_expired = EXCLUDED.jobs_expired,
+                   connector = EXCLUDED.connector,
+                   recorded_at = now()
+            """;
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public EtlRunMetricsRepository(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public void save(long jobExecutionId, EtlMetrics metrics) {
+        save(jobExecutionId, metrics, null, null);
+    }
+
+    /** V8.1: with the feed the run read (file name only) and its format. */
+    public void save(long jobExecutionId, EtlMetrics metrics, String feedName, String feedType) {
+        save(jobExecutionId, metrics, feedName, feedType, null);
+    }
+
+    /** V9.1: and the connector it read through. */
+    public void save(long jobExecutionId, EtlMetrics metrics, String feedName, String feedType, String connector) {
+        jdbcTemplate.update(UPSERT, jobExecutionId, metrics.jobsLoaded(), metrics.duplicatesSkipped(),
+                metrics.skillLinksCreated(), feedName, feedType, metrics.jobsExpired(), connector);
+    }
+}

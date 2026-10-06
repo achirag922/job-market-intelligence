@@ -1,12 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ApiError, api } from '../api/client';
-import type { JobSummary, PagedResponse, Resume, ResumeMatch } from '../api/types';
+import type {
+  JobSummary,
+  PagedResponse,
+  Resume,
+  ResumeMatch,
+  ResumeRecommendation,
+} from '../api/types';
 import { AsyncPanel } from '../components/AsyncPanel';
+import { PageGuide } from '../components/guidance';
 import { Badge, Card, EmptyState, PageHeader, SkillBadge, StatCard } from '../components/ui';
 import { IconCheck, IconFile } from '../components/icons';
+import { CareerInsights } from '../components/CareerInsights';
 import { formatLocation } from '../components/format';
 import { useApi } from '../hooks/useApi';
+import { JobAnalysisPanel, ResumeVersions } from '../components/ResumeVersions';
+import { MatchBreakdownList, MatchPreferencesCard } from '../components/MatchBreakdown';
+import { ResumeOptimizer } from '../components/ResumeOptimizer';
 
 const JOB_RESULTS = 8;
 
@@ -28,6 +39,8 @@ export function ResumeIntelligence() {
   const [resume, setResume] = useState<Resume | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  // V7.3: bumped after an upload so the version list shows the new resume.
+  const [versionsKey, setVersionsKey] = useState(0);
 
   const [jobQuery, setJobQuery] = useState('');
   const [appliedQuery, setAppliedQuery] = useState('');
@@ -43,6 +56,26 @@ export function ResumeIntelligence() {
   );
 
   const readyToMatch = resume?.status === 'COMPLETED';
+
+  // Bumped by "Try again" to re-request recommendations without re-uploading.
+  const [recommendationAttempt, setRecommendationAttempt] = useState(0);
+  const recommendations = useApi<ResumeRecommendation[]>(
+    () => (readyToMatch && resume ? api.resumeRecommendations(resume.id) : Promise.resolve([])),
+    [resume?.id, readyToMatch, recommendationAttempt],
+  );
+
+  // The comparison renders well below the recommendations. Without scrolling to it,
+  // "Compare resume" on a recommendation would look as though nothing had happened.
+  const matchSection = useRef<HTMLDivElement>(null);
+  const scrollToMatch = useRef(false);
+  useEffect(() => {
+    if (scrollToMatch.current && (matching || match || matchError)) {
+      scrollToMatch.current = false;
+      matchSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [matching, match, matchError]);
+
+  const recommendationsSection = useRef<HTMLDivElement>(null);
 
   const runMatch = async (jobId: number, job?: JobSummary) => {
     if (!resume) {
@@ -77,11 +110,20 @@ export function ResumeIntelligence() {
     setSelectedJob(null);
     try {
       setResume(await api.uploadResume(file));
+      setVersionsKey((key) => key + 1);
     } catch (error) {
       setUploadError(error instanceof ApiError ? error.message : 'Upload failed');
     } finally {
       setUploading(false);
     }
+  };
+
+  // V7.3: switching version starts the comparison afresh with that resume.
+  const selectVersion = (next: Resume | null) => {
+    setResume(next);
+    setMatch(null);
+    setMatchError(null);
+    setSelectedJob(null);
   };
 
   const currentStep = match ? 3 : readyToMatch ? 2 : resume ? 1 : 0;
@@ -92,6 +134,9 @@ export function ResumeIntelligence() {
         title="Resume Intelligence"
         description="Upload a PDF resume, then pick a job to see which of its skills you already have and which are missing. The comparison looks only at skills — it says nothing about experience, seniority or your chances of being hired."
       />
+      <PageGuide id="resume" title="Your resume powers matching" helpAnchor="resume">
+        Upload a PDF to see the skills found on it, then compare it with any job to see what you have and what is missing.
+      </PageGuide>
 
       <ol className="stepper">
         {STEPS.map((label, index) => (
@@ -149,6 +194,23 @@ export function ResumeIntelligence() {
         )}
       </Card>
 
+      <ResumeVersions
+        selectedId={resume?.id}
+        refreshKey={versionsKey}
+        onSelect={selectVersion}
+        // Coming back to the page picks up the default version instead of asking for an upload.
+        onLoaded={(list) => {
+          if (!resume && !uploading && list.length > 0) {
+            selectVersion(list.find((item) => item.isDefault) ?? list[0]);
+          }
+        }}
+        onDeleted={(id) => {
+          if (resume?.id === id) {
+            selectVersion(null);
+          }
+        }}
+      />
+
       {resume?.status === 'COMPLETED' && (
         <Card
           title="2. Your skills"
@@ -168,6 +230,114 @@ export function ResumeIntelligence() {
             </ul>
           )}
         </Card>
+      )}
+
+      {readyToMatch && resume && (
+        <CareerInsights
+          key={resume.id}
+          resumeId={resume.id}
+          onShowRecommendations={() =>
+            recommendationsSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        />
+      )}
+
+      {readyToMatch && (
+        <MatchPreferencesCard
+          onSaved={() => {
+            setRecommendationAttempt((count) => count + 1);
+            if (match) {
+              void runMatch(match.jobId);
+            }
+          }}
+        />
+      )}
+
+      {readyToMatch && (
+        <div ref={recommendationsSection} className="match-section">
+          <Card
+            title="Recommended jobs"
+            description="Ranked by overall match: your skill coverage, plus experience, location, work mode and salary where you set preferences and the posting states them. A compatibility measure, not a hiring prediction."
+            actions={<Badge tone="brand">Top matches</Badge>}
+          >
+            <AsyncPanel
+              state={recommendations}
+              onRetry={() => setRecommendationAttempt((count) => count + 1)}
+              skeleton="cards"
+              skeletonCount={3}
+              isEmpty={(data) => data.length === 0}
+              emptyTitle="No matching jobs yet"
+              empty="No stored job with listed skills overlaps with this resume. Try another resume after checking the extracted skills above."
+            >
+              {(data) => (
+                <div className="recommendation-list" aria-label="Recommended jobs">
+                  {data.map((recommendation) => (
+                    <article className="recommendation-card" key={recommendation.jobId}>
+                      <div
+                        className="recommendation-score"
+                        aria-label={recommendation.breakdown
+                          ? `${(recommendation.overallMatchPercentage ?? recommendation.matchPercentage).toFixed(0)} percent overall match`
+                          : `${recommendation.matchPercentage.toFixed(0)} percent skill match`}
+                      >
+                        <strong>{(recommendation.overallMatchPercentage ?? recommendation.matchPercentage).toFixed(0)}%</strong>
+                        <span>{recommendation.breakdown ? 'Overall match' : 'Skill match'}</span>
+                      </div>
+                      <div className="recommendation-main">
+                        <div className="recommendation-heading">
+                          <div>
+                            <h3 id={`recommendation-${recommendation.jobId}-title`}>{recommendation.jobTitle}</h3>
+                            <p>{recommendation.companyName} · {recommendation.location?.displayName ?? 'Location not stated'}</p>
+                          </div>
+                          {recommendation.jobCategory && <Badge tone="brand">{recommendation.jobCategory}</Badge>}
+                        </div>
+                        <div className="recommendation-skills">
+                          <div>
+                            <span className="recommendation-label">Matched ({recommendation.matchedSkills.length})</span>
+                            <ul className="skill-list">
+                              {recommendation.matchedSkills.map((skill) => (
+                                <SkillBadge key={skill.id} name={skill.name} state="matched" />
+                              ))}
+                            </ul>
+                          </div>
+                          <div>
+                            <span className="recommendation-label">Missing ({recommendation.missingSkills.length})</span>
+                            <ul className="skill-list">
+                              {recommendation.missingSkills.length === 0 ? (
+                                <li className="muted">None</li>
+                              ) : recommendation.missingSkills.map((skill) => (
+                                <SkillBadge key={skill.id} name={skill.name} state="missing" />
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                        {recommendation.breakdown && (
+                          <details>
+                            <summary>Match breakdown</summary>
+                            <MatchBreakdownList breakdown={recommendation.breakdown} />
+                          </details>
+                        )}
+                        <div className="recommendation-actions">
+                          <Link className="button-link" to={`/jobs/${recommendation.jobId}`}>View job</Link>
+                          <button
+                            type="button"
+                            className="small"
+                            aria-describedby={`recommendation-${recommendation.jobId}-title`}
+                            onClick={() => {
+                              scrollToMatch.current = true;
+                              void runMatch(recommendation.jobId);
+                            }}
+                          >
+                            Compare resume
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </AsyncPanel>
+          </Card>
+        </div>
       )}
 
       {readyToMatch && (
@@ -238,6 +408,9 @@ export function ResumeIntelligence() {
         </Card>
       )}
 
+      {/* One target for the comparison, whichever state it is in, so "Compare resume" on a
+          recommendation can bring it into view. */}
+      <div ref={matchSection} className="match-section">
       {matching && (
         <Card>
           <p className="status" role="status">
@@ -267,10 +440,17 @@ export function ResumeIntelligence() {
                   <span className="match-figure-value">{match.matchPercentage.toFixed(0)}%</span>
                   <span className="match-figure-label">Skill match</span>
                 </div>
+                {match.breakdown?.overallPercentage !== undefined && (
+                  <div className="match-figure">
+                    <span className="match-figure-value">{match.breakdown.overallPercentage.toFixed(0)}%</span>
+                    <span className="match-figure-label">Overall match</span>
+                  </div>
+                )}
                 <div style={{ flex: '1 1 260px', minWidth: 0 }}>
                   <div className="stat-grid" style={{ marginBottom: 12 }}>
                     <StatCard label="Skills you have" value={match.matchedSkillCount} />
-                    <StatCard label="Skills you are missing" value={match.missingSkillCount} />
+                    <StatCard label="Skills you are missing" value={match.missingSkillCount}
+                      info="Skills this job lists that were not found on your resume. Add the ones you really have, written plainly." />
                     <StatCard label="Required by this job" value={match.totalJobSkills} />
                   </div>
                   <div
@@ -283,9 +463,18 @@ export function ResumeIntelligence() {
                   >
                     <div className="match-meter-fill" style={{ width: `${match.matchPercentage}%` }} />
                   </div>
-                  <p className="card-description" style={{ marginTop: 8 }}>
-                    Skills only. This is not a prediction about being hired.
-                  </p>
+                  {match.breakdown ? (
+                    <div style={{ marginTop: 12 }}>
+                      <MatchBreakdownList breakdown={match.breakdown} />
+                      <p className="card-description" style={{ marginTop: 8 }}>
+                        Overall is the weighted average of the available dimensions. This is not a prediction about being hired.
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="card-description" style={{ marginTop: 8 }}>
+                      Skills only. This is not a prediction about being hired.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -345,8 +534,12 @@ export function ResumeIntelligence() {
             <hr className="divider" />
             <Link to={`/jobs/${match.jobId}`}>View the full job posting</Link>
           </Card>
+
+          <JobAnalysisPanel key={`${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
+          <ResumeOptimizer key={`opt-${match.resumeId}-${match.jobId}`} resumeId={match.resumeId} jobId={match.jobId} />
         </>
       )}
+      </div>
     </>
   );
 }

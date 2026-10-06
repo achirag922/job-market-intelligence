@@ -13,5 +13,8 @@ public enum AiTask {
     INTENT_EXTRACTION,
 
     /** Retrieved rows in, a sentence describing them out. */
-    ANSWER_GENERATION
+    ANSWER_GENERATION,
+
+    /** V8.7: scoring one practice interview answer; the reply is JSON. */
+    INTERVIEW_EVALUATION
 }

@@ -4,6 +4,9 @@ import com.jmip.etl.load.EtlMetrics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.JobExecution;
 import org.springframework.batch.core.JobParameters;
@@ -75,6 +78,25 @@ class EtlJobIntegrationTest {
         jobLauncherTestUtils.setJob(ingestJob);
         jdbcTemplate.execute(
                 "TRUNCATE job_skills, jobs, skills, companies, locations, etl_rejected_record RESTART IDENTITY CASCADE");
+    }
+
+    @Autowired
+    private javax.sql.DataSource dataSource;
+
+    @Test
+    @DisplayName("V9.9: a run started while another holds the ETL lock fails before loading; the next run succeeds")
+    void refusesConcurrentRun() throws Exception {
+        try (java.sql.Connection other = dataSource.getConnection(); java.sql.Statement statement = other.createStatement()) {
+            statement.execute("SELECT pg_advisory_lock(hashtext('" + EtlRunLock.KEY + "'))");
+            JobExecution refused = jobLauncherTestUtils.launchJob(jobParameters());
+            assertThat(refused.getStatus()).isEqualTo(BatchStatus.FAILED);
+            assertThat(refused.getAllFailureExceptions()).anySatisfy(failure ->
+                    assertThat(failure).hasMessageContaining("Another ETL run is in progress"));
+            assertThat(count("jobs")).isZero();
+            statement.execute("SELECT pg_advisory_unlock(hashtext('" + EtlRunLock.KEY + "'))");
+        }
+        assertThat(jobLauncherTestUtils.launchJob(jobParameters()).getStatus()).isEqualTo(BatchStatus.COMPLETED);
+        assertThat(count("jobs")).isEqualTo(5);
     }
 
     @Test
@@ -149,6 +171,19 @@ class EtlJobIntegrationTest {
     }
 
     @Test
+    @DisplayName("stores the loaded and duplicate counts against the Spring Batch execution id")
+    void recordsRunMetrics() throws Exception {
+        JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT records_loaded, duplicates_skipped FROM etl_run_metrics WHERE job_execution_id = ?",
+                execution.getId());
+
+        assertThat(row.get("records_loaded")).isEqualTo(5L);
+        assertThat(row.get("duplicates_skipped")).isEqualTo(2L);
+    }
+
+    @Test
     @DisplayName("records every rejection with its reason and the original input")
     void recordsRejections() throws Exception {
         JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
@@ -215,6 +250,18 @@ class EtlJobIntegrationTest {
 
     private int count(String table) {
         return jdbcTemplate.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    }
+
+    @Test
+    @ExtendWith(OutputCaptureExtension.class)
+    @DisplayName("V7.8: a run logs a one-line summary with its execution id, and leaves no id behind")
+    void logsRunSummary(CapturedOutput output) throws Exception {
+        JobExecution execution = jobLauncherTestUtils.launchJob(jobParameters());
+
+        assertThat(output).contains("etl.run executionId=" + execution.getId())
+                .contains("status=COMPLETED")
+                .contains("read=10 processed=7 loaded=5 duplicates=2 rejected=3");
+        assertThat(org.slf4j.MDC.get(EtlJobListener.MDC_JOB_EXECUTION_ID)).isNull();
     }
 
     private List<String> names(String sql) {

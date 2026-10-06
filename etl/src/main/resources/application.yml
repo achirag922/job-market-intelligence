@@ -36,6 +36,14 @@ jmip:
     # A run where this many records are rejected is almost certainly the wrong file or
     # the wrong column mapping, and should stop rather than grind through.
     skip-limit: 500
+    # V9.1: where records come from. "file" (the default) reads the inputFile job parameter as
+    # before; "sample" reads a bundled mock job-board feed. A run can also pass connector=... .
+    connectors:
+      active: ${JMIP_ETL_CONNECTOR:file}
+      sample:
+        # classpath: or file: only; the sample connector never makes network calls.
+        resource: ${JMIP_ETL_SAMPLE_RESOURCE:classpath:connectors/sample-postings.json}
+        source-code: ${JMIP_ETL_SAMPLE_SOURCE:sample-board}
 
     skill-dictionary:
       skills:

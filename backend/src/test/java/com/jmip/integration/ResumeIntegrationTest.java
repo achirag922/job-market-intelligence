@@ -3,11 +3,13 @@ package com.jmip.integration;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jmip.testsupport.PdfFixtures;
+import com.jmip.testsupport.MockUserAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -44,6 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
+// V6.10.3: the API requires a signed-in USER; these tests exercise behaviour behind that.
+@WithMockUser(roles = "USER")
 class ResumeIntegrationTest {
 
     @Container
@@ -66,8 +70,12 @@ class ResumeIntegrationTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** The account behind @WithMockUser; resumes seeded here belong to it. */
+    private java.util.UUID ownerId;
+
     @BeforeEach
     void seed() {
+        ownerId = MockUserAccount.ensure(jdbcTemplate);
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes, job_skills, jobs, skills, companies, locations "
                 + "RESTART IDENTITY CASCADE");
 
@@ -217,6 +225,73 @@ class ResumeIntegrationTest {
     }
 
     @Test
+    @DisplayName("recommendations reuse the skill match score, are ranked, limited and distinct")
+    void recommendationsAreRankedAndLimited() throws Exception {
+        jdbcTemplate.update("INSERT INTO locations (id, city, state, country) VALUES (1, 'Austin', 'Texas', 'United States')");
+        jdbcTemplate.update("UPDATE jobs SET location_id = 1 WHERE id = 1");
+
+        insertJob(3, "Java Platform Engineer");
+        jdbcTemplate.update("UPDATE jobs SET location_id = 1 WHERE id = 3");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (3,1),(3,2)");
+
+        // Same 100% score as job 3: id is the documented stable tie breaker.
+        insertJob(4, "Docker Engineer");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (4,4)");
+
+        // No overlap with the resume, so it is deliberately not a recommendation.
+        insertJob(5, "Python Data Engineer");
+        jdbcTemplate.update("INSERT INTO job_skills (job_id, skill_id) VALUES (5,6)");
+
+        UUID resumeId = uploadAndGetId();
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].jobId").value(3))
+                .andExpect(jsonPath("$[0].matchPercentage").value(100.0))
+                .andExpect(jsonPath("$[0].location.displayName").value("Austin, Texas, United States"))
+                .andExpect(jsonPath("$[0].matchedSkills[*].name")
+                        .value(org.hamcrest.Matchers.containsInAnyOrder("Java", "Spring Boot")))
+                .andExpect(jsonPath("$[0].missingSkills").isEmpty())
+                .andExpect(jsonPath("$[1].jobId").value(4))
+                .andExpect(jsonPath("$[1].matchPercentage").value(100.0));
+
+        String response = mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        List<Long> ids = objectMapper.readTree(response).findValues("jobId").stream()
+                .map(JsonNode::asLong)
+                .toList();
+        assertThat(ids).containsExactly(3L, 4L, 1L);
+        assertThat(ids).doesNotHaveDuplicates();
+    }
+
+    @Test
+    @DisplayName("recommendations are empty when no job shares a resume skill")
+    void recommendationsWithoutOverlapAreEmpty() throws Exception {
+        UUID resumeId = uploadAndGetId(resumePdfWith(List.of("Python")));
+
+        // Job 2 has no skills and job 1 has no Python, so neither can be recommended.
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("recommendation limit is validated at the API boundary")
+    void recommendationLimitIsValidated() throws Exception {
+        UUID resumeId = uploadAndGetId();
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+
+        mockMvc.perform(get("/api/resumes/{resumeId}/recommendations", resumeId).param("limit", "21"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400));
+    }
+
+    @Test
     @DisplayName("matching against an unknown job is a 404")
     void matchAgainstUnknownJob() throws Exception {
         UUID resumeId = uploadAndGetId();
@@ -231,7 +306,8 @@ class ResumeIntegrationTest {
     void unreadablePdfIsRecordedAsFailed() throws Exception {
         MockMultipartFile notAPdf = new MockMultipartFile(
                 "file", "broken.pdf", MediaType.APPLICATION_PDF_VALUE,
-                "this is not a PDF at all".getBytes(StandardCharsets.UTF_8));
+                // A PDF header over a corrupt body: accepted as a PDF, unreadable by the parser.
+                "%PDF-1.7\nthis is not a PDF at all".getBytes(StandardCharsets.UTF_8));
 
         String body = upload(notAPdf).getResponse().getContentAsString();
         JsonNode resume = objectMapper.readTree(body);
@@ -247,7 +323,7 @@ class ResumeIntegrationTest {
     void failedResumeCannotBeMatched() throws Exception {
         MockMultipartFile notAPdf = new MockMultipartFile(
                 "file", "broken.pdf", MediaType.APPLICATION_PDF_VALUE,
-                "not a PDF".getBytes(StandardCharsets.UTF_8));
+                "%PDF-1.7\nnot a PDF".getBytes(StandardCharsets.UTF_8));
         UUID resumeId = UUID.fromString(objectMapper.readTree(
                 upload(notAPdf).getResponse().getContentAsString()).get("id").asText());
 

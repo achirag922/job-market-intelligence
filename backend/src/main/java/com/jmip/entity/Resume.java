@@ -1,6 +1,7 @@
 package com.jmip.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -36,6 +37,10 @@ public class Resume {
     @Id
     private UUID id;
 
+    /** The account that uploaded it; null only for resumes from before accounts existed. */
+    @Column(name = "user_id", updatable = false)
+    private UUID userId;
+
     @Column(name = "original_file_name", nullable = false)
     private String originalFileName;
 
@@ -52,6 +57,8 @@ public class Resume {
     @Column(name = "processing_status", nullable = false)
     private ResumeProcessingStatus processingStatus;
 
+    /** Encrypted at rest when a resume encryption key is configured. */
+    @Convert(converter = EncryptedTextConverter.class)
     @Column(name = "extracted_text")
     private String extractedText;
 
@@ -69,12 +76,59 @@ public class Resume {
     @Column(name = "processed_at")
     private OffsetDateTime processedAt;
 
+    /** V7.3: what the owner calls this version, e.g. "Backend CV". Starts as the file name. */
+    @Column(nullable = false)
+    private String title;
+
+    /** V7.3: optional short label, e.g. "v2" or "2026 Spring". */
+    @Column(name = "version_label")
+    private String versionLabel;
+
+    /** V7.3: the owner's current resume; at most one per account (enforced by the schema). */
+    @Column(name = "is_default", nullable = false)
+    private boolean defaultResume;
+
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "resume_skills",
             joinColumns = @JoinColumn(name = "resume_id"),
             inverseJoinColumns = @JoinColumn(name = "skill_id"))
     private Set<Skill> skills = new LinkedHashSet<>();
+
+    /** V9.4: UPLOAD for a PDF, BUILDER for one written in JMIP's builder. */
+    @Column(name = "source", nullable = false)
+    private String source = "UPLOAD";
+
+    /** V9.4: the builder's sections as JSON; encrypted at rest like the extracted text. */
+    @Convert(converter = EncryptedTextConverter.class)
+    @Column(name = "builder_content")
+    private String builderContent;
+
+    /**
+     * V9.4: a resume written in the builder. It has no uploaded file: the stored name is a
+     * placeholder no file will ever have, so the existing deletion removes nothing on disk.
+     */
+    public static Resume built(UUID id, UUID userId, String title, String contentJson, OffsetDateTime now) {
+        Resume resume = new Resume(id, userId, "resume.pdf", "builder-" + id, "application/json", contentJson.length(), now);
+        resume.source = "BUILDER";
+        resume.builderContent = contentJson;
+        resume.title = title;
+        return resume;
+    }
+
+    public boolean isBuilt() {
+        return "BUILDER".equals(source);
+    }
+
+    /** V9.4: new sections from the owner; the caller regenerates the text and skills. */
+    public void replaceBuilderContent(String contentJson, OffsetDateTime now) {
+        this.builderContent = contentJson;
+        this.fileSizeBytes = contentJson.length();
+        this.updatedAt = now;
+    }
 
     public Resume(UUID id, String originalFileName, String storedFileName,
                   String contentType, long fileSizeBytes, OffsetDateTime uploadedAt) {
@@ -85,6 +139,20 @@ public class Resume {
         this.fileSizeBytes = fileSizeBytes;
         this.uploadedAt = uploadedAt;
         this.processingStatus = ResumeProcessingStatus.UPLOADED;
+        this.title = titleFrom(originalFileName);
+        this.updatedAt = uploadedAt;
+    }
+
+    /** A resume owned by {@code userId}, the account that is uploading it. */
+    public Resume(UUID id, UUID userId, String originalFileName, String storedFileName,
+                  String contentType, long fileSizeBytes, OffsetDateTime uploadedAt) {
+        this(id, originalFileName, storedFileName, contentType, fileSizeBytes, uploadedAt);
+        this.userId = userId;
+    }
+
+    /** False for every account when the resume has no owner. */
+    public boolean isOwnedBy(UUID accountId) {
+        return userId != null && userId.equals(accountId);
     }
 
     public void markProcessing() {
@@ -103,6 +171,7 @@ public class Resume {
         this.skills.addAll(skills);
         this.errorMessage = null;
         this.processedAt = processedAt;
+        this.updatedAt = processedAt;
     }
 
     public void markFailed(String errorMessage, OffsetDateTime processedAt) {
@@ -111,9 +180,31 @@ public class Resume {
         this.errorMessage = errorMessage == null || errorMessage.isBlank()
                 ? "Resume processing failed" : errorMessage;
         this.processedAt = processedAt;
+        this.updatedAt = processedAt;
     }
 
     public boolean isCompleted() {
         return processingStatus == ResumeProcessingStatus.COMPLETED;
+    }
+
+    /** V7.3: rename, or relabel, this version. The caller has validated both values. */
+    public void describe(String title, String versionLabel, OffsetDateTime now) {
+        this.title = title;
+        this.versionLabel = versionLabel;
+        this.updatedAt = now;
+    }
+
+    public void setDefault(boolean isDefault, OffsetDateTime now) {
+        this.defaultResume = isDefault;
+        this.updatedAt = now;
+    }
+
+    /** The file name without ".pdf", bounded to the column; "Resume" when nothing is left. */
+    static String titleFrom(String fileName) {
+        String base = fileName == null ? "" : fileName.replaceFirst("(?i)\\.pdf$", "").strip();
+        if (base.isEmpty()) {
+            return "Resume";
+        }
+        return base.length() > 100 ? base.substring(0, 100).strip() : base;
     }
 }

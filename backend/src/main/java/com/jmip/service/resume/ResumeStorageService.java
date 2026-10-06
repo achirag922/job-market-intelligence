@@ -29,13 +29,17 @@ public class ResumeStorageService {
     private static final Logger log = LoggerFactory.getLogger(ResumeStorageService.class);
 
     private static final String STORED_FILE_EXTENSION = ".pdf";
+    /** Every PDF begins with "%PDF-". */
+    private static final byte[] PDF_SIGNATURE = {'%', 'P', 'D', 'F', '-'};
 
     private final ResumeStorageProperties properties;
     private final Path storageDirectory;
+    private final ResumeCipher cipher;
 
-    public ResumeStorageService(ResumeStorageProperties properties) {
+    public ResumeStorageService(ResumeStorageProperties properties, ResumeCipher cipher) {
         this.properties = properties;
         this.storageDirectory = Path.of(properties.directory()).toAbsolutePath().normalize();
+        this.cipher = cipher;
     }
 
     /**
@@ -59,6 +63,21 @@ public class ResumeStorageService {
                             .formatted(String.join(", ", properties.allowedContentTypes()),
                                     contentType.isEmpty() ? "unknown" : contentType));
         }
+        // The declared type is whatever the client says. The first bytes are what the file
+        // is: anything that does not start like a PDF — an executable renamed to .pdf,
+        // an HTML page, a script — is refused before it is stored or parsed.
+        if (!startsWithPdfSignature(file)) {
+            throw new InvalidRequestException("The file is not a PDF document");
+        }
+    }
+
+    private static boolean startsWithPdfSignature(MultipartFile file) {
+        try (var in = file.getInputStream()) {
+            byte[] head = in.readNBytes(PDF_SIGNATURE.length);
+            return java.util.Arrays.equals(head, PDF_SIGNATURE);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Could not read the uploaded file", e);
+        }
     }
 
     /**
@@ -75,7 +94,9 @@ public class ResumeStorageService {
             if (!target.startsWith(storageDirectory)) {
                 throw new IllegalStateException("Refusing to write outside the resume storage directory");
             }
-            Files.write(target, content);
+            // Encrypted at rest when a key is configured; the original is never needed again
+            // except to download, so nothing here reads it back.
+            Files.write(target, cipher.sealFile(content));
             log.info("Stored resume {} ({} bytes)", resumeId, content.length);
             return storedFileName;
         } catch (IOException e) {
@@ -83,12 +104,21 @@ public class ResumeStorageService {
         }
     }
 
-    /** Used when processing fails, so a rejected upload does not linger on disk. */
+    /**
+     * Removes a stored file if it is there: after a failed upload, a deletion, or the retention
+     * sweep. A file already gone is fine. The log names the stored file only, never the
+     * directory, since an I/O exception message carries the absolute path.
+     */
     public void deleteQuietly(String storedFileName) {
+        Path target = storageDirectory.resolve(storedFileName).normalize();
+        if (!target.startsWith(storageDirectory)) {
+            log.warn("Refusing to delete outside the resume storage directory");
+            return;
+        }
         try {
-            Files.deleteIfExists(storageDirectory.resolve(storedFileName).normalize());
+            Files.deleteIfExists(target);
         } catch (IOException e) {
-            log.warn("Could not delete stored resume file {}", storedFileName, e);
+            log.warn("Could not delete stored resume file {}: {}", storedFileName, e.getClass().getSimpleName());
         }
     }
 

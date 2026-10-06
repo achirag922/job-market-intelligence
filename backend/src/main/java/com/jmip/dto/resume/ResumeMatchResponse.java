@@ -41,5 +41,16 @@ public record ResumeMatchResponse(
         int missingSkillCount,
         List<SkillResponse> matchedSkills,
         List<SkillResponse> missingSkills,
-        List<SkillResponse> resumeOnlySkills) {
+        List<SkillResponse> resumeOnlySkills,
+        /** V8.3: overall score and the per-dimension breakdown behind it. */
+        MatchBreakdown breakdown) {
+
+    /** The V3 shape, without a breakdown. */
+    public ResumeMatchResponse(UUID resumeId, Long jobId, String jobTitle, String companyName, String jobCategory,
+                               Double matchPercentage, String matchNote, int totalJobSkills, int totalResumeSkills,
+                               int matchedSkillCount, int missingSkillCount, List<SkillResponse> matchedSkills,
+                               List<SkillResponse> missingSkills, List<SkillResponse> resumeOnlySkills) {
+        this(resumeId, jobId, jobTitle, companyName, jobCategory, matchPercentage, matchNote, totalJobSkills,
+                totalResumeSkills, matchedSkillCount, missingSkillCount, matchedSkills, missingSkills, resumeOnlySkills, null);
+    }
 }

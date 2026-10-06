@@ -9,7 +9,6 @@ import com.jmip.etl.reprocess.StoredJob;
 import com.jmip.etl.load.ReferenceDataCache;
 import com.jmip.etl.model.TransformedJob;
 import com.jmip.etl.raw.RawJobRecord;
-import com.jmip.etl.raw.RawJobRecordReaderFactory;
 import com.jmip.etl.transform.JobItemProcessor;
 import com.jmip.etl.validation.RecordRejectedException;
 import org.springframework.batch.core.Job;
@@ -45,9 +44,10 @@ import java.time.Clock;
  * which combined with the duplicate constraints means re-running after a failure resumes
  * safely rather than double loading.
  *
- * <p>Retry is deliberately not configured. Nothing in this pipeline is transiently
- * failing yet — a bad record is bad every time — and retry without a genuine transient
- * failure just multiplies work.
+ * <p>V9.9: only transient database failures (a deadlock, a lock timeout, a dropped connection)
+ * are retried, a few times with backoff; the chunk is rolled back and written again, which the
+ * duplicate constraints make safe. A bad record is bad every time, so rejections are skipped,
+ * never retried, and anything else still fails the step for a restart.
  */
 @Configuration
 public class BatchConfiguration {
@@ -56,6 +56,17 @@ public class BatchConfiguration {
     public static final String STEP_NAME = "ingestJobPostingsStep";
     public static final String REPROCESS_JOB_NAME = "reprocessJobPostings";
     public static final String REPROCESS_STEP_NAME = "reprocessJobPostingsStep";
+    /** Attempts per item for a transient database failure, the first included. */
+    static final int TRANSIENT_RETRY_LIMIT = 3;
+
+    /** 0.5 s, then 1 s, capped at 5 s: long enough for a deadlock or failover to clear. */
+    static org.springframework.retry.backoff.BackOffPolicy transientBackOff() {
+        org.springframework.retry.backoff.ExponentialBackOffPolicy backOff = new org.springframework.retry.backoff.ExponentialBackOffPolicy();
+        backOff.setInitialInterval(500);
+        backOff.setMultiplier(2.0);
+        backOff.setMaxInterval(5000);
+        return backOff;
+    }
 
     /** Injected rather than called statically, so validation can be tested against a fixed date. */
     @Bean
@@ -64,9 +75,12 @@ public class BatchConfiguration {
     }
 
     /**
-     * Resolved per step execution, because the file to read is a job parameter.
+     * Resolved per step execution, because the source to read is chosen by job parameters.
+     * V9.1: through the selected connector ({@code connector} parameter, else
+     * {@code jmip.etl.connectors.active}, default {@code file}); every connector's records then
+     * go through the same processor and writer.
      *
-     * @param inputFile     path to the dataset, e.g. {@code etl/data/raw/synthetic-job-postings-v1.json}
+     * @param inputFile     for the file connector: path to the dataset, e.g. {@code etl/data/raw/synthetic-job-postings-v1.json}
      * @param defaultSource used for CSV files that carry no source column
      */
     @Bean
@@ -74,12 +88,10 @@ public class BatchConfiguration {
     public ItemStreamReader<RawJobRecord> jobRecordReader(
             @Value("#{jobParameters['inputFile']}") String inputFile,
             @Value("#{jobParameters['defaultSource']}") String defaultSource,
-            RawJobRecordReaderFactory readerFactory) {
-        if (inputFile == null || inputFile.isBlank()) {
-            throw new IllegalArgumentException(
-                    "Job parameter 'inputFile' is required, for example: inputFile=etl/data/raw/dataset.json");
-        }
-        return readerFactory.create(Path.of(inputFile), defaultSource == null ? "unknown" : defaultSource);
+            @Value("#{jobParameters['connector']}") String connector,
+            com.jmip.etl.connector.JobSourceConnectors connectors) {
+        return connectors.select(connector)
+                .open(new com.jmip.etl.connector.JobSourceConnector.ConnectorRequest(inputFile, defaultSource));
     }
 
     @Bean
@@ -101,6 +113,10 @@ public class BatchConfiguration {
                 // the evidence, and carry on. Anything else still fails the step.
                 .skip(RecordRejectedException.class)
                 .skipLimit(properties.skipLimit())
+                .retry(org.springframework.dao.TransientDataAccessException.class)
+                .retry(org.springframework.dao.RecoverableDataAccessException.class)
+                .retryLimit(TRANSIENT_RETRY_LIMIT)
+                .backOffPolicy(transientBackOff())
                 .listener((SkipListener<RawJobRecord, TransformedJob>) rejectedRecordListener)
                 .listener((StepExecutionListener) rejectedRecordListener)
                 .listener(referenceDataPrimer(referenceDataCache))
@@ -144,6 +160,11 @@ public class BatchConfiguration {
                 .reader(storedJobReader)
                 .processor(jobReprocessingProcessor)
                 .writer(jobReprocessingWriter)
+                .faultTolerant()
+                .retry(org.springframework.dao.TransientDataAccessException.class)
+                .retry(org.springframework.dao.RecoverableDataAccessException.class)
+                .retryLimit(TRANSIENT_RETRY_LIMIT)
+                .backOffPolicy(transientBackOff())
                 .listener(referenceDataPrimer(referenceDataCache))
                 .build();
     }

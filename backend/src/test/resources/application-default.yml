@@ -1,0 +1,6 @@
+# Tests only. Loaded when no profile is active, which is every test context. Integration
+# tests upload and ask far more than a real client would within a minute; the rate limit
+# itself is covered by RequestLimitFilterTest, which builds the filter directly.
+jmip:
+  security:
+    rate-limit-enabled: false

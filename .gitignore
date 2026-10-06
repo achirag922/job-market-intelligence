@@ -15,3 +15,18 @@ target/
 
 # Uploaded resumes, written at runtime
 data/
+
+# Docker Compose settings, may hold secrets
+.env
+# Any environment file except the documented examples
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Keys and keystores
+*.pem
+*.key
+*.p12
+*.jks
