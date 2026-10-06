@@ -155,14 +155,10 @@ jobs:
       # sonar.qualitygate.wait=true (sonar-project.properties): a failed Quality Gate fails this step.
       - name: Analyse and wait for the Quality Gate
         if: steps.config.outputs.run == 'true'
-        uses: SonarSource/sonarqube-scan-action@v5
+        uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
-        with:
-          args: >
-            ${{ vars.SONAR_PROJECT_KEY && format('-Dsonar.projectKey={0}', vars.SONAR_PROJECT_KEY) || '' }}
-            ${{ vars.SONAR_ORGANIZATION && format('-Dsonar.organization={0}', vars.SONAR_ORGANIZATION) || '' }}
 
   docker:
     name: Docker image (${{ matrix.image }})

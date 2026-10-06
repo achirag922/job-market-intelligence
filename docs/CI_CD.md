@@ -44,7 +44,6 @@ The pipeline needs **one stored secret**, `SONAR_TOKEN` (V10.4); everything else
 | `JMIP_PUBLIC_URL` | repository **variable** (not secret) | Settings → Secrets and variables → Actions → Variables | frontend image build on release tags |
 | `SONAR_TOKEN` | repository **secret** | Settings → Secrets and variables → Actions → Secrets | Sonar analysis (SonarCloud: My Account → Security; SonarQube: a project analysis token) |
 | `SONAR_HOST_URL` | variable, optional | Variables | self-hosted SonarQube URL; SonarCloud is the default |
-| `SONAR_PROJECT_KEY` / `SONAR_ORGANIZATION` | variables, optional | Variables | override the defaults in `sonar-project.properties` |
 | `release` | environment | Settings → Environments (add required reviewers) | gating the publish job |
 
 Production runtime secrets (`JMIP_DB_PASSWORD`, `JMIP_OTP_SECRET`, `JMIP_RESUME_ENCRYPTION_KEY`, mail and
