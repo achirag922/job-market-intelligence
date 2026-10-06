@@ -36,6 +36,8 @@
         <postgresql.version>42.7.13</postgresql.version>
         <!-- Pulled in by the Anthropic SDK's HTTP client; 5.4 is a compatible minor of 5.3. -->
         <httpcore5.version>5.4.4</httpcore5.version>
+        <!-- V10.4: test coverage for Sonar. -->
+        <jacoco.version>0.8.15</jacoco.version>
     </properties>
 
     <dependencyManagement>
@@ -58,4 +60,31 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <!-- V10.4: JaCoCo instruments the surefire run (prepare-agent sets argLine) and writes
+                 target/site/jacoco/jacoco.xml per module in verify, which Sonar reads. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>

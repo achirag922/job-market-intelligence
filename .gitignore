@@ -30,3 +30,6 @@ data/
 *.key
 *.p12
 *.jks
+
+# Sonar scanner work directory (V10.4)
+.scannerwork/

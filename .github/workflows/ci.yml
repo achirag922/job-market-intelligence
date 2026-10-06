@@ -1,6 +1,6 @@
 name: CI
 
-# V10.3 pipeline: build -> test -> security checks -> Docker images -> container smoke test.
+# V10.3 pipeline: build -> test -> security checks -> Sonar Quality Gate (V10.4) -> Docker images -> container smoke test.
 # Any failing step fails the run. Images are only pushed (never deployed) for a v* release tag.
 on:
   push:
@@ -51,6 +51,22 @@ jobs:
           path: '**/target/surefire-reports/'
           retention-days: 7
 
+      # V10.4: classes, JaCoCo coverage and test results for the Sonar job.
+      - name: Upload analysis inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-analysis
+          path: |
+            backend/target/classes/
+            backend/target/test-classes/
+            backend/target/site/jacoco/jacoco.xml
+            backend/target/surefire-reports/
+            etl/target/classes/
+            etl/target/test-classes/
+            etl/target/site/jacoco/jacoco.xml
+            etl/target/surefire-reports/
+          retention-days: 3
+
   frontend:
     name: Frontend lint, test, audit and build
     runs-on: ubuntu-latest
@@ -76,8 +92,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      # V10.4: the same tests, with V8 coverage written as lcov for Sonar.
+      - name: Test with coverage
+        run: npm run test:coverage
 
       # Built-in npm audit, runtime dependencies only: a known high or critical
       # vulnerability in what ships to browsers fails the run.
@@ -87,9 +104,69 @@ jobs:
       - name: Production build
         run: npm run build
 
+      # lcov paths are relative to frontend/; Sonar resolves them from the repository root.
+      - name: Make coverage paths repository-relative
+        run: sed -i 's#^SF:src/#SF:frontend/src/#' coverage/lcov.info
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: frontend/coverage/lcov.info
+          retention-days: 3
+
+  sonar:
+    name: Sonar analysis and Quality Gate
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      # Full history, so Sonar can tell new code from old and attribute issues.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Secrets are not given to pull requests from forks or Dependabot; those runs skip the
+      # analysis with a warning. Everywhere else a missing token fails the run.
+      - name: Check Sonar configuration
+        id: config
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          UNTRUSTED_PR: ${{ github.event_name == 'pull_request' && (github.event.pull_request.head.repo.full_name != github.repository || github.actor == 'dependabot[bot]') }}
+        run: |
+          if [ -n "$SONAR_TOKEN" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ "$UNTRUSTED_PR" = "true" ]; then
+            echo "::warning::SONAR_TOKEN is not available to this pull request; Sonar analysis skipped."
+            echo "run=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "::error::Add the SONAR_TOKEN repository secret (see docs/CI_CD.md)."; exit 1
+
+      - uses: actions/download-artifact@v4
+        if: steps.config.outputs.run == 'true'
+        with:
+          name: backend-analysis
+
+      - uses: actions/download-artifact@v4
+        if: steps.config.outputs.run == 'true'
+        with:
+          name: frontend-coverage
+          path: frontend/coverage
+
+      # sonar.qualitygate.wait=true (sonar-project.properties): a failed Quality Gate fails this step.
+      - name: Analyse and wait for the Quality Gate
+        if: steps.config.outputs.run == 'true'
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL || 'https://sonarcloud.io' }}
+        with:
+          args: >
+            ${{ vars.SONAR_PROJECT_KEY && format('-Dsonar.projectKey={0}', vars.SONAR_PROJECT_KEY) || '' }}
+            ${{ vars.SONAR_ORGANIZATION && format('-Dsonar.organization={0}', vars.SONAR_ORGANIZATION) || '' }}
+
   docker:
     name: Docker image (${{ matrix.image }})
-    needs: [backend, frontend]
+    needs: [backend, frontend, sonar]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
