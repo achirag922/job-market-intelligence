@@ -22,6 +22,9 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
             "JMIP_DB_HOST", "JMIP_DB_NAME", "JMIP_DB_USERNAME", "JMIP_DB_PASSWORD",
             "JMIP_RESUME_DIR", "JMIP_CORS_ALLOWED_ORIGINS", "JMIP_OTP_SECRET", "JMIP_RESUME_ENCRYPTION_KEY");
 
+    /** V10.1: the PostgreSQL driver's sslmode values; managed cloud databases usually want require or verify-full. */
+    static final List<String> SSL_MODES = List.of("disable", "allow", "prefer", "require", "verify-ca", "verify-full");
+
     /** Needed unless verification codes are explicitly logged instead of emailed. */
     static final List<String> REQUIRED_FOR_SMTP = List.of("JMIP_MAIL_USERNAME", "JMIP_MAIL_PASSWORD");
 
@@ -41,6 +44,10 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
                     "The prod profile requires these environment variables: " + String.join(", ", missing));
         }
         List<String> unsafe = new java.util.ArrayList<>(transportProblems(environment));
+        String sslMode = environment.getProperty("JMIP_DB_SSL_MODE", "prefer").strip().toLowerCase(java.util.Locale.ROOT);
+        if (!SSL_MODES.contains(sslMode)) {
+            unsafe.add("JMIP_DB_SSL_MODE must be one of " + String.join(", ", SSL_MODES));
+        }
         if (!emailsCodes && !localOnly(environment)) {
             // Anyone who can read the logs could then confirm any address.
             unsafe.add("JMIP_VERIFICATION_DELIVERY=log writes sign-up codes to the log; use smtp when "

@@ -19,3 +19,5 @@ COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 COPY hsts.conf /etc/nginx/snippets/hsts.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1/healthz || exit 1

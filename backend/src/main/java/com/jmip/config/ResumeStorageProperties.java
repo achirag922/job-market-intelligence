@@ -16,12 +16,14 @@ import java.util.List;
  *                        multipart limit in application.yml, so the container and the
  *                        service agree rather than rejecting at two different sizes
  * @param allowedContentTypes content types accepted on upload
+ * @param type            V10.1: which {@code ResumeFileStore} keeps the files; only {@code local}
  */
 @ConfigurationProperties(prefix = "jmip.resume.storage")
 public record ResumeStorageProperties(
         @DefaultValue("./data/resumes") String directory,
         @DefaultValue("5MB") DataSize maxFileSize,
-        @DefaultValue("application/pdf") List<String> allowedContentTypes) {
+        @DefaultValue("application/pdf") List<String> allowedContentTypes,
+        @DefaultValue("local") String type) {
 
     public ResumeStorageProperties {
         allowedContentTypes = allowedContentTypes == null || allowedContentTypes.isEmpty()

@@ -148,6 +148,8 @@ jmip:
       # container and the upload validation reject at the same size.
       max-file-size: ${JMIP_RESUME_MAX_FILE_SIZE:5MB}
       allowed-content-types: application/pdf
+      # V10.1: which store keeps the files. Only local (the directory above, a mounted volume in the cloud).
+      type: ${JMIP_RESUME_STORAGE_TYPE:local}
     privacy:
       # base64 of a 256-bit key (`openssl rand -base64 32`). Encrypts stored resume files and
       # extracted text. Required in production; blank here stores them unencrypted.

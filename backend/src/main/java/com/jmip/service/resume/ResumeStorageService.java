@@ -9,13 +9,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Validates uploads and writes them to disk.
+ * Validates uploads, encrypts them and hands them to the configured {@link ResumeFileStore}.
  *
  * <p>The stored name is derived from the resume's generated id, never from the uploaded
  * filename. That is the whole defence against path traversal: a file called
@@ -33,13 +31,13 @@ public class ResumeStorageService {
     private static final byte[] PDF_SIGNATURE = {'%', 'P', 'D', 'F', '-'};
 
     private final ResumeStorageProperties properties;
-    private final Path storageDirectory;
     private final ResumeCipher cipher;
+    private final ResumeFileStore fileStore;
 
-    public ResumeStorageService(ResumeStorageProperties properties, ResumeCipher cipher) {
+    public ResumeStorageService(ResumeStorageProperties properties, ResumeCipher cipher, ResumeFileStore fileStore) {
         this.properties = properties;
-        this.storageDirectory = Path.of(properties.directory()).toAbsolutePath().normalize();
         this.cipher = cipher;
+        this.fileStore = fileStore;
     }
 
     /**
@@ -87,16 +85,10 @@ public class ResumeStorageService {
     public String store(UUID resumeId, byte[] content) {
         String storedFileName = resumeId + STORED_FILE_EXTENSION;
         try {
-            Files.createDirectories(storageDirectory);
-            Path target = storageDirectory.resolve(storedFileName).normalize();
-            // Belt and braces: the name is generated, but a path that escaped the
-            // configured directory must never be written to regardless.
-            if (!target.startsWith(storageDirectory)) {
-                throw new IllegalStateException("Refusing to write outside the resume storage directory");
-            }
             // Encrypted at rest when a key is configured; the original is never needed again
-            // except to download, so nothing here reads it back.
-            Files.write(target, cipher.sealFile(content));
+            // except to download, so nothing here reads it back. The store refuses any name that
+            // would resolve outside its location.
+            fileStore.write(storedFileName, cipher.sealFile(content));
             log.info("Stored resume {} ({} bytes)", resumeId, content.length);
             return storedFileName;
         } catch (IOException e) {
@@ -110,20 +102,12 @@ public class ResumeStorageService {
      * directory, since an I/O exception message carries the absolute path.
      */
     public void deleteQuietly(String storedFileName) {
-        Path target = storageDirectory.resolve(storedFileName).normalize();
-        if (!target.startsWith(storageDirectory)) {
-            log.warn("Refusing to delete outside the resume storage directory");
-            return;
-        }
         try {
-            Files.deleteIfExists(target);
+            fileStore.delete(storedFileName);
+        } catch (IllegalStateException outside) {
+            log.warn("Refusing to delete outside the resume storage directory");
         } catch (IOException e) {
             log.warn("Could not delete stored resume file {}: {}", storedFileName, e.getClass().getSimpleName());
         }
-    }
-
-    /** Package private: exposed for tests and logging, never through the API. */
-    Path storageDirectory() {
-        return storageDirectory;
     }
 }

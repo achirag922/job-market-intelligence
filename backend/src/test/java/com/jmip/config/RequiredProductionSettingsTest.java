@@ -46,6 +46,17 @@ class RequiredProductionSettingsTest {
     }
 
     @Test
+    @DisplayName("V10.1: the database sslmode must be a value the PostgreSQL driver accepts")
+    void databaseSslMode() {
+        assertThatCode(() -> check.postProcessEnvironment(production().withProperty("JMIP_DB_SSL_MODE", "verify-full"), null))
+                .doesNotThrowAnyException();
+        assertThatCode(() -> check.postProcessEnvironment(production().withProperty("JMIP_DB_SSL_MODE", " REQUIRE "), null))
+                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> check.postProcessEnvironment(production().withProperty("JMIP_DB_SSL_MODE", "true"), null))
+                .hasMessageContaining("JMIP_DB_SSL_MODE");
+    }
+
+    @Test
     @DisplayName("the session cookie cannot be made non-Secure or SameSite=None in production")
     void cookieMustStaySecure() {
         assertThatThrownBy(() -> check.postProcessEnvironment(production().withProperty("JMIP_SESSION_COOKIE_SECURE", "false"), null))

@@ -7,7 +7,8 @@
 
 spring:
   datasource:
-    url: jdbc:postgresql://${JMIP_DB_HOST}:${JMIP_DB_PORT:5432}/${JMIP_DB_NAME}
+    # V10.1: sslmode=prefer is the driver default; set JMIP_DB_SSL_MODE=require (or verify-full) for a managed database.
+    url: jdbc:postgresql://${JMIP_DB_HOST}:${JMIP_DB_PORT:5432}/${JMIP_DB_NAME}?sslmode=${JMIP_DB_SSL_MODE:prefer}
     username: ${JMIP_DB_USERNAME}
     password: ${JMIP_DB_PASSWORD}
     hikari:

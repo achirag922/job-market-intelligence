@@ -14,6 +14,7 @@ x-database-env: &database-env
   JMIP_DB_NAME: ${JMIP_DB_NAME:-jmip}
   JMIP_DB_USERNAME: ${JMIP_DB_USERNAME:-jmip}
   JMIP_DB_PASSWORD: ${JMIP_DB_PASSWORD:?Set JMIP_DB_PASSWORD in .env}
+  JMIP_DB_SSL_MODE: ${JMIP_DB_SSL_MODE:-prefer}
   # prod removes the local-development fallbacks (see application-prod.yml).
   SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
   JMIP_LOG_LEVEL: ${JMIP_LOG_LEVEL:-INFO}
@@ -74,6 +75,7 @@ services:
       # Resume files and extracted text are encrypted with this (base64, 32 bytes).
       JMIP_RESUME_ENCRYPTION_KEY: ${JMIP_RESUME_ENCRYPTION_KEY:?Set JMIP_RESUME_ENCRYPTION_KEY in .env (openssl rand -base64 32)}
       JMIP_RESUME_RETENTION: ${JMIP_RESUME_RETENTION:-0s}
+      JMIP_RESUME_STORAGE_TYPE: ${JMIP_RESUME_STORAGE_TYPE:-local}
       # V7.8: /actuator/metrics over HTTP Basic; empty keeps it closed. nginx never proxies it.
       JMIP_METRICS_USERNAME: ${JMIP_METRICS_USERNAME:-metrics}
       JMIP_METRICS_PASSWORD: ${JMIP_METRICS_PASSWORD:-}

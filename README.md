@@ -260,6 +260,7 @@ etl/data
 - [x] V9.16 — notification center: job-alert matches, follow-up, interview, learning and achievement notifications derived from existing data (each once, by key), read/unread, mark all read, per-kind preferences, header bell with unread count (V30)
 - [x] V9.17 — Settings (/settings): profile name, job preferences and notification preferences (existing cards), public-profile privacy, theme, password change and account deletion (both need the current password; /api/account)
 - [x] V9.18 — Help & Guidance: searchable Help & FAQ page (/help, header ? link), ? tooltips explaining key metrics, dismissible first-visit tips on key pages, empty states with next-step links, and error panels with a troubleshooting link
+- [x] V10.1 — Cloud readiness: ResumeFileStore storage abstraction (JMIP_RESUME_STORAGE_TYPE, local volume), JMIP_DB_SSL_MODE for managed PostgreSQL, Flyway migration verification test, frontend /healthz health check, production env-var guide in docs/PRODUCTION_DEPLOYMENT.md
 
 ## API
 
