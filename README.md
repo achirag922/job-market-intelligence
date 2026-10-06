@@ -262,6 +262,7 @@ etl/data
 - [x] V9.18 — Help & Guidance: searchable Help & FAQ page (/help, header ? link), ? tooltips explaining key metrics, dismissible first-visit tips on key pages, empty states with next-step links, and error panels with a troubleshooting link
 - [x] V10.1 — Cloud readiness: ResumeFileStore storage abstraction (JMIP_RESUME_STORAGE_TYPE, local volume), JMIP_DB_SSL_MODE for managed PostgreSQL, Flyway migration verification test, frontend /healthz health check, production env-var guide in docs/PRODUCTION_DEPLOYMENT.md
 - [x] V10.2 — Production database & file storage: named, tuned Hikari pools (backend/ETL, env-configurable), strict forward-only Flyway with connect retries, owner-only resume files with a start-up writability check, managed-backup guidance
+- [x] V10.3 — CI/CD: GitHub Actions pipeline with backend build/tests, frontend lint/tests/npm audit/build, Docker image builds, a Compose smoke test of the prod stack, and tag-only GHCR image publishing (no deploy); see docs/CI_CD.md
 
 ## API
 

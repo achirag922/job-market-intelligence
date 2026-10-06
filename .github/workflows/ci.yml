@@ -1,12 +1,16 @@
 name: CI
 
+# V10.3 pipeline: build -> test -> security checks -> Docker images -> container smoke test.
+# Any failing step fails the run. Images are only pushed (never deployed) for a v* release tag.
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
-# Read-only token: the pipeline builds and tests, it never pushes or deploys.
+# Read-only token by default; only the publish job asks for more.
 permissions:
   contents: read
 
@@ -34,7 +38,8 @@ jobs:
         run: mvn -B -ntp package -DskipTests
 
       # Unit and integration tests for database, backend and ETL. The integration tests
-      # start PostgreSQL through Testcontainers, using the runner's Docker daemon.
+      # start PostgreSQL through Testcontainers, using the runner's Docker daemon; the AI
+      # features use the stub client, so no API key is needed.
       - name: Test
         run: mvn -B -ntp verify
 
@@ -47,7 +52,7 @@ jobs:
           retention-days: 7
 
   frontend:
-    name: Frontend install, test and build
+    name: Frontend lint, test, audit and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -67,8 +72,17 @@ jobs:
       - name: Install
         run: npm ci
 
+      # oxlint is already a dev dependency; errors fail the run, warnings are reported.
+      - name: Lint
+        run: npm run lint
+
       - name: Test
         run: npm test
+
+      # Built-in npm audit, runtime dependencies only: a known high or critical
+      # vulnerability in what ships to browsers fails the run.
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Production build
         run: npm run build
@@ -94,15 +108,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Compose refuses to parse without a database password. This placeholder is only
-      # for validating the file; no container is started with it.
-      - name: Validate docker-compose.yml
-        env:
-          JMIP_DB_PASSWORD: ci-validation-only
-          JMIP_OTP_SECRET: ci-validation-only
-          JMIP_RESUME_ENCRYPTION_KEY: ci-validation-only
-        run: docker compose config -q
-
       - uses: docker/setup-buildx-action@v3
 
       - name: Build image
@@ -114,3 +119,112 @@ jobs:
           tags: jmip-${{ matrix.image }}:ci
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  smoke:
+    name: Container smoke test
+    needs: [docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Throwaway values generated for this run only; they protect nothing and are not
+      # secrets. Real values live in the platform's secret store (docs/CI_CD.md).
+      - name: Generate ephemeral settings
+        run: |
+          for name in JMIP_DB_PASSWORD JMIP_OTP_SECRET; do
+            value="$(openssl rand -hex 24)"; echo "::add-mask::$value"; echo "$name=$value" >> "$GITHUB_ENV"
+          done
+          key="$(openssl rand -base64 32)"; echo "::add-mask::$key"; echo "JMIP_RESUME_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Validate Compose files
+        env:
+          JMIP_PUBLIC_URL: https://jmip.example.com
+          JMIP_TLS_CERT_DIR: ./certs
+        run: |
+          docker compose config -q
+          docker compose -f docker-compose.yml -f docker-compose.https.yml config -q
+
+      # The production profile, as Compose runs it: Flyway migrates a fresh database and
+      # every container must report healthy.
+      - name: Start the stack
+        run: docker compose up -d --build --wait --wait-timeout 300
+
+      - name: Check health, proxy and security headers
+        run: |
+          curl -fsS http://localhost:8080/actuator/health/readiness
+          curl -fsS http://localhost:3000/healthz
+          curl -fsS http://localhost:3000/actuator/health
+          curl -fsS http://localhost:3000/ | grep -q 'id="root"'
+          curl -fsSI http://localhost:3000/ | grep -qi '^content-security-policy:'
+          curl -fsSI http://localhost:3000/ | grep -qi '^x-content-type-options: nosniff'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/auth/me)" = "401"
+
+      - name: Container logs
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v
+
+  publish:
+    name: Publish images (release tags only)
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # A protected environment: add required reviewers in the repository settings to gate releases.
+    environment: release
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - image: backend
+            context: .
+            dockerfile: backend/Dockerfile
+          - image: etl
+            context: .
+            dockerfile: etl/Dockerfile
+          - image: frontend
+            context: frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image name
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          echo "IMAGE=ghcr.io/${owner}/jmip-${{ matrix.image }}" >> "$GITHUB_ENV"
+
+      # The frontend bakes its public URL in at build time; it is configuration, not a secret.
+      - name: Require the public URL for the frontend
+        if: matrix.image == 'frontend' && vars.JMIP_PUBLIC_URL == ''
+        run: |
+          echo "::error::Set the repository variable JMIP_PUBLIC_URL (e.g. https://jmip.example.com)"
+          exit 1
+
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN only: no registry password is stored anywhere.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          build-args: |
+            VITE_API_BASE_URL=${{ vars.JMIP_PUBLIC_URL }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:sha-${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.image }}
