@@ -1,8 +1,36 @@
 # Job Market Intelligence Platform (JMIP)
-- [x] V10.9 — Test & quality: API client session/CSRF/401 tests, alert email sender, ETL CSV reader/location/employment-type tests; Sonar High issues fixed (23 duplicated literals, 2 frontend complexity)
 
-Analytics over job postings: job demand, skill demand and trends, companies, locations,
-experience requirements and salary, plus job search and filtering.
+A full-stack career platform built on real job-market data. A Spring Batch ETL turns job postings into market
+analytics; signed-in users get explainable tools on top of that data, from resume analysis and job matching to an
+application tracker, a learning plan, interview practice, personal analytics and a public portfolio.
+
+**Stack:** Java 17 · Spring Boot 3.5 · Spring Security · Spring Batch · PostgreSQL 18 · Flyway · React 19 ·
+TypeScript · Vite · Docker · GitHub Actions · SonarCloud. **Demo walkthrough:** [docs/DEMO.md](docs/DEMO.md).
+**Architecture:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Features
+
+| For job seekers | Market intelligence | Platform |
+|---|---|---|
+| Sign-up with email verification, guided onboarding | Job, skill, company, location and category analytics | ETL with deduplication, validation and run monitoring |
+| Resume upload and analysis, ATS-friendly resume builder with PDF export | Skill demand trends and labelled trend estimates | Session security, CSRF, rate limits, encrypted resumes |
+| Personalised recommendations with reasons; explained skill match | Market intelligence per role | Notifications, job alerts and follow-up reminders (scheduled jobs) |
+| Application tracker (status history, notes, priorities, follow-ups) | AI assistant answering from JMIP data (optional) | Admin dashboard, ETL monitoring |
+| Career goals, skill gap from real postings, learning plan | | OpenAPI/Swagger docs, health checks, metrics, JSON logs |
+| Interview practice with AI answer evaluation (optional) | | Docker Compose, CI/CD with tests, Sonar Quality Gate, Trivy |
+| Personal analytics, career readiness score, public portfolio | | Help & FAQ, accessible UI, light/dark themes |
+
+## Key technical challenges and solutions
+
+| Challenge | Solution |
+|---|---|
+| Ingesting messy postings repeatedly without duplicates or a broken load | Spring Batch chunk step with validation, skip/retry and a rejected-record table; content fingerprints for deduplication; a PostgreSQL advisory lock against overlapping runs |
+| Recommendations users can trust | Deterministic scoring with every signal explained, a capped readiness score, skill gaps computed from real postings |
+| Using AI without hallucinated answers | The model only extracts an intent; the backend validates it against a whitelist, runs safe queries and the model phrases only those results; user text inside prompts is treated as data |
+| Keeping accounts and resumes private | Server-side sessions and CSRF with nothing in localStorage, ownership taken from the session on every query, AES-256 encryption of resume files and text, PDF signature checks |
+| Abuse resistance | Per-address rate limits that cannot be bypassed with encoded paths, nginx-controlled client addresses, request size limits |
+| Running background jobs safely on several instances | Scheduled jobs and ETL runs guarded by advisory locks, with outcomes recorded as metrics |
+| Shipping with confidence | CI pipeline (backend/ETL/frontend tests, lint, npm audit, Sonar Quality Gate, Trivy, image builds, a Compose smoke test) and production startup checks that refuse unsafe settings |
 
 ## Architecture
 
@@ -19,6 +47,7 @@ integrations and architectural decisions) is in [docs/ARCHITECTURE.md](docs/ARCH
 | Document | Covers |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | system, backend, frontend, data model, ETL, security flow, modules, decisions |
+| [docs/DEMO.md](docs/DEMO.md) | demo data, end-to-end demo journey, talking points, screenshot list |
 | [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | profiles, environment variables, Docker, database, storage, security, monitoring |
 | [docs/CI_CD.md](docs/CI_CD.md) | pipeline stages, secrets, Sonar Quality Gate, releases |
 | [docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md) | backups and restores |
@@ -324,6 +353,9 @@ etl/data
 - [x] V10.5 — Production HTTPS & security hardening: trusted-proxy (load balancer) client addresses in nginx, prod secret-strength checks, public/private endpoint and error-leakage tests, security reference in docs/PRODUCTION_DEPLOYMENT.md
 - [x] V10.6 — Monitoring & logging: ETL last-run gauges (success, age, duration, records), pool/ETL metric checks, monitoring and alerting reference in docs/PRODUCTION_DEPLOYMENT.md
 - [x] V10.7 — Documentation & architecture: docs/ARCHITECTURE.md (system, backend/frontend, ER diagram, ETL flow, auth flow, modules, data flows, integrations, decisions), README architecture, documentation index, prerequisites and Compose quick start
+- [x] V10.8 — API documentation & developer experience: OpenAPI 3 / Swagger UI (springdoc) with groups, readable tags, session/CSRF security, error responses and examples (off in prod), expanded local setup docs
+- [x] V10.9 — Test & quality: API client session/CSRF/401 tests, alert email sender, ETL CSV reader/location/employment-type tests; Sonar High issues fixed (23 duplicated literals, 2 frontend complexity)
+- [x] V10.10 — Demo & portfolio: docs/DEMO.md (demo data, end-to-end journey, talking points, screenshot list), README overview with features, stack and technical challenges
 
 ## API
 
