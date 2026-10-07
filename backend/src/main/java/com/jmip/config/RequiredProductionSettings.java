@@ -44,6 +44,7 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
                     "The prod profile requires these environment variables: " + String.join(", ", missing));
         }
         List<String> unsafe = new java.util.ArrayList<>(transportProblems(environment));
+        unsafe.addAll(secretProblems(environment));
         String sslMode = environment.getProperty("JMIP_DB_SSL_MODE", "prefer").strip().toLowerCase(java.util.Locale.ROOT);
         if (!SSL_MODES.contains(sslMode)) {
             unsafe.add("JMIP_DB_SSL_MODE must be one of " + String.join(", ", SSL_MODES));
@@ -76,6 +77,29 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
             if (!trimmed.isEmpty() && !isTrustedOrigin(trimmed)) {
                 problems.add("JMIP_CORS_ALLOWED_ORIGINS must list https:// origins (or http://localhost), not " + trimmed);
             }
+        }
+        return problems;
+    }
+
+    /** V10.5: shortest accepted secrets. Long random values are the only defence against offline guessing. */
+    static final int MIN_OTP_SECRET_LENGTH = 32;
+    static final int MIN_METRICS_PASSWORD_LENGTH = 16;
+
+    /**
+     * V10.5: production secrets must be strong enough to resist guessing. Only the variable names are
+     * reported, never their values or lengths.
+     */
+    static List<String> secretProblems(ConfigurableEnvironment environment) {
+        List<String> problems = new java.util.ArrayList<>();
+        String otpSecret = environment.getProperty("JMIP_OTP_SECRET", "");
+        if (StringUtils.hasText(otpSecret) && otpSecret.strip().length() < MIN_OTP_SECRET_LENGTH) {
+            problems.add("JMIP_OTP_SECRET must be at least " + MIN_OTP_SECRET_LENGTH
+                    + " characters (e.g. openssl rand -hex 32)");
+        }
+        String metricsPassword = environment.getProperty("JMIP_METRICS_PASSWORD", "");
+        if (StringUtils.hasText(metricsPassword) && metricsPassword.strip().length() < MIN_METRICS_PASSWORD_LENGTH) {
+            problems.add("JMIP_METRICS_PASSWORD must be at least " + MIN_METRICS_PASSWORD_LENGTH
+                    + " characters when set");
         }
         return problems;
     }

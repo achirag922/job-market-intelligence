@@ -40,7 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
         "JMIP_DB_HOST=unused", "JMIP_DB_NAME=unused", "JMIP_DB_USERNAME=unused", "JMIP_DB_PASSWORD=unused",
-        "JMIP_RESUME_DIR=target/prod-profile-resumes", "JMIP_OTP_SECRET=prod-profile-test",
+        "JMIP_RESUME_DIR=target/prod-profile-resumes", "JMIP_OTP_SECRET=prod-profile-test-secret-0123456789abcdef",
         "JMIP_RESUME_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
         // Real delivery, as a public deployment must use; nothing listens on port 9, so each
         // send fails fast and signup carries on, as it does when the mail server is down.

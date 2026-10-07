@@ -16,7 +16,7 @@ class RequiredProductionSettingsTest {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("JMIP_DB_HOST", "db").withProperty("JMIP_DB_NAME", "jmip")
                 .withProperty("JMIP_DB_USERNAME", "jmip").withProperty("JMIP_DB_PASSWORD", "secret")
-                .withProperty("JMIP_RESUME_DIR", "/data").withProperty("JMIP_OTP_SECRET", "otp")
+                .withProperty("JMIP_RESUME_DIR", "/data").withProperty("JMIP_OTP_SECRET", "0123456789abcdef0123456789abcdef")
                 .withProperty("JMIP_RESUME_ENCRYPTION_KEY", "key")
                 .withProperty("JMIP_VERIFICATION_DELIVERY", "smtp")
                 .withProperty("JMIP_MAIL_USERNAME", "sender@example.com").withProperty("JMIP_MAIL_PASSWORD", "app-password")
@@ -54,6 +54,17 @@ class RequiredProductionSettingsTest {
                 .doesNotThrowAnyException();
         assertThatThrownBy(() -> check.postProcessEnvironment(production().withProperty("JMIP_DB_SSL_MODE", "true"), null))
                 .hasMessageContaining("JMIP_DB_SSL_MODE");
+    }
+
+    @Test
+    @DisplayName("V10.5: weak OTP secret or metrics password stops a production start, naming only the variable")
+    void secretsMustBeStrong() {
+        assertThatThrownBy(() -> check.postProcessEnvironment(production().withProperty("JMIP_OTP_SECRET", "short-secret"), null))
+                .hasMessageContaining("JMIP_OTP_SECRET must be at least 32").hasMessageNotContaining("short-secret");
+        assertThatThrownBy(() -> check.postProcessEnvironment(production().withProperty("JMIP_METRICS_PASSWORD", "weakpass"), null))
+                .hasMessageContaining("JMIP_METRICS_PASSWORD").hasMessageNotContaining("weakpass");
+        assertThatCode(() -> check.postProcessEnvironment(
+                production().withProperty("JMIP_METRICS_PASSWORD", "a-long-metrics-password"), null)).doesNotThrowAnyException();
     }
 
     @Test

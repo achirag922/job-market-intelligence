@@ -17,6 +17,8 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY security-headers.conf /etc/nginx/snippets/security-headers.conf
 # Used only when docker-compose.https.yml swaps in nginx-https.conf.
 COPY hsts.conf /etc/nginx/snippets/hsts.conf
+# V10.5: trust a cloud load balancer's X-Forwarded-For only from JMIP_TRUSTED_PROXIES (runs before nginx starts).
+COPY --chmod=755 30-trusted-proxies.sh /docker-entrypoint.d/30-trusted-proxies.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 80
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \

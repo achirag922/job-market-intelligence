@@ -62,6 +62,7 @@ files in the repository. `.env.example` is the template.
 |---|---|
 | `JMIP_PUBLIC_URL` | Passed as `VITE_API_BASE_URL` when building the frontend image (the public HTTPS origin) |
 | `JMIP_TLS_CERT_DIR`, `JMIP_HTTP_PORT`, `JMIP_HTTPS_PORT` | `docker-compose.https.yml` only |
+| `JMIP_TRUSTED_PROXIES` | V10.5, frontend container at runtime: load balancer CIDRs whose `X-Forwarded-For` nginx trusts |
 
 ### ETL
 
@@ -120,6 +121,28 @@ upload, validation, encryption or retention logic.
 - HTTPS: terminate TLS at the load balancer or with `docker-compose.https.yml` (nginx with your
   certificate, HTTP redirected to HTTPS). The backend honours `X-Forwarded-*` (`forward-headers-strategy`),
   so only expose it behind the proxy, never directly to the internet.
+
+## Public access security (V10.5)
+
+| Area | Production behaviour |
+|---|---|
+| HTTPS/TLS | TLS ends at the load balancer or at nginx (`docker-compose.https.yml`, HTTP redirected to HTTPS). Nothing in the images holds a domain or certificate; both come from the environment. |
+| HSTS | `max-age=31536000; includeSubDomains` from the backend on HTTPS requests and from `nginx-https.conf`. |
+| CORS | Exact origins from `JMIP_CORS_ALLOWED_ORIGINS`; wildcards rejected; only `https://` (or localhost) accepted in prod. Same-origin `/api` through nginx needs no CORS at all. |
+| Session cookie | `JMIP_SESSION`: HttpOnly, Secure (cannot be turned off in prod), SameSite=Strict, 8 h timeout; the id never appears in a URL. No tokens are stored in the browser's localStorage. |
+| CSRF | Required on state-changing requests once a session exists (session-held token sent as a header). |
+| Security headers | Backend: `nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, deny-all CSP, `Cross-Origin-Resource-Policy`, `Cache-Control: no-store` on authenticated responses. nginx: CSP restricted to `'self'`, `Permissions-Policy`, `Referrer-Policy`, `server_tokens off`. |
+| Rate limiting | Per client address: sign-in/sign-up, uploads and AI calls (`JMIP_RATE_LIMIT_*`). nginx overwrites `X-Forwarded-For` so a client cannot pick its address. |
+| Proxies | Behind a cloud load balancer set `JMIP_TRUSTED_PROXIES` (its CIDRs, comma separated) on the frontend container: nginx then takes the client address from `X-Forwarded-For`, but only from those addresses. Unset, nginx trusts nobody. The backend port must only be reachable through nginx (Compose binds it to 127.0.0.1). |
+| Errors | One JSON shape (`status`, `error`, `message`, `path`); server errors say only "An unexpected error occurred" (the UI adds the request id from `X-Request-Id`); no stack traces, exception names or SQL. Health details are hidden in prod. |
+| Logs | Method, path (no query string), status and duration; never headers, cookies, bodies, passwords, codes or tokens. |
+| Secrets | From the environment only. Prod refuses to start when one is missing or weak: `JMIP_OTP_SECRET` ≥ 32 characters, `JMIP_METRICS_PASSWORD` ≥ 16 when set, `JMIP_RESUME_ENCRYPTION_KEY` a base64 256-bit key. Startup errors name variables, never values. |
+
+**Public endpoints** (no session): `POST /api/auth/signup|login|logout|verify-email|resend-verification`,
+`GET /api/auth/me` (answers 401 when signed out), `GET /api/public/profiles/{slug}` (published portfolios only),
+`GET /actuator/health[/**]`, `GET /actuator/info`. Every other `/api/**` route needs a signed-in user; `/api/admin/**`
+needs the ADMIN role; `/actuator/metrics` needs the metrics account; other actuator endpoints are not exposed.
+`EndpointAccessIntegrationTest` pins this boundary.
 
 ## Pre-deployment checklist
 

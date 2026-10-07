@@ -1,0 +1,2 @@
+# V10.5: shell scripts run inside Linux containers; keep LF line endings on every checkout.
+*.sh text eol=lf
