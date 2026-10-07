@@ -94,6 +94,12 @@ export function PortfolioPage() {
   const [section, setSection] = useState<ListKey>('experience');
   const [slug, setSlug] = useState('');
 
+  const adopt = (next: Portfolio) => {
+    setPortfolio(next);
+    setSlug(next.slug);
+    setDraft({ displayName: next.displayName, content: { ...EMPTY, ...next.content }, sections: next.sections });
+  };
+
   useEffect(() => {
     api.portfolio().then(
       (existing) => { adopt(existing); setLoaded(true); },
@@ -105,12 +111,6 @@ export function PortfolioPage() {
     api.careerGoals().then((list: CareerGoal[]) =>
       setGoals([...new Set(list.filter((goal) => goal.status === 'ACTIVE').map((goal) => goal.targetRole))]), () => setGoals([]));
   }, []);
-
-  const adopt = (next: Portfolio) => {
-    setPortfolio(next);
-    setSlug(next.slug);
-    setDraft({ displayName: next.displayName, content: { ...EMPTY, ...next.content }, sections: next.sections });
-  };
 
   const act = async (action: () => Promise<void>, done?: string) => {
     setBusy(true);

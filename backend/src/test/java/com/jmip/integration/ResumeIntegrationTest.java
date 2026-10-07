@@ -70,12 +70,10 @@ class ResumeIntegrationTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    /** The account behind @WithMockUser; resumes seeded here belong to it. */
-    private java.util.UUID ownerId;
-
     @BeforeEach
     void seed() {
-        ownerId = MockUserAccount.ensure(jdbcTemplate);
+        // The account behind @WithMockUser; resumes seeded here belong to it.
+        MockUserAccount.ensure(jdbcTemplate);
         jdbcTemplate.execute("TRUNCATE resume_skills, resumes, job_skills, jobs, skills, companies, locations "
                 + "RESTART IDENTITY CASCADE");
 

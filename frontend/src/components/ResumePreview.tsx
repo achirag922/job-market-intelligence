@@ -16,14 +16,18 @@ function join(separator: string, ...parts: (string | undefined | null)[]): strin
  * V9.4: the resume as the PDF will print it, in the chosen template. Plain, single-column HTML;
  * only what the user wrote, in the order the export uses.
  */
-export function ResumePreview({ content }: { content: BuilderContent }) {
-  const { personal } = content;
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+/** One titled block of the resume; module level, so the preview is not rebuilt from scratch on every keystroke. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
     <section className="resume-section">
       <h3>{title}</h3>
       {children}
     </section>
   );
+}
+
+export function ResumePreview({ content }: { content: BuilderContent }) {
+  const { personal } = content;
   return (
     <article className={`resume-sheet ${content.template === 'MODERN' ? 'resume-modern' : 'resume-classic'}`} aria-label="Resume preview">
       <header className="resume-head">

@@ -13,7 +13,7 @@
 
     <groupId>com.jmip</groupId>
     <artifactId>job-market-intelligence</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>1.0.0-rc1</version>
     <packaging>pom</packaging>
     <name>Job Market Intelligence Platform</name>
     <description>Analytics platform for job postings, skills, companies and locations</description>

@@ -47,6 +47,7 @@ integrations and architectural decisions) is in [docs/ARCHITECTURE.md](docs/ARCH
 | Document | Covers |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | system, backend, frontend, data model, ETL, security flow, modules, decisions |
+| [CHANGELOG.md](CHANGELOG.md) | releases, validation results, known issues, how to release |
 | [docs/DEMO.md](docs/DEMO.md) | demo data, end-to-end demo journey, talking points, screenshot list |
 | [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | profiles, environment variables, Docker, database, storage, security, monitoring |
 | [docs/CI_CD.md](docs/CI_CD.md) | pipeline stages, secrets, Sonar Quality Gate, releases |
@@ -180,7 +181,7 @@ API documentation is off in the prod profile (`JMIP_API_DOCS_ENABLED=false`).
 The input file is a job parameter, so switching datasets needs no code change:
 
 ```
-java -jar etl/target/etl-0.0.1-SNAPSHOT.jar inputFile=etl/data/raw/synthetic-job-postings-v1.json
+java -jar etl/target/etl-1.0.0-rc1.jar inputFile=etl/data/raw/synthetic-job-postings-v1.json
 ```
 
 A `.csv` file is read with Apache Commons CSV instead, chosen by extension. CSV files
@@ -199,7 +200,7 @@ writer and source registry). The connector is the `connector` job parameter, els
 | `sample` | a bundled mock job-board feed (`connectors/sample-postings.json`) with its own record shape, mapped to the common raw record; never touches the network | SAMPLE |
 
 ```
-java -jar etl/target/etl-0.0.1-SNAPSHOT.jar connector=sample
+java -jar etl/target/etl-1.0.0-rc1.jar connector=sample
 ```
 
 The sample feed's location (`JMIP_ETL_SAMPLE_RESOURCE`, `classpath:` or `file:` only) and its source code
@@ -357,6 +358,7 @@ etl/data
 - [x] V10.9 — Test & quality: API client session/CSRF/401 tests, alert email sender, ETL CSV reader/location/employment-type tests; Sonar High issues fixed (23 duplicated literals, 2 frontend complexity)
 - [x] V10.10 — Demo & portfolio: docs/DEMO.md (demo data, end-to-end journey, talking points, screenshot list), README overview with features, stack and technical challenges
 - [x] V10.11 — Local production simulation: prod-profile Compose stack validated (health, proxy, headers, ETL load/dedup/failure/recovery, 38-step API smoke test, crash restart, database outage recovery, invalid-config refusal); CI Compose validation and dependency-scan fixes
+- [x] V10.12 — Final engineering audit and release candidate v1.0.0-rc1: full suites green, coverage, dependency and secret scans, small genuine fixes, versions bumped, CHANGELOG.md
 
 ## API
 
@@ -513,7 +515,7 @@ Every signal that contributed is stored in `job_classification_signals`, so
 database can be re-read without re-ingesting anything:
 
 ```
-JMIP_ETL_JOB=reprocessJobPostings java -jar etl/target/etl-0.0.1-SNAPSHOT.jar
+JMIP_ETL_JOB=reprocessJobPostings java -jar etl/target/etl-1.0.0-rc1.jar
 ```
 
 It reads stored titles and descriptions, and rewrites skills, classification and signals.

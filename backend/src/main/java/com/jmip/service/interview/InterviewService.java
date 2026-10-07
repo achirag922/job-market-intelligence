@@ -159,7 +159,7 @@ public class InterviewService {
         QuestionRow question = requireQuestion(session, position);
         requireAttemptsLeft(question);
         repository.saveAnswer(id, position, answer.strip(), now());
-        return evaluate(session, position, owner);
+        return evaluate(session, position);
     }
 
     /** Evaluates the saved answer again, for example after the provider was unavailable. */
@@ -171,7 +171,7 @@ public class InterviewService {
             throw new InvalidRequestException("Answer the question before asking for feedback");
         }
         requireAttemptsLeft(question);
-        return evaluate(session, position, owner);
+        return evaluate(session, position);
     }
 
     /** V9.6: sets an unanswered question aside; it can still be answered before the interview ends. */
@@ -199,7 +199,7 @@ public class InterviewService {
 
     // ------------------------------------------------------------------ evaluation
 
-    private QuestionResponse evaluate(SessionRow session, int position, UUID owner) {
+    private QuestionResponse evaluate(SessionRow session, int position) {
         QuestionRow question = requireQuestion(session, position);
         // The grounding data is read in a short transaction; the provider is called outside it.
         InterviewEvaluator.Context context = readOnly.execute(status -> {
