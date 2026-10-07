@@ -265,6 +265,7 @@ etl/data
 - [x] V10.3 — CI/CD: GitHub Actions pipeline with backend build/tests, frontend lint/tests/npm audit/build, Docker image builds, a Compose smoke test of the prod stack, and tag-only GHCR image publishing (no deploy); see docs/CI_CD.md
 - [x] V10.4 — Sonar code quality: JaCoCo (backend/ETL) and Vitest V8 (frontend) coverage, sonar-project.properties, a CI sonar job that waits for the Quality Gate (80% new-code coverage, A ratings, hotspots reviewed) and blocks the Docker stages; see docs/CI_CD.md
 - [x] V10.5 — Production HTTPS & security hardening: trusted-proxy (load balancer) client addresses in nginx, prod secret-strength checks, public/private endpoint and error-leakage tests, security reference in docs/PRODUCTION_DEPLOYMENT.md
+- [x] V10.6 — Monitoring & logging: ETL last-run gauges (success, age, duration, records), pool/ETL metric checks, monitoring and alerting reference in docs/PRODUCTION_DEPLOYMENT.md
 
 ## API
 

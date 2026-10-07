@@ -144,6 +144,37 @@ upload, validation, encryption or retention logic.
 needs the ADMIN role; `/actuator/metrics` needs the metrics account; other actuator endpoints are not exposed.
 `EndpointAccessIntegrationTest` pins this boundary.
 
+## Monitoring and logging (V10.6)
+
+No extra monitoring infrastructure is required: the backend exposes health and Micrometer metrics through Spring
+Boot Actuator, and every container logs JSON to stdout for the platform's log service (CloudWatch, Cloud Logging,
+Azure Monitor, Loki).
+
+**Health** (anonymous, status only in prod): `/actuator/health/liveness` (the process), `/actuator/health/readiness`
+(can serve; includes the database), `/actuator/health/database`, and the frontend's static `/healthz`. Point
+container restarts at liveness and load-balancer routing at readiness.
+
+**Logs**: one ECS JSON object per line (`JMIP_LOG_FORMAT`, default `ecs`); `root` at WARN and `com.jmip` at INFO
+(`JMIP_LOG_LEVEL`). Every request line carries `requestId` (also returned as `X-Request-Id`, so a user can quote it);
+scheduled jobs carry `jobId`, and ETL lines carry the job execution id. Request lines log method, path without the
+query string, status and duration; slow requests (`JMIP_SLOW_REQUEST_THRESHOLD`, default 1 s) at INFO. Server errors
+are logged once with the stack trace; the response says only "An unexpected error occurred". Never logged: passwords,
+verification codes (except `JMIP_VERIFICATION_DELIVERY=log`, refused on public prod hosts), session ids, CSRF tokens,
+API keys, request bodies or resume contents. `ObservabilityIntegrationTest` checks the log after sign-up and sign-in.
+
+**Metrics** (`/actuator/metrics`, HTTP Basic `JMIP_METRICS_USERNAME`/`JMIP_METRICS_PASSWORD`; closed without a password):
+
+| Signal | Metric | Suggested alert |
+|---|---|---|
+| API errors | `http.server.requests` with `outcome:SERVER_ERROR` (tags: uri, method, status) | 5xx rate above 1% for 5 min |
+| API latency | `http.server.requests` (max, total time) | p95 above 2 s |
+| Database pool | `hikaricp.connections.active` / `.pending` / `.timeout` | pending above 0 for 5 min, any timeouts |
+| Scheduled jobs | `jmip.scheduled.job` (tags: job, outcome) | any `outcome:failed` |
+| ETL (V10.6) | `jmip.etl.last.run.success`, `.age` (s), `.duration` (s), `.records.written`, `.records.rejected` | success = 0, or age beyond the schedule (e.g. 26 h for a daily load) |
+| JVM | `jvm.memory.used`, `jvm.gc.pause`, `process.cpu.usage` | heap above 90% sustained |
+
+The ETL gauges read the Spring Batch tables at most once a minute; a database problem never fails a scrape.
+
 ## Pre-deployment checklist
 
 1. Create the secrets above in the platform's secret store; never commit them.

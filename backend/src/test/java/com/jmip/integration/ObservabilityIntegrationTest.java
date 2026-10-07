@@ -78,7 +78,11 @@ class ObservabilityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.names", hasItem("http.server.requests")))
                 .andExpect(jsonPath("$.names", hasItem("jvm.memory.used")))
-                .andExpect(jsonPath("$.names", hasItem("hikaricp.connections.active")));
+                .andExpect(jsonPath("$.names", hasItem("hikaricp.connections.active")))
+                // V10.6: database pool waits and the latest ETL run.
+                .andExpect(jsonPath("$.names", hasItem("hikaricp.connections.pending")))
+                .andExpect(jsonPath("$.names", hasItem("jmip.etl.last.run.success")))
+                .andExpect(jsonPath("$.names", hasItem("jmip.etl.last.run.age")));
         mockMvc.perform(get("/actuator/metrics/http.server.requests").param("tag", "outcome:CLIENT_ERROR")
                         .with(httpBasic("metrics", METRICS_PASSWORD)))
                 .andExpect(status().isOk())
