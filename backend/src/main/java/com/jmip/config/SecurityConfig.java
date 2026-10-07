@@ -95,6 +95,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/me").permitAll()
                         // V9.7: published profiles are public and read-only; unpublished ones answer 404.
                         .requestMatchers(HttpMethod.GET, "/api/public/profiles/*").permitAll()
+                        // V10.8: API documentation (served only where springdoc is enabled; off in prod).
+                        .requestMatchers(HttpMethod.GET, "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**")
+                        .permitAll()
                         // Container and load-balancer health checks carry no session.
                         .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/actuator/info")
                         .permitAll()

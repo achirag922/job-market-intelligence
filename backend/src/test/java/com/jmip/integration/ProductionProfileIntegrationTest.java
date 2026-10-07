@@ -167,6 +167,13 @@ class ProductionProfileIntegrationTest {
         return new Response(status, cookies);
     }
 
+    @Test
+    @DisplayName("V10.8: no API documentation in production")
+    void apiDocsOff() throws Exception {
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isNotFound());
+        mockMvc.perform(get("/swagger-ui/index.html")).andExpect(status().isNotFound());
+    }
+
     @Autowired
     private javax.sql.DataSource dataSource;
 

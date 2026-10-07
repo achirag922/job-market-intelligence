@@ -24,12 +24,16 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("X-Content-Type-Options", "nosniff");
         response.setHeader("X-Frame-Options", "DENY");
         response.setHeader("Referrer-Policy", "no-referrer");
-        response.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+        String path = UrlPathHelper.defaultInstance.getPathWithinApplication(request);
+        // V10.8: Swagger UI is an HTML page with its own scripts and styles; everything else is JSON.
+        response.setHeader("Content-Security-Policy", path.startsWith("/swagger-ui")
+                ? "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-ancestors 'none'"
+                : "default-src 'none'; frame-ancestors 'none'");
         response.setHeader("Cross-Origin-Resource-Policy", "same-site");
         if (request.isSecure()) {
             response.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
         }
-        if (UrlPathHelper.defaultInstance.getPathWithinApplication(request).startsWith("/api/resumes")) {
+        if (path.startsWith("/api/resumes")) {
             response.setHeader("Cache-Control", "no-store");
         }
         chain.doFilter(request, response);

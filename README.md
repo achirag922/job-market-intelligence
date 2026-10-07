@@ -87,6 +87,13 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_ASSISTANT_MAX_LIMIT` | `25` |
 | `JMIP_ASSISTANT_MAX_JOB_RESULTS` | `20` |
 | `JMIP_ASSISTANT_MIN_SALARY_SAMPLE` | `5` |
+| `JMIP_VERIFICATION_DELIVERY` | `log` (or `smtp` with `JMIP_MAIL_HOST/PORT/USERNAME/PASSWORD/FROM`) |
+| `JMIP_ADMIN_EMAILS` | *(unset)*: verified accounts promoted to ADMIN at startup |
+| `JMIP_API_DOCS_ENABLED` | `true` locally, `false` in the prod profile |
+| `JMIP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` |
+
+The complete list, including production-only settings, is in [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md#environment-variables)
+and [.env.example](.env.example).
 
 Sign-up locally: with the default `JMIP_VERIFICATION_DELIVERY=log` the 6-digit verification code is written
 to the backend log instead of being emailed (set `smtp` and the `JMIP_MAIL_*` variables to send email).
@@ -116,6 +123,27 @@ mvn -pl backend spring-boot:run
 ```
 
 Health check: `http://localhost:8080/actuator/health`
+
+Alternatively run `JobMarketIntelligenceApplication` from the IDE with the same environment variables.
+
+## API documentation
+
+With the backend running locally (V10.8):
+
+| URL | What |
+|---|---|
+| `http://localhost:8080/swagger-ui.html` | Swagger UI: every endpoint, grouped (drop-down: all, account & profile, jobs & applications, resume & career growth, market analytics, administration & ETL) |
+| `http://localhost:8080/v3/api-docs/all` | OpenAPI 3 JSON for all endpoints (`/v3/api-docs/{group}` per group), e.g. for Postman or client generation |
+
+The document covers request and response schemas, query parameters (filters and `page`/`size`/`sort`),
+which routes are public, the session-cookie and CSRF-header security, the shared `ApiError` error shape with the
+possible error statuses per route, and examples for sign-up, verification, login and job search.
+
+To try authenticated calls in Swagger UI: `POST /api/auth/signup`, read the code from the backend log,
+`POST /api/auth/verify-email`, then `POST /api/auth/login`. The browser keeps the session cookie; copy the
+returned `csrfToken` into **Authorize → csrf** for POST, PUT, PATCH and DELETE calls.
+
+API documentation is off in the prod profile (`JMIP_API_DOCS_ENABLED=false`).
 
 ## Running the ETL
 

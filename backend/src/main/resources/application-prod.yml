@@ -54,6 +54,13 @@ server:
         # HTTPS only in production. Browsers still accept it on http://localhost.
         secure: ${JMIP_SESSION_COOKIE_SECURE:true}
 
+# V10.8: no public API documentation in production unless explicitly enabled.
+springdoc:
+  api-docs:
+    enabled: ${JMIP_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${JMIP_API_DOCS_ENABLED:false}
+
 management:
   endpoint:
     health:

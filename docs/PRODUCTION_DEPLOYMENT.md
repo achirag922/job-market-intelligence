@@ -54,6 +54,7 @@ files in the repository. `.env.example` is the template.
 | `JMIP_RESUME_RETENTION` | `0s` (keep) | e.g. `365d` |
 | `JMIP_SESSION_TIMEOUT` / `JMIP_SESSION_COOKIE_SAME_SITE` | `8h` / `strict` | Cookie is always Secure in prod |
 | `JMIP_LOG_FORMAT` / `JMIP_LOG_LEVEL` | `ecs` / `INFO` | JSON logs to stdout |
+| `JMIP_API_DOCS_ENABLED` | `false` in prod | V10.8: Swagger UI and `/v3/api-docs`; leave off on public deployments |
 | `JMIP_RATE_LIMIT_*`, `JMIP_PASSWORD_BCRYPT_STRENGTH` | see `application.yml` | |
 
 ### Frontend (build time) and Compose

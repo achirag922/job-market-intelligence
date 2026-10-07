@@ -221,6 +221,23 @@ jmip:
     min-salary-sample: ${JMIP_ASSISTANT_MIN_SALARY_SAMPLE:5}
     max-question-length: ${JMIP_ASSISTANT_MAX_QUESTION_LENGTH:500}
 
+# V10.8: API documentation. /v3/api-docs (OpenAPI JSON, one document per group under /v3/api-docs/{group})
+# and /swagger-ui.html. On by default for local development; the prod profile turns it off.
+springdoc:
+  api-docs:
+    enabled: ${JMIP_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${JMIP_API_DOCS_ENABLED:true}
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    display-request-duration: true
+    # Same origin, so the session cookie set by login is sent with "Try it out" calls.
+    with-credentials: true
+  default-produces-media-type: application/json
+  # Query-object parameters such as job search criteria appear as individual query parameters.
+  default-flat-param-object: true
+  show-actuator: false
+
 logging:
   pattern:
     # V7.8: the request id next to the level in plain (local) logs; structured logs in prod
