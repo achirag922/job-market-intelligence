@@ -356,6 +356,7 @@ etl/data
 - [x] V10.8 — API documentation & developer experience: OpenAPI 3 / Swagger UI (springdoc) with groups, readable tags, session/CSRF security, error responses and examples (off in prod), expanded local setup docs
 - [x] V10.9 — Test & quality: API client session/CSRF/401 tests, alert email sender, ETL CSV reader/location/employment-type tests; Sonar High issues fixed (23 duplicated literals, 2 frontend complexity)
 - [x] V10.10 — Demo & portfolio: docs/DEMO.md (demo data, end-to-end journey, talking points, screenshot list), README overview with features, stack and technical challenges
+- [x] V10.11 — Local production simulation: prod-profile Compose stack validated (health, proxy, headers, ETL load/dedup/failure/recovery, 38-step API smoke test, crash restart, database outage recovery, invalid-config refusal); CI Compose validation and dependency-scan fixes
 
 ## API
 

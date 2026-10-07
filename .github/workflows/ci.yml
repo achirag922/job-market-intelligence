@@ -214,6 +214,7 @@ jobs:
         env:
           JMIP_PUBLIC_URL: https://jmip.example.com
           JMIP_TLS_CERT_DIR: ./certs
+          JMIP_CORS_ALLOWED_ORIGINS: https://jmip.example.com
         run: |
           docker compose config -q
           docker compose -f docker-compose.yml -f docker-compose.https.yml config -q

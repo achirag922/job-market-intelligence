@@ -49,7 +49,8 @@ class EndpointAccessIntegrationTest {
         for (String path : PRIVATE) {
             mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
         }
-        mockMvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
+        // No metrics account is configured here, so the metrics endpoint is closed to everyone (deny-all).
+        mockMvc.perform(get("/actuator/metrics")).andExpect(status().isForbidden());
     }
 
     @Test
@@ -75,7 +76,8 @@ class EndpointAccessIntegrationTest {
     @DisplayName("internal actuator endpoints are not exposed, even to a signed-in user")
     void actuatorInternalsHidden() throws Exception {
         for (String path : List.of("/actuator/env", "/actuator/beans", "/actuator/configprops", "/actuator/heapdump")) {
-            mockMvc.perform(get(path).with(user("member@example.com").roles("USER"))).andExpect(status().isNotFound());
+            // The actuator chain ends in deny-all: refused without revealing whether the endpoint exists.
+            mockMvc.perform(get(path).with(user("member@example.com").roles("USER"))).andExpect(status().isForbidden());
         }
     }
 
