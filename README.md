@@ -3,11 +3,24 @@
 Analytics over job postings: job demand, skill demand and trends, companies, locations,
 experience requirements and salary, plus job search and filtering.
 
-## Architecture (V1)
+## Architecture
 
 ```
-Job dataset / API  ->  Java ETL  ->  PostgreSQL  ->  Spring Boot REST API  ->  React frontend
+Job files / connectors  ->  ETL (Spring Batch)  ->  PostgreSQL  <-  Spring Boot REST API  <-  nginx + React SPA
+                                                                      |-> Anthropic API (optional), SMTP, encrypted resume files
 ```
+
+The full picture (components, ER diagram, ETL flow, authentication flow, feature modules, data flows,
+integrations and architectural decisions) is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Documentation
+
+| Document | Covers |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | system, backend, frontend, data model, ETL, security flow, modules, decisions |
+| [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md) | profiles, environment variables, Docker, database, storage, security, monitoring |
+| [docs/CI_CD.md](docs/CI_CD.md) | pipeline stages, secrets, Sonar Quality Gate, releases |
+| [docs/BACKUP_AND_RECOVERY.md](docs/BACKUP_AND_RECOVERY.md) | backups and restores |
 
 The ETL and the API are separate applications with separate lifecycles. They share only
 the database schema, through the `database` module, so that running an ingestion batch can
@@ -26,19 +39,21 @@ never affect API availability.
 
 | Layer    | Technology                                                   |
 |----------|--------------------------------------------------------------|
-| Backend  | Java 17, Spring Boot 3.5, Spring Data JPA                    |
+| Backend  | Java 17, Spring Boot 3.5, Spring Security, Spring Data JPA, Actuator/Micrometer |
 | ETL      | Java 17, Spring Batch 5.2, Spring JDBC, Jackson, Commons CSV |
 | Database | PostgreSQL 18, Flyway migrations                             |
 | Build    | Maven (multi-module)                                         |
 | Tests    | JUnit 5, AssertJ, Testcontainers (real PostgreSQL)           |
-| Frontend | React + TypeScript (added in a later phase)                  |
+| Frontend | React 19, TypeScript, Vite, React Router, Recharts, Vitest   |
+| Runtime  | Docker images (JRE 17, nginx), Docker Compose                |
 
 ## Prerequisites
 
 - JDK 17
 - Maven 3.9+
 - PostgreSQL 18 running locally (this project defaults to **port 5433**)
-- Docker (only needed to run the tests, which start a throwaway PostgreSQL)
+- Node.js 22 and npm (frontend)
+- Docker (needed for the integration tests, which start a throwaway PostgreSQL, and for Docker Compose)
 
 ## Database setup
 
@@ -72,6 +87,9 @@ All settings have local-friendly defaults and can be overridden with environment
 | `JMIP_ASSISTANT_MAX_LIMIT` | `25` |
 | `JMIP_ASSISTANT_MAX_JOB_RESULTS` | `20` |
 | `JMIP_ASSISTANT_MIN_SALARY_SAMPLE` | `5` |
+
+Sign-up locally: with the default `JMIP_VERIFICATION_DELIVERY=log` the 6-digit verification code is written
+to the backend log instead of being emailed (set `smtp` and the `JMIP_MAIL_*` variables to send email).
 
 `AI_API_KEY` has no default and appears in no file in this repository. With it unset the
 application starts normally and the assistant reports itself unavailable; nothing else is
@@ -147,8 +165,18 @@ Opens on `http://localhost:5173` and talks to the API at `VITE_API_BASE_URL`
 (see `frontend/.env.example`). The backend must be running, and its `jmip.cors.allowed-origins`
 must include the frontend's origin — `http://localhost:5173` is allowed by default.
 
-Pages: Dashboard, Job Explorer, Job Details, Job Intelligence, Skill Analytics, Skill Trends,
-Company Analytics, Location Analytics, Resume Intelligence, Ask the Data.
+The pages and what each one does are listed in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#7-feature-modules).
+
+## Running everything with Docker Compose
+
+```
+cp .env.example .env        # then set JMIP_DB_PASSWORD, JMIP_OTP_SECRET (32+ chars), JMIP_RESUME_ENCRYPTION_KEY
+docker compose up -d --build
+docker compose --profile etl run --rm etl   # load the sample dataset
+```
+
+The app is then on `http://localhost:3000` (nginx serving the SPA and proxying `/api`), the API on
+`http://localhost:8080`, both with the production profile. See [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md).
 
 ## Testing
 
@@ -266,6 +294,7 @@ etl/data
 - [x] V10.4 — Sonar code quality: JaCoCo (backend/ETL) and Vitest V8 (frontend) coverage, sonar-project.properties, a CI sonar job that waits for the Quality Gate (80% new-code coverage, A ratings, hotspots reviewed) and blocks the Docker stages; see docs/CI_CD.md
 - [x] V10.5 — Production HTTPS & security hardening: trusted-proxy (load balancer) client addresses in nginx, prod secret-strength checks, public/private endpoint and error-leakage tests, security reference in docs/PRODUCTION_DEPLOYMENT.md
 - [x] V10.6 — Monitoring & logging: ETL last-run gauges (success, age, duration, records), pool/ETL metric checks, monitoring and alerting reference in docs/PRODUCTION_DEPLOYMENT.md
+- [x] V10.7 — Documentation & architecture: docs/ARCHITECTURE.md (system, backend/frontend, ER diagram, ETL flow, auth flow, modules, data flows, integrations, decisions), README architecture, documentation index, prerequisites and Compose quick start
 
 ## API
 
