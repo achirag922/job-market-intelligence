@@ -123,7 +123,7 @@ public class ApplicationIntelligenceService {
 
     /** The last {@value #MONTHS} months that had any activity. Reconstructed (backfilled) stage times are left out. */
     private List<MonthActivity> activity(List<SavedJob> rows, List<Event> history) {
-        YearMonth from = YearMonth.now(clock.withZone(ZoneOffset.UTC)).minusMonths(MONTHS - 1);
+        YearMonth from = YearMonth.now(clock.withZone(ZoneOffset.UTC)).minusMonths(MONTHS - 1L);
         Map<YearMonth, long[]> byMonth = new TreeMap<>();
         rows.forEach(saved -> {
             add(byMonth, from, saved.getSavedAt(), 0);

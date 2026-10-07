@@ -115,6 +115,23 @@ public class ResumeBuilderService {
     }
 
     public record Export(byte[] pdf, String fileName) {
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Export that && java.util.Arrays.equals(pdf, that.pdf)
+                    && java.util.Objects.equals(fileName, that.fileName);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * java.util.Arrays.hashCode(pdf) + java.util.Objects.hashCode(fileName);
+        }
+
+        /** The size only: a PDF's bytes are never worth printing. */
+        @Override
+        public String toString() {
+            return "Export[fileName=" + fileName + ", pdf=" + (pdf == null ? 0 : pdf.length) + " bytes]";
+        }
     }
 
     // ------------------------------------------------------------------ helpers

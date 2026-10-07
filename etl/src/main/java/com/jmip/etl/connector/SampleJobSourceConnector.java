@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 @Component
 public class SampleJobSourceConnector implements JobSourceConnector {
 
-    public static final String NAME = "sample";
+    public static final String CONNECTOR_NAME = "sample";
     public static final String FEED_TYPE = "SAMPLE";
 
     private final JobSourceConnectors.ConnectorProperties properties;
@@ -44,7 +44,7 @@ public class SampleJobSourceConnector implements JobSourceConnector {
 
     @Override
     public String name() {
-        return NAME;
+        return CONNECTOR_NAME;
     }
 
     @Override

@@ -207,7 +207,7 @@ function SalarySection({ data }: { data: MarketSalary }) {
   const currencies = data.byCurrency.map((row) => row.currency);
   const [chosen, setChosen] = useState<string | null>(null);
   const currency = chosen && currencies.includes(chosen) ? chosen : currencies[0];
-  const months = useMemo(() => [...new Set(data.trend.map((point) => point.month))].sort(), [data.trend]);
+  const months = useMemo(() => [...new Set(data.trend.map((point) => point.month))].sort((a, b) => a.localeCompare(b)), [data.trend]);
 
   return (
     <>

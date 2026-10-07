@@ -109,7 +109,7 @@ public class EtlRunService {
             }
             end = LocalDateTime.now(clock);
         }
-        return Math.max(0, Duration.between(row.startTime(), end).toMillis());
+        return Math.max(0, Duration.between(row.startTime().atZone(clock.getZone()), end.atZone(clock.getZone())).toMillis());
     }
 
     private static String normalise(String jobName) {

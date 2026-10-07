@@ -34,7 +34,7 @@ public final class TrendMath {
     public static final String INCREASING = "INCREASING";
     public static final String DECREASING = "DECREASING";
     public static final String STABLE = "STABLE";
-    public static final String INSUFFICIENT = "INSUFFICIENT_DATA";
+    public static final String INSUFFICIENT_DATA = "INSUFFICIENT_DATA";
 
     static final String ESTIMATE_LABEL = "Estimate, not a prediction: a straight line fitted to past monthly postings and "
             + "extended " + HORIZON + " months. Hiring can change for reasons this data does not show.";
@@ -92,7 +92,7 @@ public final class TrendMath {
     }
 
     public static Trend insufficient(String basis, String reason) {
-        return new Trend(INSUFFICIENT, null, null, null, null, null, null, null, null, basis, reason);
+        return new Trend(INSUFFICIENT_DATA, null, null, null, null, null, null, null, null, basis, reason);
     }
 
     /** RISING/FALLING/STABLE of the skill trends, in this API's words. */
@@ -149,7 +149,7 @@ public final class TrendMath {
     }
 
     public static Forecast insufficientForecast(String note) {
-        return new Forecast(INSUFFICIENT, ESTIMATE_LABEL, ESTIMATE_METHOD, null, null, null, null, null, List.of(), note);
+        return new Forecast(INSUFFICIENT_DATA, ESTIMATE_LABEL, ESTIMATE_METHOD, null, null, null, null, null, List.of(), note);
     }
 
     public static double round1(double value) {

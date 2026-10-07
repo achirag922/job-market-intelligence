@@ -273,7 +273,7 @@ public class PortfolioService {
     /** From the display name: "Ana María Ruiz" becomes ana-maria-ruiz, with a number added when it is taken. */
     private String generateSlug(String displayName, UUID owner) {
         String base = Normalizer.normalize(displayName, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
+                .toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-+)|(-+$)", "");
         if (base.length() > 44) {
             base = base.substring(0, 44).replaceAll("-+$", "");
         }

@@ -197,6 +197,21 @@ public class MarketIntelligenceRepository {
     // ------------------------------------------------------------------ filter
 
     private record Query(String sql, Object[] args) {
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof Query that && sql.equals(that.sql) && java.util.Arrays.equals(args, that.args);
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * sql.hashCode() + java.util.Arrays.hashCode(args);
+        }
+
+        @Override
+        public String toString() {
+            return "Query[sql=" + sql + ", args=" + java.util.Arrays.toString(args) + "]";
+        }
     }
 
     private static CountRow countRow(ResultSet rs, int row) throws SQLException {

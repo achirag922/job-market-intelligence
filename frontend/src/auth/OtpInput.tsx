@@ -288,7 +288,7 @@ export function OtpInput({
         : motion === 'orbit' ? enterOrbit()
         : motion === 'collapse' ? collapse()
         : returnToRow();
-    run
+    void run
       .catch(() => {
         // Cancelled by unmount or a newer motion; nothing to report.
       })

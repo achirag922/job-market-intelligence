@@ -15,7 +15,7 @@ import java.util.Locale;
 @Component
 public class FileJobSourceConnector implements JobSourceConnector {
 
-    public static final String NAME = "file";
+    public static final String CONNECTOR_NAME = "file";
 
     private final RawJobRecordReaderFactory readerFactory;
 
@@ -25,7 +25,7 @@ public class FileJobSourceConnector implements JobSourceConnector {
 
     @Override
     public String name() {
-        return NAME;
+        return CONNECTOR_NAME;
     }
 
     @Override

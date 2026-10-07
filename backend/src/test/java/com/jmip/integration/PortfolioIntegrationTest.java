@@ -48,7 +48,7 @@ class PortfolioIntegrationTest {
     private static final String BOB = "bob@example.test";
     private static final String PROFILE = """
             {"displayName": "Ana María Ruiz",
-             "content": {"headline": "Backend Engineer‮", "about": "I build reliable services.",
+             "content": {"headline": "Backend Engineer\\u202E", "about": "I build reliable services.",
                "skills": ["Java", "Docker"],
                "experience": [{"title": "Engineer", "company": "Acme", "start": "2021", "current": true, "bullets": ["Built APIs"]}],
                "education": [{"degree": "BSc Computer Science", "institution": "State University"}],
