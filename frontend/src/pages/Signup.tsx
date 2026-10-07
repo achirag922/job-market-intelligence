@@ -15,6 +15,36 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * <p>Only the checks a user can fix before submitting run here. The backend applies the full
  * password-strength rules, and its message is shown as given.
  */
+function fullNameProblem(fullName: string): string | null {
+  if (!fullName.trim()) return 'Enter your full name.';
+  return fullName.trim().length > 100 ? 'Use at most 100 characters.' : null;
+}
+
+function emailProblem(email: string): string | null {
+  if (!email.trim()) return 'Enter your email address.';
+  return EMAIL_PATTERN.test(email.trim()) ? null : 'Enter a valid email address.';
+}
+
+function passwordProblem(password: string): string | null {
+  if (password.length < MIN_PASSWORD) return `Use at least ${MIN_PASSWORD} characters.`;
+  return password.length > MAX_PASSWORD ? `Use at most ${MAX_PASSWORD} characters.` : null;
+}
+
+function confirmProblem(confirm: string, password: string): string | null {
+  if (!confirm) return 'Confirm your password.';
+  return confirm === password ? null : 'The passwords do not match.';
+}
+
+/** The sign-up form's validation messages, one per field (null when the field is fine). */
+export function signupProblems(values: { fullName: string; email: string; password: string; confirm: string }) {
+  return {
+    fullName: fullNameProblem(values.fullName),
+    email: emailProblem(values.email),
+    password: passwordProblem(values.password),
+    confirm: confirmProblem(values.confirm, values.password),
+  };
+}
+
 export function Signup() {
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -29,24 +59,7 @@ export function Signup() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const problems = {
-    fullName: !fullName.trim()
-      ? 'Enter your full name.'
-      : fullName.trim().length > 100
-        ? 'Use at most 100 characters.'
-        : null,
-    email: !email.trim()
-      ? 'Enter your email address.'
-      : !EMAIL_PATTERN.test(email.trim())
-        ? 'Enter a valid email address.'
-        : null,
-    password: password.length < MIN_PASSWORD
-      ? `Use at least ${MIN_PASSWORD} characters.`
-      : password.length > MAX_PASSWORD
-        ? `Use at most ${MAX_PASSWORD} characters.`
-        : null,
-    confirm: !confirm ? 'Confirm your password.' : confirm !== password ? 'The passwords do not match.' : null,
-  };
+  const problems = signupProblems({ fullName, email, password, confirm });
   // Errors appear after the first submit, or as soon as the user has typed into that field.
   const show = (field: keyof typeof problems, typed: string) =>
     submitted || (typed.length > 0 && field !== 'fullName' && field !== 'email') ? problems[field] : null;

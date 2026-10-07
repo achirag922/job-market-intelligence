@@ -45,6 +45,8 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class MarketIntelligenceService {
 
+    private static final String NO_POSTINGS_MATCH_THIS_SELECTION = "No postings match this selection.";
+
     /** Fewer postings than this behind a salary figure and it is marked unreliable. */
     static final int MIN_SALARY_SAMPLE = 3;
     static final int TOP_LOCATIONS = 10;
@@ -113,7 +115,7 @@ public class MarketIntelligenceService {
                 .toList();
         List<String> notes = new ArrayList<>();
         if (scope.postings() == 0) {
-            notes.add("No postings match this selection.");
+            notes.add(NO_POSTINGS_MATCH_THIS_SELECTION);
         }
         if (notStated > 0) {
             notes.add(notStated + " posting(s) state no location; the remote-work view shows how many describe themselves as remote.");
@@ -143,7 +145,7 @@ public class MarketIntelligenceService {
 
         List<String> notes = new ArrayList<>();
         if (scope.postings() == 0) {
-            notes.add("No postings match this selection.");
+            notes.add(NO_POSTINGS_MATCH_THIS_SELECTION);
         }
         historyNote(scope, notes);
         return new RemoteResponse(scope, distribution, trend, WORK_MODE_METHOD, notes);
@@ -170,7 +172,7 @@ public class MarketIntelligenceService {
 
         List<String> notes = new ArrayList<>();
         if (scope.postings() == 0) {
-            notes.add("No postings match this selection.");
+            notes.add(NO_POSTINGS_MATCH_THIS_SELECTION);
         }
         notes.add("Counts are postings in JMIP's dataset per posting month, not a company's total hiring.");
         historyNote(scope, notes);
@@ -204,7 +206,7 @@ public class MarketIntelligenceService {
             }
         }
         if (scope.postings() == 0) {
-            notes.add("No postings match this selection.");
+            notes.add(NO_POSTINGS_MATCH_THIS_SELECTION);
         }
         return new SkillResponse(scope, top, trend, notes);
     }

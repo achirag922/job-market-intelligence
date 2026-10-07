@@ -159,6 +159,27 @@ function Welcome({ onStart }: { onStart: () => void }) {
   );
 }
 
+function yearsProblem(years: string): string | null {
+  if (years.trim() === '') return 'Enter your years of experience.';
+  const value = Number(years);
+  return Number.isInteger(value) && value >= 0 && value <= 60 ? null : 'Use a whole number from 0 to 60.';
+}
+
+function skillsProblem(skills: string): string | null {
+  const count = splitList(skills).length;
+  if (count === 0) return 'Add at least one skill or interest.';
+  return count > 20 ? 'Add at most 20 skills.' : null;
+}
+
+/** The career-profile step's validation messages (null when a field is fine). */
+function profileProblems(targetRole: string, years: string, skills: string) {
+  return {
+    targetRole: targetRole.trim() ? null : 'Enter the role you are aiming for.',
+    years: yearsProblem(years),
+    skills: skillsProblem(skills),
+  };
+}
+
 function ProfileStep({ status, onBack, onSkip, onSaved }: {
   status: OnboardingStatus; onBack: () => void; onSkip: () => void; onSaved: (next: OnboardingStatus) => void;
 }) {
@@ -170,13 +191,7 @@ function ProfileStep({ status, onBack, onSkip, onSaved }: {
   const [error, setError] = useState<string | null>(null);
 
   const yearsNumber = Number(years);
-  const problems = {
-    targetRole: targetRole.trim() ? null : 'Enter the role you are aiming for.',
-    years: years.trim() === '' ? 'Enter your years of experience.'
-      : !Number.isInteger(yearsNumber) || yearsNumber < 0 || yearsNumber > 60 ? 'Use a whole number from 0 to 60.' : null,
-    skills: splitList(skills).length === 0 ? 'Add at least one skill or interest.'
-      : splitList(skills).length > 20 ? 'Add at most 20 skills.' : null,
-  };
+  const problems = profileProblems(targetRole, years, skills);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

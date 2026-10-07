@@ -44,6 +44,9 @@ import java.util.UUID;
 @Component
 public class CareerCopilotRouter {
 
+    private static final String PERCENT_OF_POSTINGS = "% of postings";
+    private static final String SKILL = "Skill";
+
     /** Saved jobs checked against the resume; each check is one match computation. */
     static final int SAVED_JOBS_CHECKED = 20;
     static final int NEXT_SKILLS_SHOWN = 5;
@@ -111,7 +114,7 @@ public class CareerCopilotRouter {
         if (rows.isEmpty()) {
             return AssistantData.empty(context + " Your resume already covers every skill on the roadmap.");
         }
-        return AssistantData.of(rows, bar("Skills missing for " + roadmap.targetRole(), "Skill", "% of postings",
+        return AssistantData.of(rows, bar("Skills missing for " + roadmap.targetRole(), SKILL, PERCENT_OF_POSTINGS,
                 roadmap.roadmap().stream().filter(skill -> skill.percentageOfJobs() != null)
                         .map(skill -> new ChartPoint(skill.skill(), skill.percentageOfJobs())).toList()), context);
     }
@@ -158,7 +161,7 @@ public class CareerCopilotRouter {
         if (skills.topSkills().isEmpty()) {
             return AssistantData.empty("No postings with skills were found for " + category.get() + ".");
         }
-        return AssistantData.of(skills.topSkills(), bar("Most requested skills in " + category.get(), "Skill", "% of postings",
+        return AssistantData.of(skills.topSkills(), bar("Most requested skills in " + category.get(), SKILL, PERCENT_OF_POSTINGS,
                 skills.topSkills().stream().map(row -> new ChartPoint(row.skill(), row.percentageOfPostings())).toList()),
                 "Counted from " + skills.scope().postings() + " " + category.get() + " postings.");
     }
@@ -210,7 +213,7 @@ public class CareerCopilotRouter {
                     : "Your resume already lists the most requested skills in " + insights.targetCategory() + ".");
         }
         return AssistantData.of(insights.skillGaps(), bar("Requested in " + insights.targetCategory() + " but not on your resume",
-                        "Skill", "% of postings",
+                        SKILL, PERCENT_OF_POSTINGS,
                         insights.skillGaps().stream().map(gap -> new ChartPoint(gap.skill(), gap.percentageOfJobs())).toList()),
                 (category != null ? "For your goal's category, " : "For your best-matching category, ")
                         + insights.targetCategory() + ". Pick a job to see suggestions for that posting.");

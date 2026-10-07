@@ -18,9 +18,11 @@ import java.util.List;
  */
 public class RequiredProductionSettings implements EnvironmentPostProcessor {
 
+    private static final String JMIP_CORS_ALLOWED_ORIGINS_TEXT = "JMIP_CORS_ALLOWED_ORIGINS";
+
     static final List<String> REQUIRED = List.of(
             "JMIP_DB_HOST", "JMIP_DB_NAME", "JMIP_DB_USERNAME", "JMIP_DB_PASSWORD",
-            "JMIP_RESUME_DIR", "JMIP_CORS_ALLOWED_ORIGINS", "JMIP_OTP_SECRET", "JMIP_RESUME_ENCRYPTION_KEY");
+            "JMIP_RESUME_DIR", JMIP_CORS_ALLOWED_ORIGINS_TEXT, "JMIP_OTP_SECRET", "JMIP_RESUME_ENCRYPTION_KEY");
 
     /** V10.1: the PostgreSQL driver's sslmode values; managed cloud databases usually want require or verify-full. */
     static final List<String> SSL_MODES = List.of("disable", "allow", "prefer", "require", "verify-ca", "verify-full");
@@ -72,7 +74,7 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
         if ("none".equalsIgnoreCase(environment.getProperty("JMIP_SESSION_COOKIE_SAME_SITE", "strict").strip())) {
             problems.add("JMIP_SESSION_COOKIE_SAME_SITE must be strict or lax, not none");
         }
-        for (String origin : environment.getProperty("JMIP_CORS_ALLOWED_ORIGINS", "").split(",")) {
+        for (String origin : environment.getProperty(JMIP_CORS_ALLOWED_ORIGINS_TEXT, "").split(",")) {
             String trimmed = origin.strip();
             if (!trimmed.isEmpty() && !isTrustedOrigin(trimmed)) {
                 problems.add("JMIP_CORS_ALLOWED_ORIGINS must list https:// origins (or http://localhost), not " + trimmed);
@@ -106,7 +108,7 @@ public class RequiredProductionSettings implements EnvironmentPostProcessor {
 
     /** True when every allowed origin is this machine: the image is being tried out locally. */
     private static boolean localOnly(ConfigurableEnvironment environment) {
-        for (String origin : environment.getProperty("JMIP_CORS_ALLOWED_ORIGINS", "").split(",")) {
+        for (String origin : environment.getProperty(JMIP_CORS_ALLOWED_ORIGINS_TEXT, "").split(",")) {
             String host;
             try {
                 host = java.net.URI.create(origin.strip()).getHost();

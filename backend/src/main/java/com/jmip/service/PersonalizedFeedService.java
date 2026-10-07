@@ -55,6 +55,8 @@ import java.util.stream.Stream;
 @Transactional(readOnly = true)
 public class PersonalizedFeedService {
 
+    private static final String POSITIVE_TEXT = "POSITIVE";
+
     static final int CANDIDATES_PER_SOURCE = 100;
     static final int FRESH_POINTS = 5;
     static final int HISTORY_POINTS = 4;
@@ -170,7 +172,7 @@ public class PersonalizedFeedService {
         if (match != null && match.matchPercentage() != null) {
             if (match.matchPercentage() >= STRONG_SKILL_MATCH) {
                 reasons.add(new Reason("Strong skill match (" + match.matchedSkillCount() + " of " + match.totalJobSkills()
-                        + " skills)", "POSITIVE", null));
+                        + " skills)", POSITIVE_TEXT, null));
             } else if (match.matchedSkillCount() > 0) {
                 reasons.add(new Reason("Partial skill match (" + match.matchedSkillCount() + " of " + match.totalJobSkills()
                         + " skills)", "INFO", null));
@@ -185,7 +187,7 @@ public class PersonalizedFeedService {
             dimension(reasons, breakdown.careerGoal(), breakdown.careerGoal() == null ? null
                     : "Matches your career goal: " + goal.map(CareerGoal::getTargetRole).orElse(""), "Different role from your career goal");
             if (breakdown.careerGoal() != null && breakdown.careerGoal().status() == Status.PARTIAL) {
-                reasons.add(new Reason(breakdown.careerGoal().detail(), "POSITIVE", null));
+                reasons.add(new Reason(breakdown.careerGoal().detail(), POSITIVE_TEXT, null));
             }
             dimension(reasons, breakdown.role(), breakdown.role() == null ? null : breakdown.role().detail(),
                     "Not one of your preferred roles");
@@ -201,11 +203,11 @@ public class PersonalizedFeedService {
         String category = lower(job.getJobCategory());
         if (job.getFirstSeenAt() != null && job.getFirstSeenAt().isAfter(freshSince)) {
             priority += FRESH_POINTS;
-            reasons.add(new Reason("New in the last " + FRESH_DAYS + " days", "POSITIVE", FRESH_POINTS));
+            reasons.add(new Reason("New in the last " + FRESH_DAYS + " days", POSITIVE_TEXT, FRESH_POINTS));
         }
         if (category != null && appliedCategories.contains(category)) {
             priority += HISTORY_POINTS;
-            reasons.add(new Reason("Similar to jobs you applied to", "POSITIVE", HISTORY_POINTS));
+            reasons.add(new Reason("Similar to jobs you applied to", POSITIVE_TEXT, HISTORY_POINTS));
         }
         boolean isSaved = saved.contains(job.getId());
         if (isSaved) {
@@ -222,7 +224,7 @@ public class PersonalizedFeedService {
             return;
         }
         if (dimension.status() == Status.MATCH && match != null) {
-            reasons.add(new Reason(match, "POSITIVE", null));
+            reasons.add(new Reason(match, POSITIVE_TEXT, null));
         } else if (dimension.status() == Status.NO_MATCH && noMatch != null) {
             reasons.add(new Reason(noMatch, "NEGATIVE", null));
         }

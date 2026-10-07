@@ -23,6 +23,9 @@ import java.util.List;
 @Repository
 public class MarketIntelligenceRepository {
 
+    private static final String POSTINGS = "postings";
+    private static final String MONTH = "month";
+
     /** Work mode, from what the posting says in words; the data has no field for it. */
     static final String WORK_MODE = "CASE WHEN j.description ~* '\\mhybrid\\M' THEN 'HYBRID'"
             + " WHEN j.description ~* '\\mremote\\M' THEN 'REMOTE'"
@@ -66,7 +69,7 @@ public class MarketIntelligenceRepository {
                 SELECT count(*) AS postings, count(month) AS dated, min(month) AS earliest, max(month) AS latest
                 FROM filtered
                 """);
-        return jdbcTemplate.queryForObject(query.sql(), (rs, row) -> new Window(rs.getLong("postings"), rs.getLong("dated"),
+        return jdbcTemplate.queryForObject(query.sql(), (rs, row) -> new Window(rs.getLong(POSTINGS), rs.getLong("dated"),
                 rs.getObject("earliest", LocalDate.class), rs.getObject("latest", LocalDate.class)), query.args());
     }
 
@@ -80,10 +83,10 @@ public class MarketIntelligenceRepository {
                 WHERE salary_min IS NOT NULL AND currency IS NOT NULL %s
                 GROUP BY %s
                 ORDER BY %s count(*) DESC, currency
-                """.formatted(byCategory ? "job_category" : "NULL", byMonth ? "month" : "NULL::date",
+                """.formatted(byCategory ? "job_category" : "NULL", byMonth ? MONTH : "NULL::date",
                 byMonth ? "AND month IS NOT NULL" : "", groups, byMonth ? "month," : ""));
         return jdbcTemplate.query(query.sql(), (rs, row) -> new SalaryRow(rs.getString("currency"), rs.getString("category"),
-                rs.getObject("month", LocalDate.class), rs.getLong("postings"), rs.getBigDecimal("avg_min"),
+                rs.getObject(MONTH, LocalDate.class), rs.getLong(POSTINGS), rs.getBigDecimal("avg_min"),
                 rs.getBigDecimal("avg_max"), rs.getBigDecimal("low"), rs.getBigDecimal("high")), query.args());
     }
 
@@ -107,7 +110,7 @@ public class MarketIntelligenceRepository {
                 FROM filtered %s
                 GROUP BY work_mode %s
                 ORDER BY %s count(*) DESC
-                """.formatted(byMonth ? "month" : "NULL::date", byMonth ? "WHERE month IS NOT NULL" : "",
+                """.formatted(byMonth ? MONTH : "NULL::date", byMonth ? "WHERE month IS NOT NULL" : "",
                 byMonth ? ", month" : "", byMonth ? "month," : ""));
         return jdbcTemplate.query(query.sql(), MarketIntelligenceRepository::countRow, query.args());
     }
@@ -218,7 +221,7 @@ public class MarketIntelligenceRepository {
         long id = rs.getLong("id");
         Long boxed = rs.wasNull() ? null : id;
         return new CountRow(boxed, rs.getString("name"), rs.getString("extra"),
-                rs.getObject("month", LocalDate.class), rs.getLong("postings"));
+                rs.getObject(MONTH, LocalDate.class), rs.getLong(POSTINGS));
     }
 
     /** The shared WHERE, with the same meaning as the job search's filters; values are always bound. */

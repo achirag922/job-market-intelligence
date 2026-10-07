@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 @Service
 public class JobAlertProcessor {
 
+    private static final String FIRSTSEENAT = "firstSeenAt";
+
     private static final Logger log = LoggerFactory.getLogger(JobAlertProcessor.class);
 
     /** The most new postings one pass records for an alert; the rest wait for the next window. */
@@ -124,11 +126,11 @@ public class JobAlertProcessor {
             return 0;
         }
         Specification<Job> newlySeen = (root, query, cb) -> cb.and(
-                cb.greaterThan(root.get("firstSeenAt"), due.since()),
-                cb.lessThanOrEqualTo(root.get("firstSeenAt"), now),
+                cb.greaterThan(root.get(FIRSTSEENAT), due.since()),
+                cb.lessThanOrEqualTo(root.get(FIRSTSEENAT), now),
                 cb.isTrue(root.get("active")));
         List<Job> matches = jobs.findAll(jobService.toSpecification(alert.toSearchCriteria()).and(newlySeen),
-                PageRequest.of(0, MAX_CANDIDATES, Sort.by(Sort.Order.desc("firstSeenAt"), Sort.Order.asc("id")))).getContent();
+                PageRequest.of(0, MAX_CANDIDATES, Sort.by(Sort.Order.desc(FIRSTSEENAT), Sort.Order.asc("id")))).getContent();
 
         Set<Long> already = notifications.recordedJobIds(due.alertId(), matches.stream().map(Job::getId).toList());
         Set<Long> resumeSkills = notifications.currentResumeSkillIds(due.userId());

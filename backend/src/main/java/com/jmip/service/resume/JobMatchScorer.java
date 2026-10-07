@@ -29,6 +29,9 @@ import java.util.regex.Pattern;
 @Component
 public class JobMatchScorer {
 
+    private static final String YEARS_ASKED = " years asked";
+    private static final String HYBRID_TEXT = "HYBRID";
+
     static final int SKILLS_WEIGHT = 60;
     static final int EXPERIENCE_WEIGHT = 15;
     static final int LOCATION_WEIGHT = 10;
@@ -196,13 +199,13 @@ public class JobMatchScorer {
             int gap = min - years;
             double score = Math.max(0, 100 - PER_YEAR_SHORT * gap);
             return new Dimension(score > 0 ? Status.PARTIAL : Status.NO_MATCH, score, EXPERIENCE_WEIGHT,
-                    years + " years is " + gap + (gap == 1 ? " year" : " years") + " short of the " + range + " years asked");
+                    years + " years is " + gap + (gap == 1 ? " year" : " years") + " short of the " + range + YEARS_ASKED);
         }
         if (max != null && years > max) {
             return new Dimension(Status.PARTIAL, ABOVE_RANGE, EXPERIENCE_WEIGHT,
-                    years + " years is above the " + range + " years asked");
+                    years + " years is above the " + range + YEARS_ASKED);
         }
-        return new Dimension(Status.MATCH, 100.0, EXPERIENCE_WEIGHT, years + " years fits the " + range + " years asked");
+        return new Dimension(Status.MATCH, 100.0, EXPERIENCE_WEIGHT, years + " years fits the " + range + YEARS_ASKED);
     }
 
     /**
@@ -248,7 +251,7 @@ public class JobMatchScorer {
         if (mode.equals(preferred)) {
             return new Dimension(Status.MATCH, 100.0, WORK_MODE_WEIGHT, label + ", as you prefer");
         }
-        if (mode.equals("HYBRID") || preferred.equals("HYBRID")) {
+        if (mode.equals(HYBRID_TEXT) || preferred.equals(HYBRID_TEXT)) {
             return new Dimension(Status.PARTIAL, 50.0, WORK_MODE_WEIGHT, label + "; you prefer " + label(preferred).toLowerCase(Locale.ROOT));
         }
         return new Dimension(Status.NO_MATCH, 0.0, WORK_MODE_WEIGHT, label + "; you prefer " + label(preferred).toLowerCase(Locale.ROOT));
@@ -280,7 +283,7 @@ public class JobMatchScorer {
             return null;
         }
         if (HYBRID.matcher(description).find()) {
-            return "HYBRID";
+            return HYBRID_TEXT;
         }
         if (REMOTE.matcher(description).find()) {
             return "REMOTE";
@@ -291,7 +294,7 @@ public class JobMatchScorer {
     private static String label(String mode) {
         return switch (mode) {
             case "REMOTE" -> "Remote";
-            case "HYBRID" -> "Hybrid";
+            case HYBRID_TEXT -> "Hybrid";
             default -> "On-site";
         };
     }

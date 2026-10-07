@@ -67,6 +67,9 @@ import java.util.stream.Stream;
 @Service
 public class UserAnalyticsService {
 
+    private static final String MONTH_TEXT = "MONTH";
+    private static final String COMPLETED_TEXT = "COMPLETED";
+
     static final int MAX_RESUME_VERSIONS = 12;
     static final int MAX_JOBS_COMPARED = 100;
     static final int TOP_MISSING = 10;
@@ -154,13 +157,13 @@ public class UserAnalyticsService {
             case "7D" -> new Window(range, today.minusDays(6), today, "DAY");
             case "30D" -> new Window(range, today.minusDays(29), today, "DAY");
             case "90D" -> new Window(range, today.minusDays(89), today, "WEEK");
-            case "1Y" -> new Window(range, today.minusYears(1).plusDays(1), today, "MONTH");
+            case "1Y" -> new Window(range, today.minusYears(1).plusDays(1), today, MONTH_TEXT);
             case "ALL" -> {
                 if (earliest == null) {
-                    yield new Window(range, null, today, "MONTH");
+                    yield new Window(range, null, today, MONTH_TEXT);
                 }
                 long span = ChronoUnit.DAYS.between(earliest, today);
-                yield new Window(range, earliest, today, span > 90 ? "MONTH" : span > 31 ? "WEEK" : "DAY");
+                yield new Window(range, earliest, today, span > 90 ? MONTH_TEXT : span > 31 ? "WEEK" : "DAY");
             }
             default -> throw new InvalidRequestException("range must be 7D, 30D, 90D, 1Y or ALL");
         };
@@ -174,9 +177,9 @@ public class UserAnalyticsService {
 
         List<Event> history = events.findByUser(owner);
         List<SavedJob> saved = savedJobs.findByUserIdOrderByUpdatedAtDesc(owner);
-        List<ResumeResponse> resumes = resumeService.list().stream().filter(r -> "COMPLETED".equals(r.status())).toList();
+        List<ResumeResponse> resumes = resumeService.list().stream().filter(r -> COMPLETED_TEXT.equals(r.status())).toList();
         List<SessionRow> completedInterviews = interviews.list(owner).stream()
-                .filter(s -> "COMPLETED".equals(s.status()) && s.completedAt() != null)
+                .filter(s -> COMPLETED_TEXT.equals(s.status()) && s.completedAt() != null)
                 .sorted(Comparator.comparing(SessionRow::completedAt)).toList();
         List<ItemRow> items = learningItems.items(owner);
 
@@ -342,7 +345,7 @@ public class UserAnalyticsService {
     }
 
     private Learning learning(List<ItemRow> items, Window window) {
-        int completed = (int) items.stream().filter(i -> "COMPLETED".equals(i.status())).count();
+        int completed = (int) items.stream().filter(i -> COMPLETED_TEXT.equals(i.status())).count();
         int inProgress = (int) items.stream().filter(i -> "IN_PROGRESS".equals(i.status())).count();
         Map<String, long[]> counts = new LinkedHashMap<>();
         window.labels().forEach(label -> counts.put(label, new long[2]));

@@ -59,6 +59,10 @@ import java.util.stream.Stream;
 @Service
 public class CareerProgressService {
 
+    private static final String CAREER = "Career";
+    private static final String JOB_SEARCH = "Job search";
+    private static final String LEARNING = "Learning";
+
     private static final Logger log = LoggerFactory.getLogger(CareerProgressService.class);
 
     static final int LEARNING_MILESTONE = 5;
@@ -151,26 +155,26 @@ public class CareerProgressService {
                         (int) saved.stream().filter(s -> s.getStatus() == ApplicationStatus.OFFER).count()));
 
         List<Achievement> achievements = new ArrayList<>();
-        achievements.add(achievement("career-goal", "Career goal set", "You chose a role to work towards.", "Career",
+        achievements.add(achievement("career-goal", "Career goal set", "You chose a role to work towards.", CAREER,
                 allGoals.stream().map(CareerGoal::getCreatedAt).filter(Objects::nonNull).min(Comparator.naturalOrder()).map(CareerProgressService::day),
                 !allGoals.isEmpty(), "Set a career goal"));
         int profileParts = (experienceAndSkills ? 1 : 0) + (jobPreferences ? 1 : 0) + (active.isPresent() ? 1 : 0);
         achievements.add(achievement("profile", "Profile completed", "Experience, skills, job preferences and an active goal are all set.",
-                "Career", Optional.empty(), profileParts == 3, profileParts + " of 3 parts done"));
+                CAREER, Optional.empty(), profileParts == 3, profileParts + " of 3 parts done"));
         achievements.add(achievement("resume", "Resume completed", "A resume of yours was processed and its skills recognised.", "Resume",
                 resumes.stream().map(r -> r.processedAt() != null ? r.processedAt() : r.uploadedAt()).filter(Objects::nonNull)
                         .min(Comparator.naturalOrder()).map(CareerProgressService::day), !resumes.isEmpty(), "Upload or build a resume"));
-        achievements.add(achievement("first-saved-job", "First job saved", "You saved a job to follow up on.", "Job search",
+        achievements.add(achievement("first-saved-job", "First job saved", "You saved a job to follow up on.", JOB_SEARCH,
                 firstEvent(events, ApplicationStatus.SAVED).or(() -> saved.stream().map(SavedJob::getSavedAt).min(Comparator.naturalOrder()).map(CareerProgressService::day)),
                 !saved.isEmpty() || firstEvent(events, ApplicationStatus.SAVED).isPresent(), "Save a job"));
         Optional<LocalDate> firstApplication = firstEvent(events, ApplicationStatus.APPLIED);
-        achievements.add(achievement("first-application", "First application", "You applied to a job.", "Job search",
+        achievements.add(achievement("first-application", "First application", "You applied to a job.", JOB_SEARCH,
                 firstApplication, firstApplication.isPresent(), "Mark a saved job as applied"));
         Optional<LocalDate> firstInterview = firstEvent(events, ApplicationStatus.INTERVIEW);
-        achievements.add(achievement("first-interview", "First interview stage", "An application reached the interview stage.", "Job search",
+        achievements.add(achievement("first-interview", "First interview stage", "An application reached the interview stage.", JOB_SEARCH,
                 firstInterview, firstInterview.isPresent(), "Keep applying; interviews follow"));
         Optional<LocalDate> firstOffer = firstEvent(events, ApplicationStatus.OFFER);
-        achievements.add(achievement("first-offer", "First offer", "An application turned into an offer.", "Job search",
+        achievements.add(achievement("first-offer", "First offer", "An application turned into an offer.", JOB_SEARCH,
                 firstOffer, firstOffer.isPresent(), "Your first offer will show here"));
         achievements.add(achievement("first-practice", "First interview practice", "You completed a practice interview.", "Interviews",
                 practices.stream().findFirst().map(s -> day(s.completedAt())), !practices.isEmpty(), "Complete a practice interview"));
@@ -179,12 +183,12 @@ public class CareerProgressService {
                 strong.map(s -> day(s.completedAt())), strong.isPresent(),
                 practiceScores.isEmpty() ? "Score 4/5 or more in a practice interview"
                         : "Best so far " + practiceScores.stream().max(Double::compare).map(CareerProgressService::format).orElse("") + "/5"));
-        achievements.add(achievement("first-skill", "Skill completed", "You completed an item in your learning plan.", "Learning",
+        achievements.add(achievement("first-skill", "Skill completed", "You completed an item in your learning plan.", LEARNING,
                 completedItems.stream().findFirst().map(i -> day(i.completedAt())), !completedItems.isEmpty(), "Complete a learning item"));
-        achievements.add(achievement("learning-five", "Learning milestone", "Five learning items completed.", "Learning",
+        achievements.add(achievement("learning-five", "Learning milestone", "Five learning items completed.", LEARNING,
                 completedItems.size() >= LEARNING_MILESTONE ? Optional.of(day(completedItems.get(LEARNING_MILESTONE - 1).completedAt())) : Optional.empty(),
                 completedItems.size() >= LEARNING_MILESTONE, Math.min(completedItems.size(), LEARNING_MILESTONE) + " of " + LEARNING_MILESTONE + " completed"));
-        achievements.add(achievement("roadmap-halfway", "Halfway to your target role", "Half of your roadmap's skills are covered.", "Career",
+        achievements.add(achievement("roadmap-halfway", "Halfway to your target role", "Half of your roadmap's skills are covered.", CAREER,
                 Optional.empty(), roadmapPercent != null && roadmapPercent >= 50,
                 roadmapPercent == null ? "Set a career goal" : format(roadmapPercent) + "% covered"));
         achievements.add(achievement("portfolio-published", "Portfolio published", "Your professional profile is public.", "Portfolio",
@@ -194,12 +198,12 @@ public class CareerProgressService {
         List<Achievement> next = achievements.stream().filter(a -> !a.achieved()).limit(3).toList();
 
         List<Streak> streaks = List.of(
-                CareerProgressRules.weeklyStreak("learning", "Learning", Stream.concat(
+                CareerProgressRules.weeklyStreak("learning", LEARNING, Stream.concat(
                         items.stream().map(ItemRow::startedAt), items.stream().map(ItemRow::completedAt))
                         .filter(Objects::nonNull).map(CareerProgressService::day).toList(), today),
                 CareerProgressRules.weeklyStreak("interviews", "Interview practice",
                         practices.stream().map(s -> day(s.completedAt())).toList(), today),
-                CareerProgressRules.weeklyStreak("jobSearch", "Job search", events.stream()
+                CareerProgressRules.weeklyStreak("jobSearch", JOB_SEARCH, events.stream()
                         .filter(e -> e.status() == ApplicationStatus.SAVED || e.status() == ApplicationStatus.APPLIED)
                         .map(e -> day(e.changedAt())).toList(), today));
 

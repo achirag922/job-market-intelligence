@@ -32,6 +32,8 @@ import java.util.stream.Stream;
 @Service
 public class ResumeOptimizationService {
 
+    private static final String SECTIONS_TEXT = "SECTIONS";
+
     static final String DISCLAIMER = "Suggestions come only from this resume and this posting. JMIP does not rewrite your "
             + "resume or add anything to it: use a skill or term only if it truthfully describes your experience.";
 
@@ -136,15 +138,15 @@ public class ResumeOptimizationService {
         }
         if (hasText) {
             if (!sections.contains("Skills") && match.totalJobSkills() > 0) {
-                suggestions.add(new Suggestion("SECTIONS", "No Skills heading was recognised. A short, clearly headed skills "
+                suggestions.add(new Suggestion(SECTIONS_TEXT, "No Skills heading was recognised. A short, clearly headed skills "
                         + "list makes the skills you have easy to find."));
             }
             if (!sections.contains("Summary")) {
-                suggestions.add(new Suggestion("SECTIONS", "No summary heading was recognised. A two or three line summary "
+                suggestions.add(new Suggestion(SECTIONS_TEXT, "No summary heading was recognised. A two or three line summary "
                         + "that names the kind of role you do, if \"" + jobTitle + "\" fits it, aligns the resume with this posting."));
             }
             if (!sections.contains("Experience")) {
-                suggestions.add(new Suggestion("SECTIONS", "No Experience heading was recognised. Headed roles with dates "
+                suggestions.add(new Suggestion(SECTIONS_TEXT, "No Experience heading was recognised. Headed roles with dates "
                         + "let a reader check the experience the posting asks for."));
             }
         }

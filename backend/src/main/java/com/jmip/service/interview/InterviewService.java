@@ -57,6 +57,8 @@ import java.util.stream.Stream;
 @Service
 public class InterviewService {
 
+    private static final String EVALUATED_TEXT = "EVALUATED";
+
     private static final Logger log = LoggerFactory.getLogger(InterviewService.class);
 
     static final int MAX_SESSIONS_PER_ACCOUNT = 200;
@@ -239,7 +241,7 @@ public class InterviewService {
     }
 
     static Summary summarize(List<QuestionRow> questions) {
-        List<QuestionRow> evaluated = questions.stream().filter(q -> "EVALUATED".equals(q.feedbackStatus())).toList();
+        List<QuestionRow> evaluated = questions.stream().filter(q -> EVALUATED_TEXT.equals(q.feedbackStatus())).toList();
         long answered = questions.stream().filter(q -> q.answer() != null).count();
         long skipped = questions.stream().filter(q -> "SKIPPED".equals(q.feedbackStatus())).count();
         String skippedNote = skipped == 0 ? "" : " You skipped " + skipped + ".";
@@ -347,13 +349,13 @@ public class InterviewService {
 
     /** Everything in the report except the learning plan; a strong answer scores 4 or more, a weak one under 3. */
     public static Report scores(List<QuestionRow> questions) {
-        List<QuestionRow> evaluated = questions.stream().filter(q -> "EVALUATED".equals(q.feedbackStatus())).toList();
+        List<QuestionRow> evaluated = questions.stream().filter(q -> EVALUATED_TEXT.equals(q.feedbackStatus())).toList();
         List<String> strong = evaluated.stream().filter(q -> scoreOf(q) >= 4).map(InterviewService::area).distinct().toList();
         List<String> weak = evaluated.stream().filter(q -> scoreOf(q) < 3).map(InterviewService::area).distinct().toList();
         List<String> prepare = questions.stream()
                 .filter(q -> q.focus() != null)
                 .filter(q -> "SKIPPED".equals(q.feedbackStatus()) || q.answer() == null
-                        || ("EVALUATED".equals(q.feedbackStatus()) && scoreOf(q) < 3))
+                        || (EVALUATED_TEXT.equals(q.feedbackStatus()) && scoreOf(q) < 3))
                 .map(QuestionRow::focus).distinct().limit(8).toList();
         return new Report(average(evaluated), average(evaluated.stream().filter(q -> isTechnical(q.category())).toList()),
                 average(evaluated.stream().filter(q -> !isTechnical(q.category())).toList()), strong, weak, prepare, null);
@@ -393,7 +395,7 @@ public class InterviewService {
     }
 
     private static QuestionResponse question(QuestionRow q, String note) {
-        Feedback feedback = "EVALUATED".equals(q.feedbackStatus())
+        Feedback feedback = EVALUATED_TEXT.equals(q.feedbackStatus())
                 ? new Feedback(q.relevance(), q.completeness(), q.clarity(), q.technicalCorrectness(),
                 Math.round(scoreOf(q) * 10.0) / 10.0, lines(q.strengths()), lines(q.improvements()), q.evaluatedAt(),
                 q.communication(), q.suggestedApproach())

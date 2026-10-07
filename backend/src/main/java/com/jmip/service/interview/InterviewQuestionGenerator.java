@@ -17,6 +17,12 @@ import java.util.List;
 @Component
 public class InterviewQuestionGenerator {
 
+    private static final String MIXED_TEXT = "MIXED";
+    private static final String TECHNICAL_TEXT = "TECHNICAL";
+    private static final String RESUME_TEXT = "RESUME";
+    private static final String BEHAVIORAL_TEXT = "BEHAVIORAL";
+    private static final String THE_POSTING_LISTS = "The posting lists ";
+
     static final int MAX_QUESTIONS = 8;
     public static final int MIN_COUNT = 3;
     public static final int MAX_COUNT = 10;
@@ -32,7 +38,7 @@ public class InterviewQuestionGenerator {
      * @param count      how many questions; absent keeps the V8.7 set for MIXED and six otherwise
      */
     public record Setup(String type, String difficulty, Integer count) {
-        public static final Setup DEFAULT = new Setup("MIXED", "MEDIUM", null);
+        public static final Setup DEFAULT = new Setup(MIXED_TEXT, "MEDIUM", null);
     }
 
     private static final List<String> BEHAVIORAL_BANK = List.of(
@@ -62,21 +68,21 @@ public class InterviewQuestionGenerator {
         String difficulty = setup.difficulty() == null ? "MEDIUM" : setup.difficulty();
         List<Question> technical = technical(difficulty, jobTitle, matched, missing, resumeOnly, terms, hasResume);
         List<Question> behavioral = behavioral(difficulty, jobTitle, company, terms, experience);
-        String type = setup.type() == null ? "MIXED" : setup.type();
+        String type = setup.type() == null ? MIXED_TEXT : setup.type();
 
-        if ("MIXED".equals(type) && setup.count() == null) {
+        if (MIXED_TEXT.equals(type) && setup.count() == null) {
             // The V8.7 order: up to three skill questions, the role, the resume, then two behavioral.
-            List<Question> questions = new ArrayList<>(technical.stream().filter(q -> "TECHNICAL".equals(q.category()))
+            List<Question> questions = new ArrayList<>(technical.stream().filter(q -> TECHNICAL_TEXT.equals(q.category()))
                     .limit(technicalLimit(matched, missing, hasResume, terms)).toList());
             behavioral.stream().filter(q -> "ROLE".equals(q.category())).forEach(questions::add);
-            technical.stream().filter(q -> "RESUME".equals(q.category())).forEach(questions::add);
-            behavioral.stream().filter(q -> "BEHAVIORAL".equals(q.category())).limit(2).forEach(questions::add);
+            technical.stream().filter(q -> RESUME_TEXT.equals(q.category())).forEach(questions::add);
+            behavioral.stream().filter(q -> BEHAVIORAL_TEXT.equals(q.category())).limit(2).forEach(questions::add);
             return questions.size() <= MAX_QUESTIONS ? questions : questions.subList(0, MAX_QUESTIONS);
         }
         int count = Math.max(MIN_COUNT, Math.min(MAX_COUNT, setup.count() == null ? DEFAULT_COUNT : setup.count()));
         return switch (type) {
-            case "TECHNICAL" -> technical.subList(0, Math.min(count, technical.size()));
-            case "BEHAVIORAL" -> behavioral.subList(0, Math.min(count, behavioral.size()));
+            case TECHNICAL_TEXT -> technical.subList(0, Math.min(count, technical.size()));
+            case BEHAVIORAL_TEXT -> behavioral.subList(0, Math.min(count, behavioral.size()));
             default -> interleave(technical, behavioral, count);
         };
     }
@@ -111,19 +117,19 @@ public class InterviewQuestionGenerator {
             missing.forEach(skill -> questions.add(neutralSkill(skill, difficulty)));
         }
         if (!terms.isEmpty()) {
-            questions.add(new Question("TECHNICAL", deeper("The posting mentions " + terms.get(0) + ". What does good work in "
+            questions.add(new Question(TECHNICAL_TEXT, deeper("The posting mentions " + terms.get(0) + ". What does good work in "
                     + "that area look like to you, and how have you done it?", difficulty), terms.get(0)));
         }
         if (!resumeOnly.isEmpty()) {
             String skill = resumeOnly.get(0);
-            questions.add(new Question("RESUME", "Your resume lists " + skill + ", which this posting does not ask for. "
+            questions.add(new Question(RESUME_TEXT, "Your resume lists " + skill + ", which this posting does not ask for. "
                     + "How would that experience still help you in this role?", skill));
         } else if (hasResume) {
-            questions.add(new Question("RESUME", "Pick the piece of work on your resume that is most relevant to this role "
+            questions.add(new Question(RESUME_TEXT, "Pick the piece of work on your resume that is most relevant to this role "
                     + "and walk through it: your part, the decisions you made and the outcome.", null));
         }
         if (questions.isEmpty()) {
-            questions.add(new Question("TECHNICAL", deeper("Walk through how you would approach the main technical work of a "
+            questions.add(new Question(TECHNICAL_TEXT, deeper("Walk through how you would approach the main technical work of a "
                     + jobTitle + ": where you would start and how you would check it works.", difficulty), null));
         }
         return questions;
@@ -144,7 +150,7 @@ public class InterviewQuestionGenerator {
             questions.add(new Question("ROLE", "The posting asks for " + experience + " of experience. Which of your roles "
                     + "best shows you are ready for this level, and why?", null));
         }
-        List<Question> bank = BEHAVIORAL_BANK.stream().map(text -> new Question("BEHAVIORAL",
+        List<Question> bank = BEHAVIORAL_BANK.stream().map(text -> new Question(BEHAVIORAL_TEXT,
                 "HARD".equals(difficulty) ? text + " Looking back, what would you do differently?" : text, null)).toList();
         return interleave(questions, bank, questions.size() + bank.size());
     }
@@ -170,24 +176,24 @@ public class InterviewQuestionGenerator {
                 + " for, and why was it a good fit?"
                 : deeper("This role asks for " + skill + ", which is on your resume. Describe a specific problem you solved with "
                 + skill + ": the situation, what you did and the result.", difficulty);
-        return new Question("TECHNICAL", text, skill);
+        return new Question(TECHNICAL_TEXT, text, skill);
     }
 
     private static Question missingSkill(String skill, String difficulty) {
         String text = "EASY".equals(difficulty)
-                ? "The posting lists " + skill + ", which your resume does not mention. What do you know about it, "
+                ? THE_POSTING_LISTS + skill + ", which your resume does not mention. What do you know about it, "
                 + "and how would you start learning it?"
-                : deeper("The posting lists " + skill + ", which your resume does not mention. If you have used it, explain how; "
+                : deeper(THE_POSTING_LISTS + skill + ", which your resume does not mention. If you have used it, explain how; "
                 + "if not, say honestly how you would get up to speed and which related experience would help.", difficulty);
-        return new Question("TECHNICAL", text, skill);
+        return new Question(TECHNICAL_TEXT, text, skill);
     }
 
     private static Question neutralSkill(String skill, String difficulty) {
         String text = "EASY".equals(difficulty)
-                ? "The posting lists " + skill + ". What have you used it for?"
-                : deeper("The posting lists " + skill + ". How have you used it, and what should an interviewer know about "
+                ? THE_POSTING_LISTS + skill + ". What have you used it for?"
+                : deeper(THE_POSTING_LISTS + skill + ". How have you used it, and what should an interviewer know about "
                 + "your level?", difficulty);
-        return new Question("TECHNICAL", text, skill);
+        return new Question(TECHNICAL_TEXT, text, skill);
     }
 
     /** HARD questions also ask for trade-offs, risks and how the result was measured. */

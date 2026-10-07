@@ -27,6 +27,8 @@ import java.util.Set;
  */
 public class CsvJobRecordReader implements ItemStreamReader<RawJobRecord> {
 
+    private static final String STATUS = "status";
+
     private static final Map<String, List<String>> COLUMN_ALIASES = Map.ofEntries(
             Map.entry("title", List.of("title", "jobtitle", "position", "name")),
             Map.entry("company", List.of("company", "companyname", "employer", "organization")),
@@ -41,7 +43,7 @@ public class CsvJobRecordReader implements ItemStreamReader<RawJobRecord> {
             Map.entry("source", List.of("source", "site", "board")),
             Map.entry("sourceJobId", List.of("sourcejobid", "jobid", "externalid", "postingid")),
             Map.entry("expiresAt", List.of("expiresat", "expirydate", "expires", "validthrough", "closingdate")),
-            Map.entry("status", List.of("status", "jobstatus", "postingstatus")),
+            Map.entry(STATUS, List.of(STATUS, "jobstatus", "postingstatus")),
             Map.entry("sourceUrl", List.of("sourceurl", "url", "link", "joburl")));
 
     private final Path file;
@@ -101,7 +103,7 @@ public class CsvJobRecordReader implements ItemStreamReader<RawJobRecord> {
                 value(row, "sourceUrl"),
                 value(row, "sourceJobId"),
                 value(row, "expiresAt"),
-                value(row, "status"));
+                value(row, STATUS));
     }
 
     @Override

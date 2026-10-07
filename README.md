@@ -1,4 +1,5 @@
 # Job Market Intelligence Platform (JMIP)
+- [x] V10.9 — Test & quality: API client session/CSRF/401 tests, alert email sender, ETL CSV reader/location/employment-type tests; Sonar High issues fixed (23 duplicated literals, 2 frontend complexity)
 
 Analytics over job postings: job demand, skill demand and trends, companies, locations,
 experience requirements and salary, plus job search and filtering.
